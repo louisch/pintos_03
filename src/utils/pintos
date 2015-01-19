@@ -618,7 +618,7 @@ sub run_qemu {
       if $vga eq 'terminal';
     print "warning: qemu doesn't support jitter\n"
       if defined $jitter;
-    my (@cmd) = ('qemu');
+    my (@cmd) = ('qemu-system-x86_64');
     push (@cmd, '-hda', $disks[0]) if defined $disks[0];
     push (@cmd, '-hdb', $disks[1]) if defined $disks[1];
     push (@cmd, '-hdc', $disks[2]) if defined $disks[2];
@@ -811,7 +811,6 @@ sub xsystem {
 	local $SIG{INT} = sub { relay_signal ($pid, "INT", $cleanup); };
 	local $SIG{TERM} = sub { relay_signal ($pid, "TERM", $cleanup); };
 	alarm ($timeout * get_load_average () + 1) if defined ($timeout);
-
 	if ($kill_on_failure) {
 	    # Filter output.
 	    my ($buf) = "";
@@ -847,7 +846,7 @@ sub xsystem {
 		}
 	    }
 	} else {
-	    waitpid ($pid, 0);
+	    waitpid ($pid, 0); 
 	}
 	alarm (0);
 	&$cleanup ();
