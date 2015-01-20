@@ -1,8 +1,14 @@
 @enumerate  
 
-@item Which Git command should you run to retrieve a copy of your group's shared Pintos repository in your local directory? 
-@tex 
-  \hfill {\bf (1~mark)} 
+@item Which Git command should you run to retrieve a copy of your group's shared Pintos repository in your local directory?
+
+git clone git@gitlab.doc.ic.ac.uk:lab1415_spring/pintos_03.git
+
+or
+
+git clone https://gitlab.doc.ic.ac.uk/lab1415_spring/pintos_03.git
+@tex
+  \hfill {\bf (1~mark)}
 @end tex
 
 @item Why is using the strcpy() function to copy strings usually a bad idea?
