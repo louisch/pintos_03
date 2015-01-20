@@ -13,6 +13,20 @@
 
 @item Explain how thread scheduling in Pintos currently works in less than 300 words. Include the chain of execution of function calls. 
 (@dfn{Hint: we expect you to at least mention which functions participate in a context switch, how they interact, how and when the thread state is modified and the role of interrupts.})
+
+thread_block() sets the current thread to THREAD_BLOCKED and then calls schedule() to switch threads.
+thread_yield() sets the current thread to THREAD_READY adding it to the end of the queue (ready_queue) and then calls schedule() to switch threads. 
+thread_exit() sets the current thread to THREAD_DYING and then calls schedule() which then kills the current thread.
+
+When schedule() is called it gets the currently running thread using running_thread() and the next thread to run using next_thread_to_run().
+
+The function then asserts that the interrupts have been turned off via the function intr_get_level(). It checks that the current thread has been set to a status which is not THREAD_RUNNING, before then asserting that the next thread to run is valid using is_thread().
+
+If the next thread is not equal to the current thread. It switches to it using switch_threads() and sets previous to the current thread. 
+Finally, thread_schedule_tail() is called on previous.
+
+thread_schedule_tail() finishes the switch by setting the current thread's status to THREAD_RUNNING and killing the previous thread if its status is THREAD_DYING.
+
 @tex 
   \hfill {\bf (6~marks)}
 @end tex
