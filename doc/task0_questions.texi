@@ -1,4 +1,4 @@
-@enumerate  
+@enumerate
 
 @item Which Git command should you run to retrieve a copy of your group's shared Pintos repository in your local directory?
 
@@ -12,33 +12,48 @@ git clone https://gitlab.doc.ic.ac.uk/lab1415_spring/pintos_03.git
 @end tex
 
 @item Why is using the strcpy() function to copy strings usually a bad idea?
-(@dfn{Hint: identify the problem, give details and discuss possible solutions.}) 
-@tex 
+(@dfn{Hint: identify the problem, give details and discuss possible solutions.})
+
+strcpy(dst, src) can cause a buffer overflow. This happens if dst has less space
+allocated to it than the size of src.
+
+Furthermore, while strcpy() expects src to be nul-terminated, it does not
+actually check that it is and continues to copy bytes until it either finds a
+nul-terminator (resulting in an out-of-bounds read and potentially leading to a
+buffer overflow) or runs out of memory, leading to segmentation faults.
+
+This can be solved by checking the size of dst before using strcpy every
+time and systematically making sure that src is nul-terminated by inserting
+a nul-termiator into the string.
+
+Alternatively, strlcpy can also be used which requires the programmer to pass
+in the size of dst, and performs this check internally.
+@tex
   \hfill {\bf (2~marks)}
 @end tex
 
-@item Explain how thread scheduling in Pintos currently works in less than 300 words. Include the chain of execution of function calls. 
+@item Explain how thread scheduling in Pintos currently works in less than 300 words. Include the chain of execution of function calls.
 (@dfn{Hint: we expect you to at least mention which functions participate in a context switch, how they interact, how and when the thread state is modified and the role of interrupts.})
 
 thread_block() sets the current thread to THREAD_BLOCKED and then calls schedule() to switch threads.
-thread_yield() sets the current thread to THREAD_READY adding it to the end of the queue (ready_queue) and then calls schedule() to switch threads. 
+thread_yield() sets the current thread to THREAD_READY adding it to the end of the queue (ready_queue) and then calls schedule() to switch threads.
 thread_exit() sets the current thread to THREAD_DYING and then calls schedule() which then kills the current thread.
 
 When schedule() is called it gets the currently running thread using running_thread() and the next thread to run using next_thread_to_run().
 
 The function then asserts that the interrupts have been turned off via the function intr_get_level(). It checks that the current thread has been set to a status which is not THREAD_RUNNING, before then asserting that the next thread to run is valid using is_thread().
 
-If the next thread is not equal to the current thread. It switches to it using switch_threads() and sets previous to the current thread. 
+If the next thread is not equal to the current thread. It switches to it using switch_threads() and sets previous to the current thread.
 Finally, thread_schedule_tail() is called on previous.
 
 thread_schedule_tail() finishes the switch by setting the current thread's status to THREAD_RUNNING and killing the previous thread if its status is THREAD_DYING.
 
-@tex 
+@tex
   \hfill {\bf (6~marks)}
 @end tex
 
 @item Explain the property of reproducibility and how the lack of reproducibility will affect debugging.
-@tex 
+@tex
   \hfill {\bf (2~marks)}
 @end tex
 
@@ -50,9 +65,9 @@ However, in certain cases, notably in multi-threading, errors arise from events 
 In theory, it is impossible to guarantee with tests alone that such bugs do not exist or have been corrected accordingly in a program, as they will not necessarily surface during the tests.
 Overall, lack of reproducibility leads to longer debugging times as just running the test suite once is no longer enough to ensure that the code is bug free and other measures, such as stress testing or formal models need to be used.
 
-@item How would you print an unsigned 64 bit @code{int}? 
+@item How would you print an unsigned 64 bit @code{int}?
 (Consider that you are working with C99). Don't forget to state any inclusions needed by your code.
-@tex 
+@tex
   \hfill {\bf (2~marks)}
 @end tex
 
@@ -74,7 +89,7 @@ printf("%"PRId64, var);
 @end verbatim
 
 @item Describe the data structures and functions that locks and semaphores in Pintos have in common. What extra property do locks have that semaphores do not?
-@tex 
+@tex
   \hfill {\bf (3~marks)}
 @end tex
 
@@ -94,17 +109,17 @@ pintos_03/src/devices/build/tests/devices/alarm-multiple.result
   \hfill {\bf (1~mark)}
 @end tex
 
-@item 
+@item
 Reimplement @code{timer_sleep()}, defined in @file{devices/timer.c}.
 @tex
   \hfill {\bf (20~marks)}
 @end tex
 
-Although a working implementation of @code{timer_sleep} is provided, it "busy waits", that is, it spins in a loop checking the current time and calling @code{thread_yield()} until enough time has gone by. 
-Reimplement it to avoid busy waiting (@b{10 marks}). 
+Although a working implementation of @code{timer_sleep} is provided, it "busy waits", that is, it spins in a loop checking the current time and calling @code{thread_yield()} until enough time has gone by.
+Reimplement it to avoid busy waiting (@b{10 marks}).
 Further instructions and hints can be found in the Pintos manual.
 
-You also need to provide a design document which answers the following questions:  
+You also need to provide a design document which answers the following questions:
 
 @itemize @w{}
 @item @b{Data Structures}
@@ -114,7 +129,7 @@ A1: (@b{2 marks}) Copy here the declaration of each new or changed `@code{struct
 @item @b{Algorithms}
 
 A2: (@b{2 marks}) Briefly describe what happens in a call to @code{timer_sleep()}, including the actions performed by the timer interrupt handler on each timer tick.
- 
+
 A3: (@b{2 marks}) What steps are taken to minimize the amount of time spent in the timer interrupt handler?
 
 @item @b{Synchronization}
@@ -125,7 +140,7 @@ A5: (@b{1 mark}) How are race conditions avoided when a timer interrupt occurs d
 
 @item @b{Rationale}
 
-A6: (@b{2 marks}) Why did you choose this design?  
+A6: (@b{2 marks}) Why did you choose this design?
 In what ways is it superior to another design you considered?
 
 @end itemize
