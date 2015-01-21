@@ -36,11 +36,36 @@ thread_schedule_tail() finishes the switch by setting the current thread's statu
   \hfill {\bf (2~marks)}
 @end tex
 
+In debugging, the reproducibility of an error refers to the ability to successfully reproduce the given error given a certain set of input.
+
+Naturally, in the ideal case, one would be able to reproduce an error every time by following specific steps.
+However, in certain cases, notably in multi-threading, errors arise from events that are not fully dependant on user input.
+
+In theory, it is impossible to guarantee with tests alone that such bugs do not exist or have been corrected accordingly in a program, as they will not necessarily surface during the tests.
+Overall, lack of reproducibility leads to longer debugging times as just running the test suite once is no longer enough to ensure that the code is bug free and other measures, such as stress testing or formal models need to be used.
+
 @item How would you print an unsigned 64 bit @code{int}? 
 (Consider that you are working with C99). Don't forget to state any inclusions needed by your code.
 @tex 
   \hfill {\bf (2~marks)}
 @end tex
+
+The code would look something like this:
+@verbatim
+/* necessary inclusions */
+#include <stdint.h>;
+#include <inttypes.h>;
+
+/* variable declaration */
+uint64_t var = xxx;
+
+/*
+ * print statement
+ * several formats are available, for instance:
+ * decimal (PRId64), octal (PRIo64), hexadecimal (PRIx64).
+ */
+printf("%"PRId64, var);
+@end verbatim
 
 @item Describe the data structures and functions that locks and semaphores in Pintos have in common. What extra property do locks have that semaphores do not?
 @tex 
