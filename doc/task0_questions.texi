@@ -17,36 +17,50 @@ git clone https://gitlab.doc.ic.ac.uk/lab1415_spring/pintos_03.git
 strcpy(dst, src) can cause a buffer overflow. This happens if dst has less space
 allocated to it than the size of src.
 
-Furthermore, while strcpy() expects src to be nul-terminated, it does not
+Furthermore, while strcpy() expects src to be NUL-terminated, it does not
 actually check that it is and continues to copy bytes until it either finds a
-nul-terminator (resulting in an out-of-bounds read and potentially leading to a
+NUL-terminator (resulting in an out-of-bounds read and potentially leading to a
 buffer overflow) or runs out of memory, leading to segmentation faults.
 
-This can be solved by checking the size of dst before using strcpy every
-time and systematically making sure that src is nul-terminated by inserting
-a nul-termiator into the string.
+This can be solved by checking the size of dst before using strcpy every time
+and systematically making sure that src is NUL-terminated by inserting a
+NUL-terminator into the string.
 
-Alternatively, strlcpy can also be used which requires the programmer to pass
-in the size of dst, and performs this check internally.
+Alternatively, strlcpy can also be used which requires the programmer to pass in
+the size of dst, and performs this check internally.
 @tex
   \hfill {\bf (2~marks)}
 @end tex
 
 @item Explain how thread scheduling in Pintos currently works in less than 300 words. Include the chain of execution of function calls.
-(@dfn{Hint: we expect you to at least mention which functions participate in a context switch, how they interact, how and when the thread state is modified and the role of interrupts.})
+(@dfn{Hint: we expect you to at least mention which functions participate in a
+context switch, how they interact, how and when the thread state is modified and
+the role of interrupts.})
 
-thread_block() sets the current thread to THREAD_BLOCKED and then calls schedule() to switch threads.
-thread_yield() sets the current thread to THREAD_READY adding it to the end of the queue (ready_queue) and then calls schedule() to switch threads.
-thread_exit() sets the current thread to THREAD_DYING and then calls schedule() which then kills the current thread.
+thread_block() sets the current thread to THREAD_BLOCKED and then calls
+schedule() to switch threads.
 
-When schedule() is called it gets the currently running thread using running_thread() and the next thread to run using next_thread_to_run().
+thread_yield() sets the current thread to THREAD_READY adding it to the end of
+the queue (ready_queue) and then calls schedule() to switch threads.
 
-The function then asserts that the interrupts have been turned off via the function intr_get_level(). It checks that the current thread has been set to a status which is not THREAD_RUNNING, before then asserting that the next thread to run is valid using is_thread().
+thread_exit() sets the current thread to THREAD_DYING and then calls schedule()
+which then kills the current thread.
 
-If the next thread is not equal to the current thread. It switches to it using switch_threads() and sets previous to the current thread.
-Finally, thread_schedule_tail() is called on previous.
+When schedule() is called it gets the currently running thread using
+running_thread() and the next thread to run using next_thread_to_run().
 
-thread_schedule_tail() finishes the switch by setting the current thread's status to THREAD_RUNNING and killing the previous thread if its status is THREAD_DYING.
+The function then asserts that the interrupts have been turned off via the
+function intr_get_level(). It checks that the current thread has been set to a
+status which is not THREAD_RUNNING, before then asserting that the next thread
+to run is valid using is_thread().
+
+If the next thread is not equal to the current thread. It switches to it using
+switch_threads() and sets previous to the current thread.  Finally,
+thread_schedule_tail() is called on previous.
+
+thread_schedule_tail() finishes the switch by setting the current thread's
+status to THREAD_RUNNING and killing the previous thread if its status is
+THREAD_DYING.
 
 @tex
   \hfill {\bf (6~marks)}
@@ -57,35 +71,36 @@ thread_schedule_tail() finishes the switch by setting the current thread's statu
   \hfill {\bf (2~marks)}
 @end tex
 
-In debugging, the reproducibility of an error refers to the ability to successfully reproduce the given error given a certain set of input.
+In debugging, the reproducibility of an error refers to the ability to
+successfully reproduce the given error given a certain set of input.
 
-Naturally, in the ideal case, one would be able to reproduce an error every time by following specific steps.
-However, in certain cases, notably in multi-threading, errors arise from events that are not fully dependant on user input.
+Naturally, in the ideal case, one would be able to reproduce an error every time
+by following specific steps.  However, in certain cases, notably in
+multi-threading, errors arise from events that are not fully dependant on user
+input.
 
-In theory, it is impossible to guarantee with tests alone that such bugs do not exist or have been corrected accordingly in a program, as they will not necessarily surface during the tests.
-Overall, lack of reproducibility leads to longer debugging times as just running the test suite once is no longer enough to ensure that the code is bug free and other measures, such as stress testing or formal models need to be used.
+In theory, it is impossible to guarantee with tests alone that such bugs do not
+exist or have been corrected accordingly in a program, as they will not
+necessarily surface during the tests.  Overall, lack of reproducibility leads to
+longer debugging times as just running the test suite once is no longer enough
+to ensure that the code is bug free and other measures, such as stress testing
+or formal models need to be used.
 
 @item How would you print an unsigned 64 bit @code{int}?
-(Consider that you are working with C99). Don't forget to state any inclusions needed by your code.
+(Consider that you are working with C99). Don't forget to state any inclusions
+needed by your code.
 @tex
   \hfill {\bf (2~marks)}
 @end tex
 
 The code would look something like this:
 @verbatim
-/* necessary inclusions */
-#include <stdint.h>;
-#include <inttypes.h>;
+/* necessary inclusions */ #include <stdint.h>; #include <inttypes.h>;
 
-/* variable declaration */
-uint64_t var = xxx;
+/* variable declaration */ uint64_t var = xxx;
 
-/*
- * print statement
- * several formats are available, for instance:
- * decimal (PRId64), octal (PRIo64), hexadecimal (PRIx64).
- */
-printf("%"PRId64, var);
+/* * print statement * several formats are available, for instance: * decimal
+(PRId64), octal (PRIo64), hexadecimal (PRIx64).  */ printf("%"PRId64, var);
 @end verbatim
 
 @item Describe the data structures and functions that locks and semaphores in Pintos have in common. What extra property do locks have that semaphores do not?
@@ -95,7 +110,18 @@ printf("%"PRId64, var);
 
 @item In Pintos, a thread is characterized by a struct and an execution stack. What are the limitations on the size of these data structures? Explain how this relates to stack overflow and how Pintos identifies it.
 
-The struct and execution stack are stored in their own 4 kB page with the stack located above the struct. The size of the execution stack is restricted by the struct (size of execution stack = 4kB - execution stack). The size of the struct should remain at a minimum to allow the stack as much space as possible to grow. The smaller the stack the greater probability of a stack overflow. Pintos detects these by checking whether the 'magic' member of the running thread's 'struct thread' has changed from THREAD_MAGIC. The 'magic' member is located at the bottom of the struct and therefore will be the first data member to be overwritten by the stack overflow.
+The struct and execution stack are stored in their own 4 kB page with the stack
+located above the struct. The size of the execution stack is restricted by the
+struct (size of execution stack = 4kB - execution stack).
+
+The size of the struct should remain at a minimum to allow the stack as much
+space as possible to grow.The smaller the stack the greater probability of a
+stack overflow.
+
+Pintos detects stack overflows by checking whether the 'magic' member of the
+running thread's 'struct thread' has changed from THREAD_MAGIC. The 'magic'
+member is located at the bottom of the struct and therefore will be the first
+data member to be overwritten by the stack overflow.
 
 @tex
   \hfill {\bf (3~marks)}
@@ -115,33 +141,44 @@ Reimplement @code{timer_sleep()}, defined in @file{devices/timer.c}.
   \hfill {\bf (20~marks)}
 @end tex
 
-Although a working implementation of @code{timer_sleep} is provided, it "busy waits", that is, it spins in a loop checking the current time and calling @code{thread_yield()} until enough time has gone by.
-Reimplement it to avoid busy waiting (@b{10 marks}).
-Further instructions and hints can be found in the Pintos manual.
+Although a working implementation of @code{timer_sleep} is provided, it "busy
+waits", that is, it spins in a loop checking the current time and calling
+@code{thread_yield()} until enough time has gone by.  Reimplement it to avoid
+busy waiting (@b{10 marks}).  Further instructions and hints can be found in the
+Pintos manual.
 
-You also need to provide a design document which answers the following questions:
+You also need to provide a design document which answers the following
+questions:
 
 @itemize @w{}
 @item @b{Data Structures}
 
-A1: (@b{2 marks}) Copy here the declaration of each new or changed `@code{struct}' or `@code{struct}' member, global or static variable, `@code{typedef}', or enumeration. Identify the purpose of each in 25 words or less.
+A1: (@b{2 marks}) Copy here the declaration of each new or changed
+`@code{struct}' or `@code{struct}' member, global or static variable,
+`@code{typedef}', or enumeration. Identify the purpose of each in 25 words or
+less.
 
 @item @b{Algorithms}
 
-A2: (@b{2 marks}) Briefly describe what happens in a call to @code{timer_sleep()}, including the actions performed by the timer interrupt handler on each timer tick.
+A2: (@b{2 marks}) Briefly describe what happens in a call to
+@code{timer_sleep()}, including the actions performed by the timer interrupt
+handler on each timer tick.
 
-A3: (@b{2 marks}) What steps are taken to minimize the amount of time spent in the timer interrupt handler?
+A3: (@b{2 marks}) What steps are taken to minimize the amount of time spent in
+the timer interrupt handler?
 
 @item @b{Synchronization}
 
-A4: (@b{1 mark}) How are race conditions avoided when multiple threads call @code{timer_sleep()} simultaneously?
+A4: (@b{1 mark}) How are race conditions avoided when multiple threads call
+@code{timer_sleep()} simultaneously?
 
-A5: (@b{1 mark}) How are race conditions avoided when a timer interrupt occurs during a call to @code{timer_sleep()}?
+A5: (@b{1 mark}) How are race conditions avoided when a timer interrupt occurs
+during a call to @code{timer_sleep()}?
 
 @item @b{Rationale}
 
-A6: (@b{2 marks}) Why did you choose this design?
-In what ways is it superior to another design you considered?
+A6: (@b{2 marks}) Why did you choose this design?  In what ways is it superior
+to another design you considered?
 
 @end itemize
 
