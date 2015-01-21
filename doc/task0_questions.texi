@@ -49,18 +49,20 @@ which then kills the current thread.
 When schedule() is called it gets the currently running thread using
 running_thread() and the next thread to run using next_thread_to_run().
 
-The function then asserts that the interrupts have been turned off via the
-function intr_get_level(). It checks that the current thread has been set to a
-status which is not THREAD_RUNNING, before then asserting that the next thread
-to run is valid using is_thread().
+Interrupts must be turned off when switching threads. The function asserts this
+via the function intr_get_level().
+
+It checks that the current thread has been set to a status which is not
+THREAD_RUNNING, before then asserting that the next thread to run is valid using
+is_thread().
 
 If the next thread is not equal to the current thread. It switches to it using
-switch_threads() and sets previous to the current thread.  Finally,
+switch_threads() and sets the variable previous to the current thread. Finally,
 thread_schedule_tail() is called on previous.
 
-thread_schedule_tail() finishes the switch by setting the current thread's
-status to THREAD_RUNNING and killing the previous thread if its status is
-THREAD_DYING.
+thread_schedule_tail() finishes the switch, performing several tasks to complete
+it. If a switch happened, and the previously current thread has status
+THREAD_DYING, then it is here that it gets killed properly.
 
 @tex
   \hfill {\bf (6~marks)}
@@ -75,13 +77,13 @@ In debugging, the reproducibility of an error refers to the ability to
 successfully reproduce the given error given a certain set of input.
 
 Naturally, in the ideal case, one would be able to reproduce an error every time
-by following specific steps.  However, in certain cases, notably in
+by following specific steps. However, in certain cases, notably in
 multi-threading, errors arise from events that are not fully dependant on user
 input.
 
 In theory, it is impossible to guarantee with tests alone that such bugs do not
 exist or have been corrected accordingly in a program, as they will not
-necessarily surface during the tests.  Overall, lack of reproducibility leads to
+necessarily surface during the tests. Overall, lack of reproducibility leads to
 longer debugging times as just running the test suite once is no longer enough
 to ensure that the code is bug free and other measures, such as stress testing
 or formal models need to be used.
@@ -100,7 +102,7 @@ The code would look something like this:
 /* variable declaration */ uint64_t var = xxx;
 
 /* * print statement * several formats are available, for instance: * decimal
-(PRId64), octal (PRIo64), hexadecimal (PRIx64).  */ printf("%"PRId64, var);
+(PRId64), octal (PRIo64), hexadecimal (PRIx64). */ printf("%"PRId64, var);
 @end verbatim
 
 @item Describe the data structures and functions that locks and semaphores in Pintos have in common. What extra property do locks have that semaphores do not?
@@ -143,8 +145,8 @@ Reimplement @code{timer_sleep()}, defined in @file{devices/timer.c}.
 
 Although a working implementation of @code{timer_sleep} is provided, it "busy
 waits", that is, it spins in a loop checking the current time and calling
-@code{thread_yield()} until enough time has gone by.  Reimplement it to avoid
-busy waiting (@b{10 marks}).  Further instructions and hints can be found in the
+@code{thread_yield()} until enough time has gone by. Reimplement it to avoid
+busy waiting (@b{10 marks}). Further instructions and hints can be found in the
 Pintos manual.
 
 You also need to provide a design document which answers the following
@@ -177,8 +179,8 @@ during a call to @code{timer_sleep()}?
 
 @item @b{Rationale}
 
-A6: (@b{2 marks}) Why did you choose this design?  In what ways is it superior
-to another design you considered?
+A6: (@b{2 marks}) Why did you choose this design? In what ways is it superior to
+another design you considered?
 
 @end itemize
 
