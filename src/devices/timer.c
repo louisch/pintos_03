@@ -98,11 +98,9 @@ void
 timer_sleep (int64_t ticks) 
 {
   ASSERT (intr_get_level () == INTR_ON);
+  /* Disable interrupts for safety reasons. */
+  enum intr_level old_level = intr_disable ();
 
-  // This disables interrupts as a side effect:
-  enum intr_level old_level = intr_disable();
-
-  //create waiting thread struct
   struct thread *t = thread_current ();
   t->sleep_time = ticks;
   list_push_back (&sleepy_threads, &(t->sleepy_elem));
@@ -201,7 +199,6 @@ static void
 timer_wake_threads (void)
 {
   struct list_elem *e = list_begin (&sleepy_threads);
-  struct list_elem *d;
 
   /* Disables interrupts for list concurrency */
   enum intr_level old_level = intr_disable();
@@ -209,22 +206,16 @@ timer_wake_threads (void)
   while (e != list_end (&sleepy_threads))
   {
     struct thread *t = list_entry (e, struct thread, sleepy_elem);
-    (t->sleep_time)--;
 
     /* Checks if thread is out of time and wakes it. */
-    if (t->sleep_time <= 0)
+    if (--t->sleep_time <= 0)
     {
+      e = list_remove (e);
       thread_unblock(t);
-      d = e;
-      e = list_next (e);
-      list_remove (d);
+      continue;
     }
-    else
-    {
       e = list_next (e);
-    }
   }
-
   intr_set_level (old_level);
 }
 
