@@ -1,9 +1,11 @@
-#include "devices/timer.h"
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
+
 #include "devices/pit.h"
+#include "devices/timer.h"
+#include "lib/kernel/list.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
@@ -30,13 +32,19 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+static void timer_wake_threads (void);
+
+static struct list sleepy_threads;
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
-   and registers the corresponding interrupt. */
+   and registers the corresponding interrupt. 
+   Also initialises sleeping thread list. */
 void
 timer_init (void) 
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init (&sleepy_threads);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -84,26 +92,23 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-struct thread *t;
-int slep_for;
-
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
-  // int64_t start = timer_ticks ();
-
   ASSERT (intr_get_level () == INTR_ON);
-  // while (timer_elapsed (start) < ticks) 
-    // thread_yield ();
-  enum intr_level old_level = intr_disable(); // disables interrupts as a side effect
-  t = thread_current();
-  slep_for = ticks;
 
-  printf("I am about to blocked %d\n", thread_tid());
-  thread_block();
-  intr_set_level(old_level);
+  // This disables interrupts as a side effect:
+  enum intr_level old_level = intr_disable();
+
+  //create waiting thread struct
+  struct thread *t = thread_current ();
+  t->sleep_time = ticks;
+  list_push_back (&sleepy_threads, &(t->sleepy_elem));
+
+  thread_block ();
+  intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -181,15 +186,46 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  thread_tick ();
 
-  if (t != NULL && --slep_for <= 0)
+  /* Sleeping thread handler. */
+  if (!list_empty (&sleepy_threads))
   {
-    printf("I am about to UNblocked %d\n", t->tid);
-    thread_unblock(t);
-    t = NULL;
+    timer_wake_threads();
+  }
+}
+
+/* Traverserses list of sleeping threads, decrements their sleep timers,
+   and wakes up threads that are out of time. */
+static void
+timer_wake_threads (void)
+{
+  struct list_elem *e = list_begin (&sleepy_threads);
+  struct list_elem *d;
+
+  /* Disables interrupts for list concurrency */
+  enum intr_level old_level = intr_disable();
+
+  while (e != list_end (&sleepy_threads))
+  {
+    struct thread *t = list_entry (e, struct thread, sleepy_elem);
+    (t->sleep_time)--;
+
+    /* Checks if thread is out of time and wakes it. */
+    if (t->sleep_time <= 0)
+    {
+      thread_unblock(t);
+      d = e;
+      e = list_next (e);
+      list_remove (d);
+    }
+    else
+    {
+      e = list_next (e);
+    }
   }
 
-  thread_tick ();
+  intr_set_level (old_level);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
