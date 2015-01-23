@@ -1,3 +1,5 @@
+use tests::tests;
+
 sub check_alarm {
     my ($iterations) = @_;
     our ($test);
