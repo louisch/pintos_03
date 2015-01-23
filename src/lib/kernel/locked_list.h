@@ -17,16 +17,7 @@ struct locked_list
     struct lock lock;
   };
 
-/* Locked list function counter parts. */
-typedef struct list_elem *(*list_elem_getter)(struct list *);
-
-/* Takes a getter function and applies it to the list inside locked_list. */
-struct list_elem *locked_list_get_elem(struct locked_list *locked_list,
-                                     list_elem_getter getter);
-
-void locked_list_init(struct locked_list *locked_list);
 void locked_list_push_back(struct locked_list *locked_list,
                            struct list_elem *list_elem);
-bool locked_list_empty(struct locked_list* locked_list);
 
 #endif
