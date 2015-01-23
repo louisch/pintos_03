@@ -193,28 +193,31 @@ timer_interrupt (struct intr_frame *args UNUSED)
   }
 }
 
-/* Traverserses list of sleeping threads, decrements their sleep timers,
+/* Traverses list of sleeping threads, decrements their sleep timers,
    and wakes up threads that are out of time. */
 static void
 timer_wake_threads (void)
 {
-  struct list_elem *e = list_begin (&sleepy_threads);
+  struct list_elem *sleepy_elem = list_begin (&sleepy_threads);
 
   /* Disables interrupts for list concurrency */
   enum intr_level old_level = intr_disable();
 
-  while (e != list_end (&sleepy_threads))
+  while (sleepy_elem != list_end (&sleepy_threads))
   {
-    struct thread *t = list_entry (e, struct thread, sleepy_elem);
+    struct thread *sleepy_thread =
+      list_entry (sleepy_elem, struct thread, sleepy_elem);
 
-    /* Checks if thread is out of time and wakes it. */
-    if (--t->sleep_time <= 0)
+    /* Checks if thread is out of time and wakes it.
+    sleep_time is decremented before checking because time has passed. */
+    (sleepy_thread->sleep_time)--;
+    if (sleepy_thread->sleep_time <= 0)
     {
-      e = list_remove (e);
-      thread_unblock(t);
+      sleepy_elem = list_remove (sleepy_elem);
+      thread_unblock(sleepy_thread);
       continue;
     }
-      e = list_next (e);
+    sleepy_elem = list_next (sleepy_elem);
   }
   intr_set_level (old_level);
 }
