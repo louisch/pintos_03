@@ -99,10 +99,11 @@ timer_sleep (int64_t ticks)
 {
   ASSERT (intr_get_level () == INTR_ON);
   /* Disable interrupts for safety reasons. */
-  enum intr_level old_level = intr_disable ();
 
   struct thread *t = thread_current ();
   t->sleep_time = ticks;
+
+  enum intr_level old_level = intr_disable ();
   list_push_back (&sleepy_threads, &(t->sleepy_elem));
 
   thread_block ();
