@@ -17,8 +17,9 @@ struct locked_list
     struct lock lock;
   };
 
-void locked_list_init(struct locked_list *locked_list);
-void locked_list_push_back(struct locked_list *locked_list,
-                           struct list_elem *list_elem);
+void locked_list_init (struct locked_list*);
+void locked_list_push_back (struct locked_list*, struct list_elem*);
+void locked_list_acquire (struct locked_list*);
+void locked_list_release (struct locked_list*);
 
 #endif

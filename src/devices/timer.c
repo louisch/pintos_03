@@ -100,15 +100,19 @@ timer_sleep (int64_t ticks)
 {
   ASSERT (intr_get_level () == INTR_ON);
 
-  /* Disable interrupts for safety reasons. */
-
   struct thread *t = thread_current ();
   t->sleep_time = ticks;
 
+  /* Locks used to synchronise access to sleepy_threads */
+
+  locked_list_acquire (&sleepy_threads);
   locked_list_push_back (&sleepy_threads, &(t->sleepy_elem));
+  locked_list_release (&sleepy_threads);
+
   enum intr_level old_level = intr_disable ();
   thread_block ();
   intr_set_level (old_level);
+
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -202,7 +206,8 @@ timer_wake_threads (void)
 {
   struct list_elem *sleepy_elem = list_begin (&(sleepy_threads.list));
 
-  /* Disables interrupts for list concurrency */
+  /* Disables interrupts for list concurrency.
+     Cannot use a lock here because the interrupt context is external. */
   enum intr_level old_level = intr_disable();
 
   while (sleepy_elem != list_end (&(sleepy_threads.list)))
