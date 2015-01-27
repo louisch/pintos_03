@@ -35,7 +35,7 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 static void timer_wake_threads (void);
 
-static struct locked_list sleepy_threads;
+static struct list sleepy_threads;
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. 
@@ -45,7 +45,7 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  locked_list_init (&sleepy_threads);
+  list_init (&sleepy_threads);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -99,17 +99,16 @@ void
 timer_sleep (int64_t ticks) 
 {
   ASSERT (intr_get_level () == INTR_ON);
+  if (ticks < 0)
+    {
+      return;
+    }
 
   struct thread *t = thread_current ();
   t->sleep_time = ticks;
 
-  /* Locks used to synchronise access to sleepy_threads */
-
-  locked_list_acquire (&sleepy_threads);
-  locked_list_push_back (&sleepy_threads, &(t->sleepy_elem));
-  locked_list_release (&sleepy_threads);
-
   enum intr_level old_level = intr_disable ();
+  list_push_back (&sleepy_threads, &(t->sleepy_elem));
   thread_block ();
   intr_set_level (old_level);
 
@@ -193,7 +192,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
   thread_tick ();
 
   /* Sleeping thread handler. */
-  if (!list_empty (&(sleepy_threads.list)))
+  if (!list_empty (&sleepy_threads))
   {
     timer_wake_threads();
   }
@@ -204,27 +203,27 @@ timer_interrupt (struct intr_frame *args UNUSED)
 static void
 timer_wake_threads (void)
 {
-  struct list_elem *sleepy_elem = list_begin (&(sleepy_threads.list));
+  struct list_elem *thread_elem = list_begin (&sleepy_threads);
 
   /* Disables interrupts for list concurrency.
      Cannot use a lock here because the interrupt context is external. */
   enum intr_level old_level = intr_disable();
 
-  while (sleepy_elem != list_end (&(sleepy_threads.list)))
+  while (thread_elem != list_end (&sleepy_threads))
   {
     struct thread *sleepy_thread =
-      list_entry (sleepy_elem, struct thread, sleepy_elem);
+      list_entry (thread_elem, struct thread, sleepy_elem);
 
     /* Checks if thread is out of time and wakes it.
     sleep_time is decremented before checking because time has passed. */
     (sleepy_thread->sleep_time)--;
     if (sleepy_thread->sleep_time <= 0)
     {
-      sleepy_elem = list_remove (sleepy_elem);
+      thread_elem = list_remove (thread_elem);
       thread_unblock(sleepy_thread);
       continue;
     }
-    sleepy_elem = list_next (sleepy_elem);
+    thread_elem = list_next (thread_elem);
   }
   intr_set_level (old_level);
 }
