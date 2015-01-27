@@ -10,7 +10,164 @@
 \maketitle
 
 \section{Answers to Questions}
-(insert questions here)
+
+\begin{enumerate}
+
+\item Which Git command should you run to retrieve a copy of your group's shared
+Pintos repository in your local directory?
+
+\emph{git clone git@gitlab.doc.ic.ac.uk:lab1415\_spring/pintos\_03.git}
+
+or
+
+\emph{git clone https://gitlab.doc.ic.ac.uk/lab1415\_spring/pintos\_03.git}
+
+\item Why is using the \emph{strcpy()} function to copy strings usually a bad
+idea?
+(\emph{Hint: identify the problem, give details and discuss possible
+solutions.})
+
+\emph{strcpy(dst, src)} can cause a buffer overflow. This happens if dst has
+less space allocated to it than the size of \emph{src}.
+
+Furthermore, while \emph{strcpy()} expects \emph{src} to be NUL-terminated, it
+does not actually check that it is and continues to copy bytes until it either
+finds a NUL-terminator (resulting in an out-of-bounds read and potentially
+leading to a buffer overflow) or runs out of memory, leading to segmentation
+faults.
+
+This can be solved by checking the size of \emph{dst} before using \emph{strcpy}
+every time and systematically making sure that \emph{src} is NUL-terminated by
+inserting a NUL-terminator into the string.
+
+Alternatively, \emph{strlcpy} can also be used which requires the programmer to
+pass in the size of dst, and performs this check internally.
+
+\item Explain how thread scheduling in Pintos currently works in less than 300
+words. Include the chain of execution of function calls.
+(\emph{Hint: we expect you to at least mention which functions participate in a
+context switch, how they interact, how and when the thread state is modified and
+the role of interrupts.})
+
+\emph{thread\_block()} sets the current thread to THREAD\_BLOCKED and then calls
+\emph{schedule()} to switch threads.
+
+\emph{thread\_yield()} sets the current thread to THREAD\_READY adding it to the
+end of the queue (\emph{ready\_queue}) and then calls \emph{schedule()} to switch
+threads.
+
+\emph{thread\_exit()} sets the current thread to THREAD\_DYING and then calls
+\emph{schedule()} which then kills the current thread.
+
+When \emph{schedule()} is called it gets the currently running thread using
+\emph{running\_thread()} and the next thread to run using
+\emph{next\_thread\_to\_run()}.
+
+Interrupts must be turned off when switching threads. The function asserts this
+via the function \emph{intr\_get\_level()}.
+
+It checks that the current thread has been set to a status which is not
+\emph{THREAD\_RUNNING}, before then asserting that the next thread to run is
+valid using \emph{is\_thread()}.
+
+If the next thread is not equal to the current thread. It switches to it using
+\emph{switch\_threads()} and sets the variable previous to the current
+thread. Finally, \emph{thread\_schedule\_tail()} is called on previous.
+
+\emph{thread\_schedule\_tail()} finishes the switch, performing several tasks to
+complete it. If a switch happened, and the previously current thread has status
+\emph{THREAD\_DYING}, then it is here that it gets killed properly.
+
+\item Explain the property of reproducibility and how the lack of
+reproducibility will affect debugging.
+
+In debugging, the reproducibility of an error refers to the ability to
+successfully reproduce the given error given a certain set of input.
+
+Naturally, in the ideal case, one would be able to reproduce an error every time
+by following specific steps. However, in certain cases, notably in
+multi-threading, errors arise from events that are not fully dependant on user
+input.
+
+In theory, it is impossible to guarantee with tests alone that such bugs do not
+exist or have been corrected accordingly in a program, as they will not
+necessarily surface during the tests. Overall, lack of reproducibility leads to
+longer debugging times as just running the test suite once is no longer enough
+to ensure that the code is bug free and other measures, such as stress testing
+or formal models need to be used.
+
+\item How would you print an unsigned 64 bit \emph{int}?
+(Consider that you are working with C99). Don't forget to state any inclusions
+needed by your code.
+
+The code would look something like this:
+
+\begin{verbatim}
+/* necessary inclusions */
+#include <stdint.h>;
+#include <inttypes.h>;
+
+/* variable declaration */
+uint64_t var = xxx;
+
+/*
+ * print statement
+ * several formats are available, for instance:
+ * decimal (PRId64), octal (PRIo64), hexadecimal (PRIx64).
+ */
+printf("%"PRId64, var);
+\end{verbatim}
+
+\item Describe the data structures and functions that locks and semaphores in
+Pintos have in common. What extra property do locks have that semaphores do not?
+
+Locks and semaphores present a way to control access to a resource. Both allow
+threads to acquire/release the resource (through
+\emph{lock\_acquire()}/\emph{lock\_release()} or
+\emph{sema\_down()}/\emph{sema\_up()} respectively), and for make threads wait
+on a resource if it is not immediately available (through \emph{sema\_down()} or
+\emph{lock\_acquire()}). In addition, \emph{sema\_try\_down()} and
+\emph{lock\_try\_acquire()} are methods that try to acquire a resource,
+returning whether they succeeded or not.
+
+The primary data structure which allows this functionality is the semaphore
+struct. It contains an unsigned value field which indicates whether a resource
+is available, and a list of threads which are blocked and waiting on the
+resource. Presumably to avoid duplication, the lock struct also contains a
+semaphore, thus inheriting those two fields.
+
+However, locks can only be released by the thread they were acquired by, in
+contrast to semaphores, which can be upped by any thread. The method
+\emph{lock\_held\_by\_current\_thread()} can be used to check whether a
+particular thread is currently holding the lock.
+
+\item In Pintos, a thread is characterized by a struct and an execution stack.
+What are the limitations on the size of these data structures? Explain how this
+relates to stack overflow and how Pintos identifies it.
+
+The struct and execution stack are stored in their own 4 kB page with the
+stack located above the struct. The size of the execution stack is restricted by
+the struct (size of execution stack = 4kB - execution stack).
+
+The size of the struct should remain at a minimum to allow the stack as
+much space as possible to grow. The smaller the stack the greater probability of
+a stack overflow.
+
+Pintos detects stack overflows by checking whether the \emph{magic} member of
+the running thread's \emph{struct thread} has changed from
+\emph{THREAD\_MAGIC}. The \emph{magic} member is located at the bottom of the
+struct and therefore will be the first data member to be overwritten by the
+stack overflow.
+
+\item If test \emph{src/tests/devices/alarm-multiple} fails, where would you
+find its output and result logs? Provide both paths and file names.
+(\emph{Hint : you might want to run this test to find out.})
+
+\emph{pintos\_03/src/devices/build/tests/devices/alarm-multiple.output}
+
+\emph{pintos\_03/src/devices/build/tests/devices/alarm-multiple.result}
+
+\end{enumerate}
 
 \section{Design Document}
 
