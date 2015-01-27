@@ -13,20 +13,16 @@
 (insert questions here)
 
 \section{Design Document}
+
 \subsection{Data Structures}
-\paragraph{A1:} Copy here the declaration of each new or changed ‘struct’ or ‘struct’ member, global or static variable, ‘typedef’, or enumeration. Identify the purpose of each in 25 words or less.
+\paragraph{A1:}
+Copy here the declaration of each new or changed ‘struct’ or ‘struct’ member, global or static variable, ‘typedef’, or enumeration. Identify the purpose of each in 25 words or less.
 \subsubsection{Code}
 
 \paragraph{(src/devices/timer.c):}
 
 \begin{verbatim}
-+struct locked_list
-+  {
-+    struct list list;
-+    struct lock lock;
-+  };
-
-+static struct locked_list sleepy_threads;
++static struct list sleepy_threads;
 \end{verbatim}
 
 \paragraph{(src/threads/threads.h):}
@@ -39,44 +35,47 @@ struct thread
 +    int sleep_time;                     /* Time until wake-up */
 +    struct list_elem sleepy_elem;       /* Sleep list element */
      ...
-   };
+  };
 
 \end{verbatim}
 
 \subsubsection{Purpose}
-\paragraph{struct locked\_list: }
-Abstraction for when you need a synchronised list between different threads. Functions are provided to manage lock acquiring and releasing.
-
-\paragraph{static struct locked\_list sleepy\_threads: }
-A locked\_list of all currently sleeping threads.
+\paragraph{static struct list sleepy\_threads:}
+A list of all currently sleeping threads.
 
 \paragraph{struct thread}
-  Added 2 fields to regulate sleeping functionality.
+Added 2 fields to regulate sleeping functionality.
 
-\subparagraph{int sleep\_time:} sleep time remaining
-\subparagraph{list\_elem sleepy\_elem:} tells thread which list it is in
+\subparagraph{int sleep\_time:}
+Used for keeping track of the number of ticks remaining to sleep for.
+\subparagraph{list\_elem sleepy\_elem:}
+Used as a pointer into the list of sleeping threads. When iterating over sleepy\_threads this is used to get the thread that contains each list\_elem.
 
 \subsection{Algorithms}
-\paragraph{A2:} Briefly describe what happens in a call to timer\_sleep(), including the actions performed by the timer interrupt handler on each timer tick.
+\paragraph{A2:}
+Briefly describe what happens in a call to timer\_sleep(), including the actions performed by the timer interrupt handler on each timer tick.
 
 The timer\_sleep() method gets the current thread and pushes it to the back of the sleepy\_threads list. The thread's sleep\_time field is also set to the no. of ticks to sleep for. List access is synchronised by acquiring a lock before writing and releasing it afterwards.
 
 Every timer tick, timer\_interrupt is called. When sleepy\_threads is not empty, method timer\_wake\_threads is called to iterate through every entry on the list, decrementing their remaining sleep time, unblocking threads whose time is falls below 1. Because locks cannot be used in an external interrupt context, interrupts are disabled to synchronise list access.
 
-\paragraph{A3:} What steps are taken to minimize the amount of time spent in the timer interrupt handler?
+\paragraph{A3:}
+What steps are taken to minimize the amount of time spent in the timer interrupt handler?
 
 Check if sleepy\_list is empty.
 
-
 \subsection{Synchronisation}
-\paragraph{A4:} How are race conditions avoided when multiple threads call timer\_sleep() simultaneously?
+\paragraph{A4:}
+How are race conditions avoided when multiple threads call timer\_sleep() simultaneously?
 
-A lock on the sleepy\_threads locked\_list data structure prevents more than one thread writing at the same time, thus preventing race conditions. Interrupts are also disabled before blocking the thread.
+Currently, we disable interrupts while adding to sleepy\_threads and blocking the thread.
 
-\paragraph{A5:} How are race conditions avoided when a timer interrupt occurs during a call to timer\_sleep()?
+\paragraph{A5:}
+How are race conditions avoided when a timer interrupt occurs during a call to timer\_sleep()?
 
 \subsection{Rationale}
-\paragraph{A6:} Why did you choose this design? In what ways is it superior to another design you considered?
+\paragraph{A6:}
+Why did you choose this design? In what ways is it superior to another design you considered?
 
 Note that although this operation is functionally identical to using a semaphore, our implementation is overall simpler to read and understand.
 
