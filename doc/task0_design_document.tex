@@ -69,10 +69,12 @@ A check for if sleepy\_list is empty first conducted, and the bulky timer_wake_t
 \paragraph{A4:}
 How are race conditions avoided when multiple threads call timer\_sleep() simultaneously?
 
-Currently, we disable interrupts while adding to sleepy\_threads and blocking the thread.
+We disable interrupts while adding to sleepy\_threads and blocking the thread.
 
 \paragraph{A5:}
 How are race conditions avoided when a timer interrupt occurs during a call to timer\_sleep()?
+
+There are 2 parts of timer\_sleep() which require synchronisation - adding to sleepy\_threads, and calling thread\_block(). We avoid race conditions from timer interrupt by disabling interrupts for both operations.
 
 \subsection{Rationale}
 \paragraph{A6:}
