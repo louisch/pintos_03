@@ -98,10 +98,6 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
-    /* Owned by devices/timer.c */
-    int sleep_time;                     /* Time until wake-up */
-    struct list_elem sleepy_elem;       /* Sleep list element */
-
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
