@@ -36,6 +36,11 @@ static void timer_wake_threads (void);
 
 static struct list sleepy_threads;
 
+/*
+ * Represents a thread that is currently sleeping. Threads are
+ * put to sleep via timer_sleep() or functions that delegate to
+ * timer_sleep().
+ */
 struct sleepy_thread {
   int sleep_time;                     /* Time until wake-up */
   struct list_elem sleepy_elem;       /* Sleep list element */
