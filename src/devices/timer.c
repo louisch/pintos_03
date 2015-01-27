@@ -6,11 +6,10 @@
 #include "devices/pit.h"
 #include "devices/timer.h"
 #include "lib/kernel/list.h"
-#include "lib/kernel/locked_list.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-  
+
 /* See [8254] for hardware details of the 8254 timer chip. */
 
 #if TIMER_FREQ < 19
