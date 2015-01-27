@@ -18,6 +18,7 @@
 \paragraph{A1:}
 Copy here the declaration of each new or changed ‘struct’ or ‘struct’ member, global or static variable, ‘typedef’, or enumeration. Identify the purpose of each in 25 words or less.
 \subsubsection{Code}
+Copied here are the added data structures.
 
 \paragraph{(src/devices/timer.c):}
 
@@ -44,12 +45,12 @@ struct thread
 A list of all currently sleeping threads.
 
 \paragraph{struct thread}
-Added 2 fields to regulate sleeping functionality.
+Added 2 fields.
 
 \subparagraph{int sleep\_time:}
 Used for keeping track of the number of ticks remaining to sleep for.
 \subparagraph{list\_elem sleepy\_elem:}
-Used as a pointer into the list of sleeping threads. When iterating over sleepy\_threads this is used to get the thread that contains each list\_elem.
+Allows threads to be placed inside sleepy\_threads.
 
 \subsection{Algorithms}
 \paragraph{A2:}
@@ -62,7 +63,7 @@ Every timer tick, timer\_interrupt is called. When sleepy\_threads is not empty,
 \paragraph{A3:}
 What steps are taken to minimize the amount of time spent in the timer interrupt handler?
 
-Check if sleepy\_list is empty.
+A check for if sleepy\_list is empty first conducted, and the bulky timer_wake_threads method call is skipped if it is.
 
 \subsection{Synchronisation}
 \paragraph{A4:}
@@ -77,6 +78,6 @@ How are race conditions avoided when a timer interrupt occurs during a call to t
 \paragraph{A6:}
 Why did you choose this design? In what ways is it superior to another design you considered?
 
-Note that although this operation is functionally identical to using a semaphore, our implementation is overall simpler to read and understand.
+Although this operation is functionally identical to using a semaphore, our implementation is overall simpler to read and understand.
 
 \end{document}
