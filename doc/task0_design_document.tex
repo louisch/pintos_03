@@ -70,7 +70,7 @@ It checks that the current thread has been set to a status which is not
 \emph{THREAD\_RUNNING}, before then asserting that the next thread to run is
 valid using \emph{is\_thread()}.
 
-If the next thread is not equal to the current thread. It switches to it using
+If the next thread is not equal to the current thread, it switches to it using
 \emph{switch\_threads()} and sets the variable previous to the current
 thread. Finally, \emph{thread\_schedule\_tail()} is called on previous.
 
