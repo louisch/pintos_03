@@ -1,6 +1,8 @@
 build/
 *.html
 *~
+/doc/auto/
+/tests/p0/
 
 ### C ###
 # Compiled Object files
