@@ -173,7 +173,9 @@ find its output and result logs? Provide both paths and file names.
 
 \subsection{Data Structures}
 \paragraph{A1:}
-Copy here the declaration of each new or changed ‘struct’ or ‘struct’ member, global or static variable, ‘typedef’, or enumeration. Identify the purpose of each in 25 words or less.
+Copy here the declaration of each new or changed ‘struct’ or ‘struct’ member,
+global or static variable, ‘typedef’, or enumeration. Identify the purpose of
+each in 25 words or less.
 \subsubsection{Code}
 
 \paragraph{(src/devices/timer.c):}
@@ -206,46 +208,84 @@ Added 2 fields to regulate sleeping functionality.
 \subparagraph{int sleep\_time:}
 Used for keeping track of the number of ticks remaining to sleep for.
 \subparagraph{list\_elem sleepy\_elem:}
-Used as a pointer into the list of sleeping threads. When iterating over sleepy\_threads this is used to get the thread that contains each list\_elem.
+Used as a pointer into the list of sleeping threads. When iterating over
+sleepy\_threads this is used to get the thread that contains each list\_elem.
 
 \subsection{Algorithms}
 \paragraph{A2:}
-Briefly describe what happens in a call to timer\_sleep(), including the actions performed by the timer interrupt handler on each timer tick.
+Briefly describe what happens in a call to timer\_sleep(), including the actions
+performed by the timer interrupt handler on each timer tick.
 
-The timer\_sleep() method sets the current thread's sleep\_time field to ticks to sleep for \"ticks\" and pushes it to the back of the sleepy\_threads list. List access is synchronised by disabling interrupts before writing the list and re-enabling them after blocking the thread.
+The timer\_sleep() method sets the current thread's sleep\_time field to ticks
+to sleep for \"ticks\" and pushes it to the back of the sleepy\_threads
+list. List access is synchronised by disabling interrupts before writing the
+list and re-enabling them after blocking the thread.
 
-The method timer\_interrupt() is called on every hardware tick. If sleepy\_threads is not empty, it calls timer\_wake\_threads() to iterate through every entry on the list, decrementing their remaining sleep time and unblocking threads whose time is less than or equal to 0.
+The method timer\_interrupt() is called on every hardware tick. If
+sleepy\_threads is not empty, it calls timer\_wake\_threads() to iterate through
+every entry on the list, decrementing their remaining sleep time and unblocking
+threads whose time is less than or equal to 0.
 
 \paragraph{A3:}
-What steps are taken to minimize the amount of time spent in the timer interrupt handler?
+What steps are taken to minimize the amount of time spent in the timer interrupt
+handler?
 
-Timer sleeps avoids blocking threads for negative sleep times, essentially preventing unnecessary thread blocking. Furthermore, within the interrupt handler, we check if sleepy\_list is empty before attempting to iterate over the list and wake threads.
+Timer sleeps avoids blocking threads for negative sleep times, essentially
+preventing unnecessary thread blocking. Furthermore, within the interrupt
+handler, we check if sleepy\_list is empty before attempting to iterate over the
+list and wake threads.
 
 \subsection{Synchronisation}
 \paragraph{A4:}
-How are race conditions avoided when multiple threads call timer\_sleep() simultaneously?
+How are race conditions avoided when multiple threads call timer\_sleep()
+simultaneously?
 
-We disable interrupts while adding to sleepy\_threads and blocking the thread. It is henceforth impossible for two timer\_sleep() operations to access the list or block their threads asynchronously, as disabling interrupts essentially combines these two operations into a single atomic operation.
+We disable interrupts while adding to sleepy\_threads and blocking the
+thread. It is henceforth impossible for two timer\_sleep() operations to access
+the list or block their threads asynchronously, as disabling interrupts
+essentially combines these two operations into a single atomic operation.
 
 \paragraph{A5:}
-How are race conditions avoided when a timer interrupt occurs during a call to timer\_sleep()?
+How are race conditions avoided when a timer interrupt occurs during a call to
+timer\_sleep()?
 
-There are two parts of timer\_sleep() which require synchronisation: adding to sleepy\_threads and calling thread\_block(). Moreover, an interrupt between these operations could lead to attempting to unblock threads that have been added to sleepy\_threads, but not blocked yet. Finally, thread\_block() requires interrupts to be disabled before it is called.
+There are two parts of timer\_sleep() which require synchronisation: adding to
+sleepy\_threads and calling thread\_block(). Moreover, an interrupt between
+these operations could lead to attempting to unblock threads that have been
+added to sleepy\_threads, but not blocked yet. Finally, thread\_block() requires
+interrupts to be disabled before it is called.
 
-We avoid both of the race conditions and fulfil the thread\_block() requirement by disabling interrupts for both operations. Note that it is not possible to block the thread before adding it to the list, as then the list add operation will never run.
+We avoid both of the race conditions and fulfil the thread\_block() requirement
+by disabling interrupts for both operations. Note that it is not possible to
+block the thread before adding it to the list, as then the list add operation
+will never run.
 
 \subsection{Rationale}
 \paragraph{A6:}
-Why did you choose this design? In what ways is it superior to another design you considered?
+Why did you choose this design? In what ways is it superior to another design
+you considered?
 
-In our re-implementation of timer\_sleep() we opted for using a list shared between the thread calling timer\_sleep() and the interrupt handler, which we use to wake up the threads. We disable interrupts in order to synchronise access to this list.
+In our re-implementation of timer\_sleep() we opted for using a list shared
+between the thread calling timer\_sleep() and the interrupt handler, which we
+use to wake up the threads. We disable interrupts in order to synchronise access
+to this list.
 
-During the development of this solution, we have considered using pre-existing synchronisation primitives (locks and semaphores), however we eventually came to the conclusion that neither of these were fully appropriate.
+During the development of this solution, we have considered using pre-existing
+synchronisation primitives (locks and semaphores), however we eventually came to
+the conclusion that neither of these were fully appropriate.
 
-Locks were suggested for controlling access to the sleeping thread list, however, as it is impossible to acquire locks inside the interrupt handler, they could not prevent the handler from concurrently reading or modifying the list.
+Locks were suggested for controlling access to the sleeping thread list,
+however, as it is impossible to acquire locks inside the interrupt handler, they
+could not prevent the handler from concurrently reading or modifying the list.
 
-Semaphores are functionally similar to our current implementation (both our code and sema\_down() disable interrupts to add the current thread to a list before blocking it), however they do not present a convenient way to keep track of multiple sleeping threads at a time with a single semaphore.
+Semaphores are functionally similar to our current implementation (both our code
+and sema\_down() disable interrupts to add the current thread to a list before
+blocking it), however they do not present a convenient way to keep track of
+multiple sleeping threads at a time with a single semaphore.
 
-Creating a semaphore per sleeping thread is a possible alternative, however, in order to keep track of these semaphores, a list is required. Not only would this bring up the same list synchronisation issues as our current implementation, but we would need a separate struct to bind semaphores to list\_elems.
+Creating a semaphore per sleeping thread is a possible alternative, however, in
+order to keep track of these semaphores, a list is required. Not only would this
+bring up the same list synchronisation issues as our current implementation, but
+we would need a separate struct to bind semaphores to list\_elems.
 
 \end{document}
