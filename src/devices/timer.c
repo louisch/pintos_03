@@ -205,10 +205,6 @@ timer_wake_threads (void)
 {
   struct list_elem *thread_elem = list_begin (&sleepy_threads);
 
-  /* Disables interrupts for list concurrency.
-     Cannot use a lock here because the interrupt context is external. */
-  enum intr_level old_level = intr_disable();
-
   while (thread_elem != list_end (&sleepy_threads))
   {
     struct thread *sleepy_thread =
@@ -225,7 +221,6 @@ timer_wake_threads (void)
     }
     thread_elem = list_next (thread_elem);
   }
-  intr_set_level (old_level);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
