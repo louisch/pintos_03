@@ -197,12 +197,12 @@ A list of all currently sleeping threads.
 \paragraph{struct sleepy\_thread:}
 Represents a sleeping thread.
 
-\subparagraph{thread* thread:}
-Pointer to the thread that is being blocked.
 \subparagraph{int sleep\_time:}
 Keeps track of the number of ticks the thread has to sleep for.
 \subparagraph{list\_elem sleepy\_elem:}
 A pointer into the list of sleeping threads.
+\subparagraph{thread* thread:}
+Pointer to the thread that is being blocked.
 
 \subsection{Algorithms}
 \paragraph{A2:}
