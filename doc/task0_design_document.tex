@@ -22,34 +22,28 @@ Copy here the declaration of each new or changed ‘struct’ or ‘struct’ me
 \paragraph{(src/devices/timer.c):}
 
 \begin{verbatim}
+struct sleepy_thread {
+  int sleep_time;                     /* Time until wake-up */
+  struct list_elem sleepy_elem;       /* Sleep list element */
+  struct thread *thread;
+};
+
 +static struct list sleepy_threads;
 \end{verbatim}
 
-\paragraph{(src/threads/threads.h):}
-
-\begin{verbatim}
-struct thread
-  {
-     ...
-+    /* Owned by devices/timer.c */
-+    int sleep_time;                     /* Time until wake-up */
-+    struct list_elem sleepy_elem;       /* Sleep list element */
-     ...
-  };
-
-\end{verbatim}
-
 \subsubsection{Purpose}
-\paragraph{static struct list sleepy\_threads:}
+\paragraph{struct list sleepy\_threads:}
 A list of all currently sleeping threads.
 
-\paragraph{struct thread}
-Added 2 fields to regulate sleeping functionality.
+\paragraph{struct sleepy\_thread:}
+Represents a sleeping thread.
 
+\subparagraph{thread* thread:}
+Pointer to the thread that is being blocked.
 \subparagraph{int sleep\_time:}
-Used for keeping track of the number of ticks remaining to sleep for.
+Keeps track of the number of ticks the thread has to sleep for.
 \subparagraph{list\_elem sleepy\_elem:}
-Used as a pointer into the list of sleeping threads. When iterating over sleepy\_threads this is used to get the thread that contains each list\_elem.
+A pointer into the list of sleeping threads.
 
 \subsection{Algorithms}
 \paragraph{A2:}
@@ -89,6 +83,6 @@ Locks were suggested for controlling access to the sleeping thread list, however
 
 Semaphores are functionally similar to our current implementation (both our code and sema\_down() disable interrupts to add the current thread to a list before blocking it), however they do not present a convenient way to keep track of multiple sleeping threads at a time with a single semaphore.
 
-Creating a semaphore per sleeping thread is a possible alternative, however, in order to keep track of these semaphores, a list is required. Not only would this bring up the same list synchronisation issues as our current implementation, but we would need a separate struct to bind semaphores to list\_elems.
+Creating a semaphore per sleeping thread is a possible alternative, however, we would still need a list to keep track of the semaphores. This would also require a struct to bind semaphores to list\_elems. Thus, the resulting code would be nearly identical to the code currently implemented, with the exception of delegating thread blocking and unblocking to the semaphores, which results in some redundancies (disabling interrupts twice) and more method calls (more time is spent with interrupts disabled), and makes the code slightly more difficult to understand.
 
 \end{document}
