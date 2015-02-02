@@ -55,9 +55,11 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
-   If true, use multi-level feedback queue scheduler.
-   Controlled by kernel command-line option "-o mlfqs". */
+   If true, use multi-level feedback Pqueue scheduler.
+   Controlled by kernel command-line option ">>o mlfqs". */
 bool thread_mlfqs;
+
+static void thread_notify_blocker (struct thread *t);
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -103,8 +105,8 @@ thread_init (void)
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
 void
-thread_start (void) 
-{
+thread_start (void)
+{ 
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
@@ -208,6 +210,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  thread_yield ();
 
   return tid;
 }
@@ -245,7 +248,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
+  list_insert_ordered (&ready_list, &t->elem, &thread_priority_lt, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -316,7 +319,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, priority_less_than, NULL);
+    list_insert_ordered (&ready_list, &cur->elem, &thread_priority_lt, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -339,18 +342,93 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* Adds newly acquired lock to list of locks the thread has. */
+void
+thread_add_acquired_lock (struct lock *lock)
+{
+  struct list *locks = &(thread_current ()->locks);
+  list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
+}
+
+/* Reinserts lock into the thread's list of locks to keep it ordered. */
+void
+thread_reinsert_lock (struct thread *t, struct lock *lock)
+{
+  struct list *locks = &t->locks;
+  ASSERT (!list_empty (locks));
+
+  bool lock_was_first = list_begin (locks) == &lock->elem;
+
+  list_remove (&lock->elem);
+  int previous_p = thread_get_priority_of (t);
+  list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
+
+  /* Reordering only takes place when effective thread priority changes. */
+  if ((lock_was_first && previous_p != lock->priority)
+      || (!lock_was_first && previous_p < lock->priority))
+    {
+      thread_notify_blocker (t);
+    }
+}
+
+/* If the thread is blocked, asks blocker to resort its queue. */
+static void
+thread_notify_blocker (struct thread *t)
+{
+  if (t->blocker != NULL)
+    {
+      lock_reinsert_thread (t->blocker, t);
+    }
+  else
+    {
+      /* Silently reorder list t is contained in. Breaks recursive call. */
+      struct list *containing_list = list_containing (&t->elem);
+      list_remove (&t->elem);
+      list_insert_ordered (containing_list, &t->elem,
+                            &thread_priority_lt, NULL);
+    }
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
+  ASSERT (new_priority <= PRI_MAX);
+  ASSERT (new_priority >= PRI_MIN);
+
   thread_current ()->priority = new_priority;
+
+  struct thread *next_thread =
+    list_entry (list_begin (&ready_list), struct thread, elem);
+  if (!list_empty (&ready_list) && thread_get_priority () < thread_get_priority_of (next_thread))
+    {
+      thread_yield ();
+    }
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return thread_get_priority_of (thread_current ());
+}
+
+/* Get effective priority of thread t. */
+int
+thread_get_priority_of (struct thread *t)
+{
+  enum intr_level old_level = intr_disable ();
+  struct list *locks = &t->locks;
+  int lock_priority = 0;
+
+  if (!list_empty (locks))
+  {
+    struct lock *best_lock =
+      list_entry (list_begin (locks), struct lock, elem);
+    lock_priority = lock_get_priority_of (best_lock);
+  }
+  intr_set_level (old_level);
+  return t->priority >= lock_priority ? t->priority : lock_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -470,6 +548,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  
+  list_init (&t->locks);
+  t->blocker = NULL; /* Threads are born with limitless possibilities. */
+  
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -591,12 +673,31 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-/* list_less_func for comparing thread priority */
-bool priority_less_than (const struct list_elem *a,
-                         const struct list_elem *b,
-                         void *aux UNUSED) {
-  int priority_a = list_entry (a, struct thread, elem) -> priority;
-  int priority_b = list_entry (b, struct thread, elem) -> priority;
+/* list_less_func for comparing thread priority. Note that here, A
+   is the element to be inserted and B is the element in the list. */
+bool
+thread_priority_lt (const struct list_elem *a,
+                    const struct list_elem *b,
+                    void *aux UNUSED)
+{
+  int pa = thread_get_priority_of (list_entry (a, struct thread, elem));
+  int pb = thread_get_priority_of (list_entry (b, struct thread, elem));
 
-  return priority_a < priority_b;
+  return pa > pb;
+}
+
+
+/* list_less_func for comparing list_elems from struct lock_list_elems. */
+bool
+lock_list_elem_lt (const struct list_elem *a,
+                   const struct list_elem *b,
+                   void *aux UNUSED)
+{
+  /* extract lock_list_elem from list_elem,
+     get lock from lock_list_elem,
+     call function lock_get_priority_of(lock) */
+  int pa = lock_get_priority_of (list_entry (a, struct lock, elem));
+  int pb = lock_get_priority_of (list_entry (b, struct lock, elem));
+
+  return pa > pb;
 }

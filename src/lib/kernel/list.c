@@ -336,6 +336,18 @@ list_reverse (struct list *list)
     }
 }
 
+/* Returns pointer to the list that contains the given list_elem. */
+struct list*
+list_containing (struct list_elem* elem)
+{
+  ASSERT (elem != NULL);
+  while (elem->prev != NULL)
+    {
+      elem = elem->prev;
+    }
+  return (struct list *) elem;
+}
+
 /* Returns true only if the list elements A through B (exclusive)
    are in order according to LESS given auxiliary data AUX. */
 static bool

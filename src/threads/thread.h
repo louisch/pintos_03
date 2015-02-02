@@ -87,7 +87,12 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
+    int priority;                       /* Base priority of thread. */
+    /* Ordered list of locks the thread has acquired.
+       They are ordered by highest donated priority. */
+    struct list locks;
+    /* Pointer to lock currently holding this thread. */
+    struct lock *blocker;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -130,16 +135,29 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
-int thread_get_priority (void);
 void thread_set_priority (int);
+
+// void thread_give_priority (struct thread*, int);
+// void thread_remove_priority (struct thread*, int);
+// void thread_update_priority (struct thread*, int, int);
+
+void thread_add_acquired_lock (struct lock *);
+void thread_reinsert_lock (struct thread *, struct lock *);
+
+int thread_get_priority (void);
+int thread_get_priority_of (struct thread*);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool priority_less_than (const struct list_elem *a,
+bool thread_priority_lt (const struct list_elem *a,
                          const struct list_elem *b,
                          void *aux UNUSED);
+
+bool lock_list_elem_lt (const struct list_elem *a,
+                        const struct list_elem *b,
+                        void *aux UNUSED);
 
 #endif /* threads/thread.h */
