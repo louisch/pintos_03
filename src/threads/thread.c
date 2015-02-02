@@ -48,6 +48,14 @@ struct kernel_thread_frame
     void *aux;                  /* Auxiliary data for function. */
   };
 
+struct integer_list_elem
+  {
+    int value;
+    struct list_elem list_elem;
+  };
+
+static int thread_get_priority_of (struct thread *t);
+
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
@@ -373,14 +381,39 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  if (thread_current ()->priority < new_priority)
+    {
+      thread_add_priority (thread_current (), new_priority);
+    }
+}
+
+/* Adds Given priority to list */
+void
+thread_add_priority (struct thread *t, int p)
+{
+  struct integer_list_elem ple;
+  ple.value = p;
+
+  list_insert_ordered (&t->current_priorities, &ple.list_elem,
+                        integer_less_than, NULL);
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+  return thread_get_priority_of (thread_current ());
+}
+
+static int
+thread_get_priority_of (struct thread *t)
+{
+  struct list p_list = t->current_priorities;
+  ASSERT (!list_empty (&p_list));
+
+  struct integer_list_elem *e =
+    list_entry (list_begin (&p_list), struct integer_list_elem, list_elem);
+  return e->value;  
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -504,6 +537,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->nice = 0;
   t->recent_cpu = to_fixed_point (0);
 
+  thread_add_priority (t, priority);
+
+  list_init (&t->current_priorities);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -631,17 +667,38 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 /* list_less_func for comparing thread priority */
-bool priority_less_than (const struct list_elem *a,
-                         const struct list_elem *b,
-                         void *aux UNUSED) {
-  int priority_a = list_entry (a, struct thread, elem) -> priority;
-  int priority_b = list_entry (b, struct thread, elem) -> priority;
+bool
+priority_less_than (const struct list_elem *a,
+                    const struct list_elem *b,
+                    void *aux UNUSED)
+{
+  int priority_a =
+    thread_get_priority_of (list_entry (a, struct thread, elem));
+  int priority_b =
+    thread_get_priority_of (list_entry (b, struct thread, elem));
 
   return priority_a < priority_b;
 }
+
+
+bool
+integer_less_than (const struct list_elem *a,
+                   const struct list_elem *b,
+                   void *aux UNUSED)
+{
+  int priority_a =
+    list_entry (a, struct integer_list_elem, list_elem)->value;
+  int priority_b =
+    list_entry (b, struct integer_list_elem, list_elem)->value;
+
+  return priority_a < priority_b;
+}
+<<<<<<< HEAD
 
 bool
 is_idle (const struct thread *t)
 {
   return t == idle_thread;
 }
+=======
+>>>>>>> Added priority queues to later replace the priority int.
