@@ -167,4 +167,8 @@ bool lock_list_elem_lt (const struct list_elem *a,
                         const struct list_elem *b,
                         void *aux UNUSED);
 
+bool lock_list_elem_lt (const struct list_elem *a,
+                        const struct list_elem *b,
+                        void *aux UNUSED);
+
 #endif /* threads/thread.h */
