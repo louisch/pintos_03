@@ -267,6 +267,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
+  list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
+  thread_yield ();
   t->status = THREAD_READY;
   if (thread_mlfqs)
     {
@@ -384,6 +386,7 @@ thread_set_priority (int new_priority)
   struct thread *t = thread_current ();
   thread_update_priority (t, t->priority, new_priority);
   t->priority = new_priority;
+  thread_yield ();
 }
 
 /* Adds priority with value p to the priority list. */
