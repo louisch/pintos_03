@@ -37,6 +37,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/* Lock used by methods altering the priority list. */
+static struct lock priority_list_lock;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -354,9 +357,13 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  lock_acquire (&priority_list_lock);
+
   struct thread *t = thread_current ();
   thread_update_priority (t, t->priority, new_priority);
   t->priority = new_priority;
+  
+  lock_release (&priority_list_lock);
   thread_yield ();
 }
 
@@ -364,11 +371,15 @@ thread_set_priority (int new_priority)
 static void
 thread_sort_containing_list (struct thread *t)
 {
+  lock_acquire (&priority_list_lock);
+
   if (t != thread_current ()) /* Do nothing if t is current thread. */
     {
       struct list *list = list_get_from_elem (&t->elem);
       list_sort (list, priority_less_than, NULL);
     }
+
+  lock_release (&priority_list_lock);
   thread_yield ();
 }
 
@@ -376,11 +387,14 @@ thread_sort_containing_list (struct thread *t)
 void
 thread_give_priority (struct thread *t, int p)
 {
+  lock_acquire (&priority_list_lock);
   struct integer_list_elem ple;
   ple.value = p;
 
   list_insert_ordered (&t->current_priorities, &ple.list_elem,
                         integer_less_than, NULL);
+
+  lock_release (&priority_list_lock);
   thread_sort_containing_list (t);
 }
 
@@ -416,16 +430,25 @@ thread_find_priority (struct thread *t, int p)
 void
 thread_remove_priority (struct thread *t, int p)
 {
+  lock_acquire (&priority_list_lock);
+
   struct integer_list_elem *i = thread_find_priority (t, p);
   list_remove (&i->list_elem);
+
+  lock_release (&priority_list_lock);
   thread_sort_containing_list (t);
 }
 
+/* Updates a current entry in the priority list with a new value. */
 void
 thread_update_priority (struct thread *t, int current, int new)
 {
+  lock_acquire (&priority_list_lock);
+
   struct integer_list_elem *i = thread_find_priority (t, current);
   i->value = new;
+
+  lock_release (&priority_list_lock);
   thread_sort_containing_list (t);
 }
 
@@ -443,8 +466,10 @@ thread_get_priority_of (struct thread *t)
   struct list p_list = t->current_priorities;
   ASSERT (!list_empty (&p_list));
 
+  lock_acquire (&priority_list_lock);
   struct integer_list_elem *e =
     list_entry (list_begin (&p_list), struct integer_list_elem, list_elem);
+  lock_release (&priority_list_lock);
   return e->value;  
 }
 
