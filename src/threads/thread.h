@@ -148,7 +148,7 @@ bool priority_less_than (const struct list_elem *a,
                          void *aux UNUSED);
 
 bool integer_less_than (const struct list_elem *a,
-                    const struct list_elem *b,
-                    void *aux UNUSED);
+                        const struct list_elem *b,
+                        void *aux UNUSED);
 
 #endif /* threads/thread.h */
