@@ -143,15 +143,15 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  /* Updates load_avg when the system tick counter reaches a 
+  /* Updates load_avg when the system tick counter reaches a
      multiple of a second. */
   if (timer_ticks() % TIMER_FREQ == 0)
     {
-      fixed_point load_avg_factor = 
-        divide_fixed_point_by_integer(to_fixed_point (59), 60);
+      fixed_point load_avg_factor =
+        fixed_point_dividei(to_fixed_point (59), 60);
       load_avg =
-        add_fixed_points(multiply_fixed_points(load_avg, load_avg_factor), 
-          divide_fixed_point_by_integer(get_ready_threads (), 60));
+        fixed_point_add(fixed_point_multiply(load_avg, load_avg_factor),
+                        fixed_point_dividei(get_ready_threads (), 60));
     }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -397,7 +397,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  return to_integer_rounded(multiply_fixed_point_by_integer(load_avg, 100));
+  return to_integer_rounded(fixed_point_multiplyi(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
