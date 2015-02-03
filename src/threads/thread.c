@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <fixed_point.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -11,6 +12,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -58,6 +60,13 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+
+/*
+Estimates the average number of threads ready to run over the
+past minute.
+*/
+static fixed_point load_avg = {0};
+
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -134,11 +143,28 @@ thread_tick (void)
   else
     kernel_ticks++;
 
+  /* Updates load_avg when the system tick counter reaches a 
+     multiple of a second. */
+  if (timer_ticks() % TIMER_FREQ == 0)
+    {
+      fixed_point load_avg_factor = 
+        divide_fixed_point_by_integer(to_fixed_point (59), 60);
+      load_avg =
+        add_fixed_points(multiply_fixed_points(load_avg, load_avg_factor), 
+          divide_fixed_point_by_integer(get_ready_threads (), 60));
+    }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
 }
 
+inline fixed_point
+get_ready_threads (void)
+{
+  int result = ((thread_current () == idle_thread) ? 0 : 1) +
+    list_size (ready_list);
+  return to_fixed_point(result);
+}
 /* Prints thread statistics. */
 void
 thread_print_stats (void) 
@@ -372,8 +398,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return to_integer_rounded(multiply_fixed_point_by_integer(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
