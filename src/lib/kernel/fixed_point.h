@@ -3,7 +3,7 @@
 
 typedef struct
 {
-  int fixed_point;
+  int value;
 } fixed_point;
 
 fixed_point to_fixed_point(int integer);
