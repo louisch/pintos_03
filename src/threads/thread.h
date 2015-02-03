@@ -155,7 +155,7 @@ bool priority_less_than (const struct list_elem *a,
 bool is_idle (const struct thread *t);
 
 bool integer_less_than (const struct list_elem *a,
-                    const struct list_elem *b,
-                    void *aux UNUSED);
+                        const struct list_elem *b,
+                        void *aux UNUSED);
 
 #endif /* threads/thread.h */
