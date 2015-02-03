@@ -367,6 +367,9 @@ thread_give_priority (struct thread *t, int p)
 
   list_insert_ordered (&t->current_priorities, &ple.list_elem,
                         integer_less_than, NULL);
+
+  // get container list head
+  // thread_yield ()
 }
 
 /* Removes priority of value p from the priority list. */
@@ -394,6 +397,9 @@ thread_remove_priority (struct thread *t, int p)
     }
 
   list_remove (e);
+
+  // list should now be reordered
+  // thread_yield ();
 }
 
 void
