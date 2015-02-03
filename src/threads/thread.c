@@ -55,6 +55,8 @@ struct integer_list_elem
   };
 
 static int thread_get_priority_of (struct thread *t);
+static void thread_sort_containing_list (struct thread *t);
+static struct integer_list_elem* thread_find_priority (struct thread *t, int p);
 
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
@@ -389,6 +391,18 @@ thread_set_priority (int new_priority)
   thread_yield ();
 }
 
+/* Find the list thread t belongs; and sort it according to thread priority. */
+static void
+thread_sort_containing_list (struct thread *t)
+{
+  if (t != thread_current ()) /* Do nothing if t is current thread. */
+    {
+      struct list *list = list_get_from_elem (&t->elem);
+      list_sort (list, priority_less_than, NULL);
+    }
+  thread_yield ();
+}
+
 /* Adds priority with value p to the priority list. */
 void
 thread_give_priority (struct thread *t, int p)
@@ -398,22 +412,21 @@ thread_give_priority (struct thread *t, int p)
 
   list_insert_ordered (&t->current_priorities, &ple.list_elem,
                         integer_less_than, NULL);
-
-  // get container list head
-  // thread_yield ()
+  thread_sort_containing_list (t);
 }
 
-/* Removes priority of value p from the priority list. */
-void
-thread_remove_priority (struct thread *t, int p)
+/* Finds a particular entry in the priority list. */
+static struct integer_list_elem*
+thread_find_priority (struct thread *t, int p)
 {
   struct list p_list = t->current_priorities;
   ASSERT (!list_empty (&p_list));
   struct list_elem *e = list_begin (&p_list);
+  struct integer_list_elem *i = NULL;
 
   while (e != list_end (&p_list))
     {
-      struct integer_list_elem *i =
+      i =
         list_entry (list_begin (&p_list), struct integer_list_elem, list_elem);
       if (i->value == p)
         {
@@ -422,22 +435,29 @@ thread_remove_priority (struct thread *t, int p)
       else if (i->value < p)
         {
           ASSERT (0);
-          return; //element not found
+          return NULL; //element not found
         }
       e = list_next (e);
     }
+  ASSERT (i != NULL);
+  return i;
+}
 
-  list_remove (e);
-
-  // list should now be reordered
-  // thread_yield ();
+/* Removes priority of value p from the priority list. */
+void
+thread_remove_priority (struct thread *t, int p)
+{
+  struct integer_list_elem *i = thread_find_priority (t, p);
+  list_remove (&i->list_elem);
+  thread_sort_containing_list (t);
 }
 
 void
 thread_update_priority (struct thread *t, int current, int new)
 {
-  thread_remove_priority (t, current);
-  thread_give_priority (t, new);
+  struct integer_list_elem *i = thread_find_priority (t, current);
+  i->value = new;
+  thread_sort_containing_list (t);
 }
 
 /* Returns the current thread's highest priority. */
