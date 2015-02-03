@@ -351,15 +351,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  if (thread_current ()->priority < new_priority)
-    {
-      thread_add_priority (thread_current (), new_priority);
-    }
+  struct thread *t = thread_current ();
+  thread_update_priority (t, t->priority, new_priority);
+  t->priority = new_priority;
 }
 
-/* Adds Given priority to list */
+/* Adds priority with value p to the priority list. */
 void
-thread_add_priority (struct thread *t, int p)
+thread_give_priority (struct thread *t, int p)
 {
   struct integer_list_elem ple;
   ple.value = p;
@@ -368,13 +367,48 @@ thread_add_priority (struct thread *t, int p)
                         integer_less_than, NULL);
 }
 
-/* Returns the current thread's priority. */
+/* Removes priority of value p from the priority list. */
+void
+thread_remove_priority (struct thread *t, int p)
+{
+  struct list p_list = t->current_priorities;
+  ASSERT (!list_empty (&p_list));
+  struct list_elem *e = list_begin (&p_list);
+
+  while (e != list_end (&p_list))
+    {
+      struct integer_list_elem *i =
+        list_entry (list_begin (&p_list), struct integer_list_elem, list_elem);
+      if (i->value == p)
+        {
+          break;
+        }
+      else if (i->value < p)
+        {
+          ASSERT (0);
+          return; //element not found
+        }
+      e = list_next (e);
+    }
+
+  list_remove (e);
+}
+
+void
+thread_update_priority (struct thread *t, int current, int new)
+{
+  thread_remove_priority (t, current);
+  thread_give_priority (t, new);
+}
+
+/* Returns the current thread's highest priority. */
 int
 thread_get_priority (void) 
 {
   return thread_get_priority_of (thread_current ());
 }
 
+/* Returns the highest priority of thread t. */
 static int
 thread_get_priority_of (struct thread *t)
 {
@@ -503,7 +537,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  thread_add_priority (t, priority);
+  thread_give_priority (t, priority);
 
   list_init (&t->current_priorities);
   t->magic = THREAD_MAGIC;
