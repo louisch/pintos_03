@@ -149,7 +149,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool priority_lt (const struct list_elem *a,
+bool thread_priority_lt (const struct list_elem *a,
                          const struct list_elem *b,
                          void *aux UNUSED);
 bool is_idle (const struct thread *t);
