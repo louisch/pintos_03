@@ -37,9 +37,6 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
-/* Lock used by methods altering the priority list. */
-static struct lock priority_list_lock;
-
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -47,16 +44,6 @@ struct kernel_thread_frame
     thread_func *function;      /* Function to call. */
     void *aux;                  /* Auxiliary data for function. */
   };
-
-struct integer_list_elem
-  {
-    int value;
-    struct list_elem list_elem;
-  };
-
-static int thread_get_priority_of (struct thread *t);
-static void thread_sort_containing_list (struct thread *t);
-static struct integer_list_elem* thread_find_priority (struct thread *t, int p);
 
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
@@ -258,8 +245,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
-  thread_yield ();
+  list_insert_ordered (&ready_list, &t->elem, &priority_lt, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -330,7 +316,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, priority_less_than, NULL);
+    list_insert_ordered (&ready_list, &cur->elem, &priority_lt, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -357,120 +343,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  lock_acquire (&priority_list_lock);
-
-  struct thread *t = thread_current ();
-  thread_update_priority (t, t->priority, new_priority);
-  t->priority = new_priority;
-  
-  lock_release (&priority_list_lock);
-  thread_yield ();
+  thread_current ()->priority = new_priority;
 }
 
-/* Find the list thread t belongs; and sort it according to thread priority. */
-static void
-thread_sort_containing_list (struct thread *t)
-{
-  lock_acquire (&priority_list_lock);
-
-  if (t != thread_current ()) /* Do nothing if t is current thread. */
-    {
-      struct list *list = list_get_from_elem (&t->elem);
-      list_sort (list, priority_less_than, NULL);
-    }
-
-  lock_release (&priority_list_lock);
-  thread_yield ();
-}
-
-/* Adds priority with value p to the priority list. */
-void
-thread_give_priority (struct thread *t, int p)
-{
-  lock_acquire (&priority_list_lock);
-  struct integer_list_elem ple;
-  ple.value = p;
-
-  list_insert_ordered (&t->current_priorities, &ple.list_elem,
-                        integer_less_than, NULL);
-
-  lock_release (&priority_list_lock);
-  thread_sort_containing_list (t);
-}
-
-/* Finds a particular entry in the priority list. */
-static struct integer_list_elem*
-thread_find_priority (struct thread *t, int p)
-{
-  struct list p_list = t->current_priorities;
-  ASSERT (!list_empty (&p_list));
-  struct list_elem *e = list_begin (&p_list);
-  struct integer_list_elem *i = NULL;
-
-  while (e != list_end (&p_list))
-    {
-      i =
-        list_entry (list_begin (&p_list), struct integer_list_elem, list_elem);
-      if (i->value == p)
-        {
-          break;
-        }
-      else if (i->value < p)
-        {
-          ASSERT (0);
-          return NULL; //element not found
-        }
-      e = list_next (e);
-    }
-  ASSERT (i != NULL);
-  return i;
-}
-
-/* Removes priority of value p from the priority list. */
-void
-thread_remove_priority (struct thread *t, int p)
-{
-  lock_acquire (&priority_list_lock);
-
-  struct integer_list_elem *i = thread_find_priority (t, p);
-  list_remove (&i->list_elem);
-
-  lock_release (&priority_list_lock);
-  thread_sort_containing_list (t);
-}
-
-/* Updates a current entry in the priority list with a new value. */
-void
-thread_update_priority (struct thread *t, int current, int new)
-{
-  lock_acquire (&priority_list_lock);
-
-  struct integer_list_elem *i = thread_find_priority (t, current);
-  i->value = new;
-
-  lock_release (&priority_list_lock);
-  thread_sort_containing_list (t);
-}
-
-/* Returns the current thread's highest priority. */
+/* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_get_priority_of (thread_current ());
-}
-
-/* Returns the highest priority of thread t. */
-static int
-thread_get_priority_of (struct thread *t)
-{
-  struct list p_list = t->current_priorities;
-  ASSERT (!list_empty (&p_list));
-
-  lock_acquire (&priority_list_lock);
-  struct integer_list_elem *e =
-    list_entry (list_begin (&p_list), struct integer_list_elem, list_elem);
-  lock_release (&priority_list_lock);
-  return e->value;  
+  return thread_current ()->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -590,9 +470,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  thread_give_priority (t, priority);
-
-  list_init (&t->current_priorities);
+  list_init (&t->priorities);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -716,28 +594,12 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 /* list_less_func for comparing thread priority */
 bool
-priority_less_than (const struct list_elem *a,
+priority_lt (const struct list_elem *a,
                     const struct list_elem *b,
                     void *aux UNUSED)
 {
-  int priority_a =
-    thread_get_priority_of (list_entry (a, struct thread, elem));
-  int priority_b =
-    thread_get_priority_of (list_entry (b, struct thread, elem));
-
-  return priority_a < priority_b;
-}
-
-
-bool
-integer_less_than (const struct list_elem *a,
-                   const struct list_elem *b,
-                   void *aux UNUSED)
-{
-  int priority_a =
-    list_entry (a, struct integer_list_elem, list_elem)->value;
-  int priority_b =
-    list_entry (b, struct integer_list_elem, list_elem)->value;
+  int priority_a = (list_entry (a, struct thread, elem)) -> priority;
+  int priority_b = (list_entry (b, struct thread, elem)) -> priority;
 
   return priority_a < priority_b;
 }

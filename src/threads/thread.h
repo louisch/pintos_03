@@ -89,7 +89,7 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Base priority of thread. */
     /* Ordered list of priorities the thread has. */
-    struct list current_priorities;
+    struct list priorities;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -143,7 +143,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool priority_less_than (const struct list_elem *a,
+bool priority_lt (const struct list_elem *a,
                          const struct list_elem *b,
                          void *aux UNUSED);
 
