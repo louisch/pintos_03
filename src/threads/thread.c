@@ -143,8 +143,14 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  /* Updates load_avg when the system tick counter reaches a
-     multiple of a second. */
+  if (thread_current () != idle_thread)
+    {
+      fixed_point_addi (thread_current ()->recent_cpu, 1);
+    }
+
+  /* Updates load_avg, and the recent_cpu of all threads, when the system tick
+     counter reaches a multiple of a second.
+     This must happen at this time due to assumptions made by the tests.*/
   if (timer_ticks() % TIMER_FREQ == 0)
     {
       fixed_point load_avg_factor =
