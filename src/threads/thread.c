@@ -347,7 +347,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     {
-        (thread_mlfqs) ? list_insert_ordered (&ready_list, &cur->elem, 
+        (!thread_mlfqs) ? list_insert_ordered (&ready_list, &cur->elem, 
                                               priority_less_than, NULL)
                        : list_push_back (&ready_list, &cur->elem);
     }
