@@ -638,3 +638,12 @@ recalculate_recent_cpu (struct thread *thread)
   return fixed_point_addi (fixed_point_multiply (coefficient, thread->recent_cpu),
                            thread->nice);
 }
+
+/* A function that updates the recent_cpu of a thread.
+   This matches the thread_action_func type, so can be used with
+   thread_foreach. */
+void
+update_recent_cpu (struct thread *t, void *aux UNUSED)
+{
+  t->recent_cpu = recalculate_recent_cpu (t);
+}
