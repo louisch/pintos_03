@@ -405,7 +405,8 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void)
 {
-  return to_integer_rounded (fixed_point_multiplyi (thread_current ()->recent_cpu));
+  return to_integer_rounded (fixed_point_multiplyi (
+                               thread_current ()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
