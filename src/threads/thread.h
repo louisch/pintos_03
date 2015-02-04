@@ -2,6 +2,7 @@
 #define THREADS_THREAD_H
 
 #include <debug.h>
+#include <fixed_point.h>
 #include <list.h>
 #include <stdint.h>
 
