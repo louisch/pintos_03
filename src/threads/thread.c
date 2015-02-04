@@ -62,6 +62,8 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+static int thread_get_priority_of (struct thread *t);
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -383,7 +385,14 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+  return thread_get_priority_of (thread_current ());
+}
+
+/* Get priority of thread t. */
+static int
+thread_get_priority_of (struct thread *t)
+{
+  return t->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -644,10 +653,10 @@ priority_lt (const struct list_elem *a,
                     const struct list_elem *b,
                     void *aux UNUSED)
 {
-  int priority_a = (list_entry (a, struct thread, elem)) -> priority;
-  int priority_b = (list_entry (b, struct thread, elem)) -> priority;
+  int pa = thread_get_priority_of (list_entry (a, struct thread, elem));
+  int pb = thread_get_priority_of (list_entry (b, struct thread, elem));
 
-  return priority_a < priority_b;
+  return pa < pb;
 }
 
 bool
