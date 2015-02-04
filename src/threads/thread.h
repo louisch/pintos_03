@@ -93,7 +93,7 @@ struct thread
     int nice;                           /* Niceness. */
     fixed_point recent_cpu;             /* CPU time this received 'recently' */
     /* Ordered list of priorities the thread has. */
-    struct list current_priorities;
+    struct list priorities;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -149,7 +149,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool priority_less_than (const struct list_elem *a,
+bool priority_lt (const struct list_elem *a,
                          const struct list_elem *b,
                          void *aux UNUSED);
 bool is_idle (const struct thread *t);
