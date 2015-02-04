@@ -634,7 +634,7 @@ recalculate_recent_cpu (struct thread *thread)
   fixed_point double_load_avg = fixed_point_multiplyi (load_avg, 2);
   fixed_point coefficient =
     fixed_point_divide (double_load_avg,
-                        fixed_point_subtract (double_load_avg, 1));
-  return fixed_point_add (fixed_point_multiply (coefficient, thread->recent_cpu),
-                          thread->nice);
+                        fixed_point_subtracti (double_load_avg, 1));
+  return fixed_point_addi (fixed_point_multiply (coefficient, thread->recent_cpu),
+                           thread->nice);
 }
