@@ -162,9 +162,10 @@ inline fixed_point
 get_ready_threads (void)
 {
   int result = ((thread_current () == idle_thread) ? 0 : 1) +
-    list_size (ready_list);
+    list_size (&ready_list);
   return to_fixed_point(result);
 }
+
 /* Prints thread statistics. */
 void
 thread_print_stats (void)
