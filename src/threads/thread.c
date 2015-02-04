@@ -346,7 +346,11 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-    list_insert_ordered (&ready_list, &cur->elem, priority_less_than, NULL);
+    {
+        (thread_mlfqs) ? list_insert_ordered (&ready_list, &cur->elem, 
+                                              priority_less_than, NULL)
+                       : list_push_back (&ready_list, &cur->elem);
+    }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -665,6 +669,12 @@ mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED)
 static void
 mlfqs_thread_tick (void)
 {
+  if(thread_current()->priority == 
+      list_entry (list_begin (&ready_list), struct thread, elem)->priority)
+    {
+      thread_yield ();
+    }
+
   /* Increment the current thread's recent_cpu */
   if (thread_current () != idle_thread)
     {
@@ -676,6 +686,7 @@ mlfqs_thread_tick (void)
   if (timer_ticks() % MLFQS_PRIORITY_UPDATE_FREQ == 0)
     {
       thread_foreach (mlfqs_update_priority, NULL);
+      list_sort (&ready_list, priority_less_than, NULL);
     }
 
   /* Updates load_avg, and the recent_cpu of all threads, when the system tick
