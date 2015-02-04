@@ -27,8 +27,10 @@ to_integer_truncated (fixed_point fixed_point)
 int
 to_integer_rounded (fixed_point fixed_point)
 {
-  return (fixed_point.value >= 0) ? fixed_point.value + conversion_factor () / 2
-                                  : fixed_point.value - conversion_factor () / 2;
+  return
+    ((fixed_point.value >= 0) ? fixed_point.value + conversion_factor () / 2
+                              : fixed_point.value - conversion_factor () / 2) /
+    conversion_factor ();
 }
 
 fixed_point
