@@ -88,8 +88,10 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Base priority of thread. */
-    /* Ordered list of priorities the thread has. */
+    /* Ordered list of priorities the thread holds. */
     struct list priorities;
+    /* Pointer to lock currently holding this thread. */
+    struct lock *blocker;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -147,7 +149,7 @@ bool thread_priority_lt (const struct list_elem *a,
                          const struct list_elem *b,
                          void *aux UNUSED);
 
-bool integer_less_than (const struct list_elem *a,
+bool lock_list_elem_lt (const struct list_elem *a,
                         const struct list_elem *b,
                         void *aux UNUSED);
 
