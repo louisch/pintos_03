@@ -64,6 +64,13 @@ bool thread_mlfqs;
 
 static int thread_get_priority_of (struct thread *t);
 
+struct lock_list_elem
+{
+  int priority;
+  struct lock *lock;
+  struct list_elem elem;
+};
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -374,11 +381,36 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* Adds owned lock to list of threads priorities. */
+void
+thread_add_priority (struct lock *lock)
+{
+  struct lock_list_elem e;
+  e.lock = lock;
+  e.priority = 0;
+  struct list ps = thread_current ()->priorities;
+
+  list_insert_ordered (&ps, &e.elem, &lock_list_elem_lt, NULL);
+}
+
+/* Updates priority on priority list. */
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
+}
+
+/* Contact the blocker to notify it that thread priority has changed. */
+void
+thread_donate_priority (void)
+{
+  struct thread *t = thread_current ();
+  ASSERT (t->blocker != NULL)
+  
+  struct thread *reciever = t->blocker->holder;
+  
 }
 
 /* Returns the current thread's priority. */
@@ -521,6 +553,8 @@ init_thread (struct thread *t, const char *name, int priority)
 
   list_init (&t->current_priorities);
   list_init (&t->priorities);
+  t->blocker = NULL; // threads are born with limitless possibilities
+  
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -660,7 +694,17 @@ thread_priority_lt (const struct list_elem *a,
 }
 
 bool
+lock_list_elem_lt (const struct list_elem *a,
+                   const struct list_elem *b,
+                   void *aux UNUSED)
+{
+  int pa = list_entry (a, struct lock_list_elem, elem)->priority;
+  int pb = list_entry (b, struct lock_list_elem, elem)->priority;
+
+  return pa < pb;
+}
+
+bool
 is_idle (const struct thread *t)
 {
   return t == idle_thread;
-}

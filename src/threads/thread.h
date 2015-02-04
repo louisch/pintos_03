@@ -92,8 +92,10 @@ struct thread
     int priority;                       /* Base priority of thread. */
     int nice;                           /* Niceness. */
     fixed_point recent_cpu;             /* CPU time this received 'recently' */
-    /* Ordered list of priorities the thread has. */
+    /* Ordered list of priorities the thread holds. */
     struct list priorities;
+    /* Pointer to lock currently holding this thread. */
+    struct lock *blocker;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -154,7 +156,7 @@ bool thread_priority_lt (const struct list_elem *a,
                          void *aux UNUSED);
 bool is_idle (const struct thread *t);
 
-bool integer_less_than (const struct list_elem *a,
+bool lock_list_elem_lt (const struct list_elem *a,
                         const struct list_elem *b,
                         void *aux UNUSED);
 
