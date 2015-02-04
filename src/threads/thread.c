@@ -22,6 +22,10 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+/* The number of ticks to wait until updating priority in the MLFQS
+   This is only relevant when -mlfqs is set. */
+#define MLFQS_PRIORITY_UPDATE_FREQ 4
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -81,7 +85,8 @@ void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
 static inline fixed_point get_ready_threads (void);
-static void update_recent_cpu (struct thread *t, void *aux UNUSED);
+static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
+static void mlfqs_thread_tick (void);
 
 
 /* Initializes the threading system by transforming the code
@@ -147,24 +152,9 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  if (thread_current () != idle_thread)
+  if (thread_mlfqs)
     {
-      thread_current ()->recent_cpu =
-        fixed_point_addi (thread_current ()->recent_cpu, 1);
-    }
-
-  /* Updates load_avg, and the recent_cpu of all threads, when the system tick
-     counter reaches a multiple of a second.
-     This must happen at this time due to assumptions made by the tests.*/
-  if (timer_ticks() % TIMER_FREQ == 0)
-    {
-      thread_foreach (update_recent_cpu, NULL);
-
-      fixed_point load_avg_factor =
-        fixed_point_dividei (to_fixed_point (59), 60);
-      load_avg =
-        fixed_point_add (fixed_point_multiply (load_avg, load_avg_factor),
-                         fixed_point_dividei (get_ready_threads (), 60));
+      mlfqs_thread_tick ();
     }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -508,8 +498,12 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
+  /* Used for mlfqs. These are initialized regardless to not leave
+     uninitialized variables. */
   t->nice = 0;
   t->recent_cpu = to_fixed_point (0);
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -641,23 +635,60 @@ bool priority_less_than (const struct list_elem *a,
   return priority_a < priority_b;
 }
 
-/* Return a recalculated value for recent_cpu for a thread, based on load_avg. */
-static fixed_point
-recalculate_recent_cpu (struct thread *thread)
+/* Updates the priority for a specific thread, based on recent_cpu and
+   niceness. */
+static void
+mlfqs_update_priority(struct thread *t, void *aux UNUSED)
 {
-  fixed_point double_load_avg = fixed_point_multiplyi (load_avg, 2);
-  fixed_point coefficient =
-    fixed_point_divide (double_load_avg,
-                        fixed_point_subtracti (double_load_avg, 1));
-  return fixed_point_addi (fixed_point_multiply (coefficient, thread->recent_cpu),
-                           thread->nice);
+  int recent_cpu = to_integer_truncated (fixed_point_dividei (t->recent_cpu, 4));
+  int niceness = t->nice * 2;
+  t->priority = PRI_MAX - recent_cpu - niceness;
 }
 
 /* A function that updates the recent_cpu of a thread.
    This matches the thread_action_func type, so can be used with
    thread_foreach. */
 static void
-update_recent_cpu (struct thread *t, void *aux UNUSED)
+mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED)
 {
-  t->recent_cpu = recalculate_recent_cpu (t);
+  fixed_point double_load_avg = fixed_point_multiplyi (load_avg, 2);
+  fixed_point coefficient =
+    fixed_point_divide (double_load_avg,
+                        fixed_point_addi (double_load_avg, 1));
+  fixed_point new_recent_cpu =
+    fixed_point_addi (fixed_point_multiply (coefficient, t->recent_cpu),
+                      t->nice);
+  t->recent_cpu = new_recent_cpu;
+}
+
+/* The actions to take during a thread_tick when -mlfqs is enabled */
+static void
+mlfqs_thread_tick (void)
+{
+  /* Increment the current thread's recent_cpu */
+  if (thread_current () != idle_thread)
+    {
+      thread_current ()->recent_cpu =
+        fixed_point_addi (thread_current ()->recent_cpu, 1);
+    }
+
+  /* Update all threads' priorities. */
+  if (timer_ticks() % MLFQS_PRIORITY_UPDATE_FREQ == 0)
+    {
+      thread_foreach (mlfqs_update_priority, NULL);
+    }
+
+  /* Updates load_avg, and the recent_cpu of all threads, when the system tick
+     counter reaches a multiple of a second.
+     This must happen at this time due to assumptions made by the tests.*/
+  if (timer_ticks() % TIMER_FREQ == 0)
+    {
+      thread_foreach (mlfqs_update_recent_cpu, NULL);
+
+      fixed_point load_avg_factor =
+        fixed_point_dividei (to_fixed_point (59), 60);
+      load_avg =
+        fixed_point_add (fixed_point_multiply (load_avg, load_avg_factor),
+                         fixed_point_dividei (get_ready_threads (), 60));
+    }
 }
