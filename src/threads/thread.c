@@ -80,9 +80,8 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-// Forward declarations for utility functions.
-inline fixed_point get_ready_threads (void);
-void update_recent_cpu (struct thread *t, void *aux UNUSED);
+static inline fixed_point get_ready_threads (void);
+static void update_recent_cpu (struct thread *t, void *aux UNUSED);
 
 
 /* Initializes the threading system by transforming the code
@@ -171,7 +170,7 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
-inline fixed_point
+static inline fixed_point
 get_ready_threads (void)
 {
   int result = ((thread_current () == idle_thread) ? 0 : 1) +
@@ -642,7 +641,7 @@ bool priority_less_than (const struct list_elem *a,
 }
 
 /* Return a recalculated value for recent_cpu for a thread, based on load_avg. */
-fixed_point
+static fixed_point
 recalculate_recent_cpu (struct thread *thread)
 {
   fixed_point double_load_avg = fixed_point_multiplyi (load_avg, 2);
@@ -656,7 +655,7 @@ recalculate_recent_cpu (struct thread *thread)
 /* A function that updates the recent_cpu of a thread.
    This matches the thread_action_func type, so can be used with
    thread_foreach. */
-void
+static void
 update_recent_cpu (struct thread *t, void *aux UNUSED)
 {
   t->recent_cpu = recalculate_recent_cpu (t);
