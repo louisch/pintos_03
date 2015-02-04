@@ -4,13 +4,13 @@
 
 static const int TAIL_DIGITS = 14;
 
-inline int
+static inline int
 conversion_factor (void)
 {
   return 1 << TAIL_DIGITS;
 }
 
-fixed_point
+inline fixed_point
 to_fixed_point (int integer)
 {
 	fixed_point returned_point;
@@ -18,13 +18,13 @@ to_fixed_point (int integer)
 	return returned_point;
 }
 
-int
+inline int
 to_integer_truncated (fixed_point fixed_point)
 {
 	return fixed_point.value / conversion_factor ();
 }
 
-int
+inline int
 to_integer_rounded (fixed_point fixed_point)
 {
   return
@@ -33,7 +33,7 @@ to_integer_rounded (fixed_point fixed_point)
     conversion_factor ();
 }
 
-fixed_point
+inline fixed_point
 fixed_point_add (fixed_point x, fixed_point y)
 {
   fixed_point new_fixed_point;
@@ -41,7 +41,7 @@ fixed_point_add (fixed_point x, fixed_point y)
   return new_fixed_point;
 }
 
-fixed_point
+inline fixed_point
 fixed_point_subtract (fixed_point x, fixed_point y)
 {
   fixed_point new_fixed_point;
@@ -49,7 +49,7 @@ fixed_point_subtract (fixed_point x, fixed_point y)
   return new_fixed_point;
 }
 
-fixed_point
+inline fixed_point
 fixed_point_addi (fixed_point x, int n)
 {
   fixed_point new_fixed_point;
@@ -57,7 +57,7 @@ fixed_point_addi (fixed_point x, int n)
   return new_fixed_point;
 }
 
-fixed_point
+inline fixed_point
 fixed_point_subtracti(fixed_point x, int n)
 {
   fixed_point new_fixed_point;
@@ -65,7 +65,7 @@ fixed_point_subtracti(fixed_point x, int n)
   return new_fixed_point;
 }
 
-fixed_point
+inline fixed_point
 fixed_point_multiply (fixed_point x, fixed_point y)
 {
   fixed_point new_fixed_point;
@@ -73,7 +73,7 @@ fixed_point_multiply (fixed_point x, fixed_point y)
   return new_fixed_point;
 }
 
-fixed_point
+inline fixed_point
 fixed_point_multiplyi (fixed_point x, int n)
 {
   fixed_point new_fixed_point;
@@ -81,7 +81,7 @@ fixed_point_multiplyi (fixed_point x, int n)
   return new_fixed_point;
 }
 
-fixed_point
+inline fixed_point
 fixed_point_divide (fixed_point x, fixed_point y)
 {
   fixed_point new_fixed_point;
@@ -89,7 +89,7 @@ fixed_point_divide (fixed_point x, fixed_point y)
   return new_fixed_point;
 }
 
-fixed_point
+inline fixed_point
 fixed_point_dividei (fixed_point x, int n)
 {
   fixed_point new_fixed_point;
