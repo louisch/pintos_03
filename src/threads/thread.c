@@ -153,11 +153,13 @@ thread_tick (void)
      This must happen at this time due to assumptions made by the tests.*/
   if (timer_ticks() % TIMER_FREQ == 0)
     {
+      thread_foreach (update_recent_cpu, NULL);
+
       fixed_point load_avg_factor =
-        fixed_point_dividei(to_fixed_point (59), 60);
+        fixed_point_dividei (to_fixed_point (59), 60);
       load_avg =
-        fixed_point_add(fixed_point_multiply(load_avg, load_avg_factor),
-                        fixed_point_dividei(get_ready_threads (), 60));
+        fixed_point_add (fixed_point_multiply (load_avg, load_avg_factor),
+                         fixed_point_dividei (get_ready_threads (), 60));
     }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
