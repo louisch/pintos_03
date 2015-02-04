@@ -149,7 +149,8 @@ thread_tick (void)
 
   if (thread_current () != idle_thread)
     {
-      fixed_point_addi (thread_current ()->recent_cpu, 1);
+      thread_current ()->recent_cpu =
+        fixed_point_addi (thread_current ()->recent_cpu, 1);
     }
 
   /* Updates load_avg, and the recent_cpu of all threads, when the system tick
