@@ -59,6 +59,8 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+static void thread_notify_blocker (struct thread *t);
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -347,6 +349,7 @@ thread_add_acquired_lock (struct lock *lock)
   list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
 }
 
+/* Resinserts lock into the thread's list of locks to keep it ordered. */
 void
 thread_reinsert_lock (struct thread *t, struct lock *lock)
 {
@@ -354,6 +357,21 @@ thread_reinsert_lock (struct thread *t, struct lock *lock)
   list_remove (&lock->elem);
   list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
 
+  thread_notify_blocker (t);
+}
+
+// /* Removes lock from thread's list of locks. */
+// void
+// thread_remove_lock (struct thread *t, struct lock *lock)
+// {
+//   list_remove (&lock->elem);
+//   thread_notify_blocker (t);
+// }
+
+/* If the thread is blocked, asks blocker to resort its queue. */
+static void
+thread_notify_blocker (struct thread *t)
+{
   if (t->blocker != NULL)
     {
       lock_reinsert_thread (t->blocker, t);
