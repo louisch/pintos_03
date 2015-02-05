@@ -55,13 +55,12 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
-   If true, use multi-level feedback queue scheduler.
+   If true, use multi-level feedback Pqueue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
 struct lock_list_elem
 {
-  int priority;
   struct lock *lock;
   struct list_elem elem;
 };
@@ -346,28 +345,27 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Adds owned lock to list of locks the thread has acquired. */
+/* Adds a lock to list of locks the thread has acquired. */
 void
 thread_add_to_lock_list (struct lock *lock)
 {
   struct lock_list_elem e;
   e.lock = lock;
-  e.priority = 0;
-  struct list locks = thread_current ()->locks;
+  struct list *locks = &(thread_current ()->locks);
 
-  list_insert_ordered (&locks, &e.elem, &lock_list_elem_lt, NULL);
+  list_insert_ordered (locks, &e.elem, &lock_list_elem_lt, NULL);
 }
 
 /* Contact the blocker to notify it that thread priority has changed. */
-void
-thread_donate_priority (void)
-{
-  struct thread *t = thread_current ();
-  ASSERT (t->blocker != NULL)
+// void
+// thread_donate_priority (void)
+// {
+//   struct thread *t = thread_current ();
+//   ASSERT (t->blocker != NULL)
   
-  struct thread *reciever = t->blocker->holder;
+//   struct thread *reciever = t->blocker->holder;
   
-}
+// }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
@@ -655,14 +653,20 @@ thread_priority_lt (const struct list_elem *a,
 }
 
 
+/* list_less_func for comparing list_elems from struct lock_list_elems */
 
 bool
 lock_list_elem_lt (const struct list_elem *a,
                    const struct list_elem *b,
                    void *aux UNUSED)
 {
-  int pa = list_entry (a, struct lock_list_elem, elem)->priority;
-  int pb = list_entry (b, struct lock_list_elem, elem)->priority;
+  /* extract lock_list_elem from list_elem,
+     get lock from lock_list_elem,
+     call function lock_get_priority_of(lock) */
+  int pa
+    = lock_get_priority_of (list_entry (a, struct lock_list_elem, elem)->lock);
+  int pb
+    = lock_get_priority_of (list_entry (b, struct lock_list_elem, elem)->lock);
 
   return pa < pb;
 }
