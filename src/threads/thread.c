@@ -431,10 +431,11 @@ thread_set_priority (int new_priority)
 
   thread_current ()->priority = new_priority;
 
-  struct thread *next_thread = list_begin (&ready_list);
+  struct thread *next_thread =
+    list_entry (list_begin (&ready_list), struct thread, elem);
   if (thread_get_priority () < thread_get_priority_of (next_thread))
     {
-      //thread_yield ();
+      thread_yield ();
     }
 }
 
