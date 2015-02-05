@@ -386,7 +386,7 @@ thread_add_to_lock_list (struct lock *lock)
   struct lock_list_elem e;
   e.lock = lock;
   e.priority = 0;
-  struct list locks = thread_current ()->lock_list;
+  struct list locks = thread_current ()->locks;
 
   list_insert_ordered (&ps, &e.elem, &lock_list_elem_lt, NULL);
 }
@@ -554,10 +554,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->nice = 0;
   t->recent_cpu = to_fixed_point (0);
 
-  thread_add_priority (t, priority);
-  thread_give_priority (t, priority);
-
-  list_init (&t->lock_list);
+  list_init (&t->locks);
   t->blocker = NULL; // threads are born with limitless possibilities
   
   t->magic = THREAD_MAGIC;
