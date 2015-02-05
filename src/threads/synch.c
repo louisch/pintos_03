@@ -207,8 +207,11 @@ lock_acquire (struct lock *lock)
   { /* lock acquisition failure */
     thread_current ()->blocker = lock;  /* tell thread it is now under lock. */
 
-    /* LET SLEEPING CODES LIE */
-
+    if (lock_try_increase_priority (lock, thread_get_priority ()))
+      {
+        thread_reinsert_lock (lock->holder, lock);
+      }
+      
     sema_down (&lock->semaphore);
     thread_current ()->blocker = NULL;  /* release thread from lock. */
   }
@@ -282,6 +285,7 @@ lock_reinsert_thread (struct lock *lock, struct thread *t)
   list_remove (&t->elem);
   list_insert_ordered (waiters, &t->elem, &thread_priority_lt, NULL);
 
+  lock_evaluate_priority (lock);
   thread_reinsert_lock (lock->holder, lock);
 }
 
@@ -296,7 +300,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  lock->holder = NULL;
+  list_remove (&lock->elem);
+  lock_evaluate_priority (lock);
   sema_up (&lock->semaphore);
 }
 
