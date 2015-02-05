@@ -395,7 +395,14 @@ thread_set_priority (int new_priority)
 {
   ASSERT (new_priority <= PRI_MAX);
   ASSERT (new_priority >= PRI_MIN);
+
   thread_current ()->priority = new_priority;
+
+  struct thread *next_thread = list_begin (&ready_list);
+  if (thread_get_priority () < thread_get_priority_of (next_thread))
+    {
+      //thread_yield ();
+    }
 }
 
 /* Returns the current thread's priority. */
