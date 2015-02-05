@@ -62,12 +62,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-struct lock_list_elem
-{
-  struct lock *lock;
-  struct list_elem elem;
-};
-
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -382,11 +376,21 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_add_acquired_lock (struct lock *lock)
 {
-  struct lock_list_elem e;
-  e.lock = lock;
   struct list *locks = &(thread_current ()->locks);
+  list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
+}
 
-  list_insert_ordered (locks, &e.elem, &lock_list_elem_lt, NULL);
+void
+thread_reinsert_lock (struct thread *t, struct lock *lock)
+{
+  struct list *locks = &t->locks;
+  list_remove (&lock->elem);
+  list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
+
+  if (t->blocker != NULL)
+    {
+      lock_reinsert_thread (t->blocker, t);
+    }
 }
 
 /* Contact the blocker to notify it that thread priority has changed. */
@@ -425,10 +429,10 @@ thread_get_priority_of (struct thread *t)
   if (!list_empty (locks))
   {
     struct lock *best_lock =
-      list_entry (list_begin (locks), struct lock_list_elem, elem)->lock;
+      list_entry (list_begin (locks), struct lock, elem);
     lock_priority = lock_get_priority_of (best_lock);
   }
-  return t->priority >= lock_priority? t->priority : lock_priority;
+  return t->priority >= lock_priority ? t->priority : lock_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -702,10 +706,8 @@ lock_list_elem_lt (const struct list_elem *a,
   /* extract lock_list_elem from list_elem,
      get lock from lock_list_elem,
      call function lock_get_priority_of(lock) */
-  int pa
-    = lock_get_priority_of (list_entry (a, struct lock_list_elem, elem)->lock);
-  int pb
-    = lock_get_priority_of (list_entry (b, struct lock_list_elem, elem)->lock);
+  int pa = lock_get_priority_of (list_entry (a, struct lock, elem));
+  int pb = lock_get_priority_of (list_entry (b, struct lock, elem));
 
   return pa < pb;
 }
