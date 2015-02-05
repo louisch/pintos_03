@@ -431,9 +431,11 @@ thread_set_priority (int new_priority)
 
   thread_current ()->priority = new_priority;
 
+  printf ("Thread P: %d, new p: %d\n", thread_current ()->priority, new_priority);
+
   struct thread *next_thread =
     list_entry (list_begin (&ready_list), struct thread, elem);
-  if (thread_get_priority () < thread_get_priority_of (next_thread))
+  if (!list_empty (&ready_list) && thread_get_priority () < thread_get_priority_of (next_thread))
     {
       thread_yield ();
     }
@@ -460,6 +462,7 @@ thread_get_priority_of (struct thread *t)
       list_entry (list_begin (locks), struct lock, elem);
     lock_priority = lock_get_priority_of (best_lock);
   }
+  printf ("thread_get_priority: thread P: %d, list p: %d\n", t->priority, lock_priority);
   intr_set_level (old_level);
   return t->priority >= lock_priority ? t->priority : lock_priority;
 }
@@ -579,6 +582,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  printf ("init_thread getting priority %d, rdylist size: %d\n", priority, list_size (&ready_list));
 
   /* Used for mlfqs. These are initialized regardless to not leave
      uninitialized variables. */
