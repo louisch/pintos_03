@@ -413,18 +413,21 @@ thread_get_priority (void)
   return thread_get_priority_of (thread_current ());
 }
 
-/* Get efffective priority of thread t. */
+/* Get effective priority of thread t. */
 int
 thread_get_priority_of (struct thread *t)
 {
+  enum intr_level old_level = intr_disable ();
   struct list *locks = &t->locks;
   int lock_priority = 0;
+
   if (!list_empty (locks))
   {
     struct lock *best_lock =
       list_entry (list_begin (locks), struct lock, elem);
     lock_priority = lock_get_priority_of (best_lock);
   }
+  intr_set_level (old_level);
   return t->priority >= lock_priority ? t->priority : lock_priority;
 }
 
