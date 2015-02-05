@@ -199,14 +199,18 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if (!lock_try_acquire (lock))
-    { // lock acquisition failure
-      thread_current ()->blocker = lock;  /* tell thread it is now under lock. */
-      // LET SLEEPING CODES LIE //
-      sema_down (&lock->semaphore);
-      thread_current ()->blocker = NULL;  /* release thread from lock. */
-    }
-    thread_add_acquired_lock (lock);
+  if (!lock_try_acquire (lock)) // this will down the semaphore if it succeeds
+  { // lock acquisition failure
+    thread_current ()->blocker = lock;  /* tell thread it is now under lock. */
+
+    // LET SLEEPING CODES LIE //
+
+    sema_down (&lock->semaphore);
+    thread_current ()->blocker = NULL;  /* release thread from lock. */
+  }
+
+  // lock acquisition success
+  thread_add_acquired_lock (lock);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
