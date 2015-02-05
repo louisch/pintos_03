@@ -160,6 +160,9 @@ sema_test_helper (void *sema_)
     }
 }
 
+
+static void lock_evaluate_priority (struct lock *lock);
+static bool lock_try_increase_priority (struct lock *lock, int p);
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
@@ -181,6 +184,7 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
+  lock->priority = 0;
   sema_init (&lock->semaphore, 1);
 }
 
@@ -237,18 +241,37 @@ lock_try_acquire (struct lock *lock)
 int
 lock_get_priority_of (struct lock *lock)
 {
+  return lock->priority;
+}
+
+/* Evaluates the priority of the lock. */
+static void
+lock_evaluate_priority (struct lock *lock)
+{
   struct list *waiters = &(lock->semaphore).waiters;
 
   if (list_empty (waiters))
-  {
-    return 0;
-  }
+    {
+      lock->priority = 0;
+    }
   else
+    {
+      struct thread *best_thread =
+        list_entry (list_begin (waiters), struct thread, elem);
+      lock->priority = thread_get_priority_of (best_thread);
+    }
+}
+
+/* Set lock's priority to p if it is higher than its current priority. */
+static bool
+lock_try_increase_priority (struct lock *lock, int p)
+{
+  if (lock->priority < p)
   {
-    struct thread *best_thread =
-      list_entry (list_begin (waiters), struct thread, elem);
-    return thread_get_priority_of (best_thread);
+    lock->priority = p;
+    return true;
   }
+  return false;
 }
 
 /* Re-inserts thread t into the waiting list, keeping it ordered. */
