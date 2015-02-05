@@ -345,9 +345,9 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Adds a lock to list of locks the thread has acquired. */
+/* Adds newly acquired lock to list of locks the thread has. */
 void
-thread_add_to_lock_list (struct lock *lock)
+thread_add_acquired_lock (struct lock *lock)
 {
   struct lock_list_elem e;
   e.lock = lock;
