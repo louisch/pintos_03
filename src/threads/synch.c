@@ -228,6 +228,24 @@ lock_try_acquire (struct lock *lock)
   return success;
 }
 
+/* Returns the priority of the lock based on its contents. */
+int
+lock_get_priority_of (struct lock *lock)
+{
+  struct list *waiters = &(lock->semaphore).waiters;
+
+  if (list_empty (waiters))
+  {
+    return 0;
+  }
+  else
+  {
+    struct thread *very_important_thread =
+      list_entry (list_begin (waiters), struct thread, elem);
+    return thread_get_priority_of (very_important_thread);
+  }
+}
+
 /* Releases LOCK, which must be owned by the current thread.
 
    An interrupt handler cannot acquire a lock, so it does not
