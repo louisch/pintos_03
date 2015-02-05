@@ -251,6 +251,17 @@ lock_get_priority_of (struct lock *lock)
   }
 }
 
+/* Re-inserts thread t into the waiting list, keeping it ordered. */
+void
+lock_reinsert_thread (struct lock *lock, struct thread *t)
+{
+  struct list *waiters = &(lock->semaphore).waiters;
+  list_remove (&t->elem);
+  list_insert_ordered (waiters, &t->elem, &thread_priority_lt, NULL);
+
+  thread_reinsert_lock (lock->holder, lock);
+}
+
 /* Releases LOCK, which must be owned by the current thread.
 
    An interrupt handler cannot acquire a lock, so it does not
