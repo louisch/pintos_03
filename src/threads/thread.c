@@ -353,7 +353,7 @@ thread_add_to_lock_list (struct lock *lock)
   struct lock_list_elem e;
   e.lock = lock;
   e.priority = 0;
-  struct list locks = thread_current ()->lock_list;
+  struct list locks = thread_current ()->locks;
 
   list_insert_ordered (&locks, &e.elem, &lock_list_elem_lt, NULL);
 }
@@ -508,7 +508,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
 
-  list_init (&t->lock_list);
+  list_init (&t->locks);
   t->blocker = NULL; // threads are born with limitless possibilities
   
   t->magic = THREAD_MAGIC;

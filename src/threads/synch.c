@@ -240,9 +240,9 @@ lock_get_priority_of (struct lock *lock)
   }
   else
   {
-    struct thread *very_important_thread =
+    struct thread *best_thread =
       list_entry (list_begin (waiters), struct thread, elem);
-    return thread_get_priority_of (very_important_thread);
+    return thread_get_priority_of (best_thread);
   }
 }
 
