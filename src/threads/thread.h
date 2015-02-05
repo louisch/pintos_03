@@ -88,8 +88,9 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Base priority of thread. */
-    /* Ordered list of priorities the thread holds. */
-    struct list priorities;
+    /* Ordered list of locks the thread has acquired.
+       They are ordered by highest donated priority. */
+    struct list lock_list;
     /* Pointer to lock currently holding this thread. */
     struct lock *blocker;
     struct list_elem allelem;           /* List element for all threads list. */
@@ -134,10 +135,11 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
+// void thread_give_priority (struct thread*, int);
+// void thread_remove_priority (struct thread*, int);
+// void thread_update_priority (struct thread*, int, int);
+
 int thread_get_priority (void);
-void thread_give_priority (struct thread*, int);
-void thread_remove_priority (struct thread*, int);
-void thread_update_priority (struct thread*, int, int);
 void thread_set_priority (int);
 
 int thread_get_nice (void);

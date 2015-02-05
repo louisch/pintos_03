@@ -348,25 +348,16 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Adds owned lock to list of threads priorities. */
+/* Adds owned lock to list of locks the thread has acquired. */
 void
-thread_add_priority (struct lock *lock)
+thread_add_to_lock_list (struct lock *lock)
 {
   struct lock_list_elem e;
   e.lock = lock;
   e.priority = 0;
-  struct list ps = thread_current ()->priorities;
+  struct list locks = thread_current ()->lock_list;
 
-  list_insert_ordered (&ps, &e.elem, &lock_list_elem_lt, NULL);
-}
-
-/* Updates priority on priority list. */
-
-/* Sets the current thread's priority to NEW_PRIORITY. */
-void
-thread_set_priority (int new_priority) 
-{
-  thread_current ()->priority = new_priority;
+  list_insert_ordered (&locks, &e.elem, &lock_list_elem_lt, NULL);
 }
 
 /* Contact the blocker to notify it that thread priority has changed. */
@@ -378,6 +369,13 @@ thread_donate_priority (void)
   
   struct thread *reciever = t->blocker->holder;
   
+}
+
+/* Sets the current thread's priority to NEW_PRIORITY. */
+void
+thread_set_priority (int new_priority) 
+{
+  thread_current ()->priority = new_priority;
 }
 
 /* Returns the current thread's priority. */
@@ -512,7 +510,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
 
-  list_init (&t->priorities);
+  list_init (&t->lock_list);
   t->blocker = NULL; // threads are born with limitless possibilities
   
   t->magic = THREAD_MAGIC;
