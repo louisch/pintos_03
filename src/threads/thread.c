@@ -59,8 +59,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-static int thread_get_priority_of (struct thread *t);
-
 struct lock_list_elem
 {
   int priority;
@@ -386,7 +384,7 @@ thread_get_priority (void)
 }
 
 /* Get priority of thread t. */
-static int
+int
 thread_get_priority_of (struct thread *t)
 {
   return t->priority;
