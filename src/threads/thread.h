@@ -135,10 +135,6 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
-// void thread_give_priority (struct thread*, int);
-// void thread_remove_priority (struct thread*, int);
-// void thread_update_priority (struct thread*, int, int);
-
 int thread_get_priority (void);
 int thread_get_priority_of (struct thread*);
 void thread_set_priority (int);
