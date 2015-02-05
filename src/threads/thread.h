@@ -90,7 +90,7 @@ struct thread
     int priority;                       /* Base priority of thread. */
     /* Ordered list of locks the thread has acquired.
        They are ordered by highest donated priority. */
-    struct list lock_list;
+    struct list locks;
     /* Pointer to lock currently holding this thread. */
     struct lock *blocker;
     struct list_elem allelem;           /* List element for all threads list. */

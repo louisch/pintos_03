@@ -353,7 +353,7 @@ thread_add_to_lock_list (struct lock *lock)
   struct lock_list_elem e;
   e.lock = lock;
   e.priority = 0;
-  struct list locks = thread_current ()->lock_list;
+  struct list locks = thread_current ()->locks;
 
   list_insert_ordered (&locks, &e.elem, &lock_list_elem_lt, NULL);
 }
@@ -373,6 +373,8 @@ thread_donate_priority (void)
 void
 thread_set_priority (int new_priority) 
 {
+  ASSERT (new_priority <= PRI_MAX);
+  ASSERT (new_priority >= PRI_MIN);
   thread_current ()->priority = new_priority;
 }
 
@@ -383,11 +385,19 @@ thread_get_priority (void)
   return thread_get_priority_of (thread_current ());
 }
 
-/* Get priority of thread t. */
+/* Get efffective priority of thread t. */
 int
 thread_get_priority_of (struct thread *t)
 {
-  return t->priority;
+  struct list *locks = &t->locks;
+  int lock_priority = 0;
+  if (!list_empty (locks))
+  {
+    struct lock *best_lock =
+      list_entry (list_begin (locks), struct lock_list_elem, elem)->lock;
+    lock_priority = lock_get_priority_of (best_lock);
+  }
+  return t->priority >= lock_priority? t->priority : lock_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -508,7 +518,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
 
-  list_init (&t->lock_list);
+  list_init (&t->locks);
   t->blocker = NULL; // threads are born with limitless possibilities
   
   t->magic = THREAD_MAGIC;
