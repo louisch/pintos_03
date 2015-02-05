@@ -144,5 +144,6 @@ int thread_get_load_avg (void);
 bool priority_less_than (const struct list_elem *a,
                          const struct list_elem *b,
                          void *aux UNUSED);
+bool is_idle (const struct thread *t);
 
 #endif /* threads/thread.h */

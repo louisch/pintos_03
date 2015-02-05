@@ -1,18 +1,19 @@
 #include "threads/thread.h"
 #include <debug.h>
+#include <fixed_point.h>
+#include <list.h>
 #include <stddef.h>
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
-#include <fixed_point.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
+#include "threads/mlfqs.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -21,10 +22,6 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
-
-/* The number of ticks to wait until updating priority in the MLFQS
-   This is only relevant when -mlfqs is set. */
-#define MLFQS_PRIORITY_UPDATE_FREQ 4
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -65,13 +62,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-/*
-Estimates the average number of threads ready to run over the
-past minute.
-*/
-static fixed_point load_avg = {0};
-
-
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -83,10 +73,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-
-static inline fixed_point get_ready_threads (void);
-static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
-static void mlfqs_thread_tick (void);
 
 
 /* Initializes the threading system by transforming the code
@@ -154,19 +140,11 @@ thread_tick (void)
 
   if (thread_mlfqs)
     {
-      mlfqs_thread_tick ();
+      mlfqs_thread_tick (&ready_list);
     }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
-}
-
-static inline fixed_point
-get_ready_threads (void)
-{
-  int result = ((thread_current () == idle_thread) ? 0 : 1) +
-    list_size (&ready_list);
-  return to_fixed_point(result);
 }
 
 /* Prints thread statistics. */
@@ -347,7 +325,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     {
-        (!thread_mlfqs) ? list_insert_ordered (&ready_list, &cur->elem, 
+        (!thread_mlfqs) ? list_insert_ordered (&ready_list, &cur->elem,
                                               priority_less_than, NULL)
                        : list_push_back (&ready_list, &cur->elem);
     }
@@ -405,7 +383,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  return to_integer_rounded (fixed_point_multiplyi (load_avg, 100));
+  return to_integer_rounded (fixed_point_multiplyi (get_load_avg (), 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -639,67 +617,8 @@ bool priority_less_than (const struct list_elem *a,
   return priority_a < priority_b;
 }
 
-/* Updates the priority for a specific thread, based on recent_cpu and
-   niceness. */
-static void
-mlfqs_update_priority(struct thread *t, void *aux UNUSED)
+bool
+is_idle (const struct thread *t)
 {
-  int recent_cpu = to_integer_truncated (fixed_point_dividei (t->recent_cpu, 4));
-  int niceness = t->nice * 2;
-  t->priority = PRI_MAX - recent_cpu - niceness;
-}
-
-/* A function that updates the recent_cpu of a thread.
-   This matches the thread_action_func type, so can be used with
-   thread_foreach. */
-static void
-mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED)
-{
-  fixed_point double_load_avg = fixed_point_multiplyi (load_avg, 2);
-  fixed_point coefficient =
-    fixed_point_divide (double_load_avg,
-                        fixed_point_addi (double_load_avg, 1));
-  fixed_point new_recent_cpu =
-    fixed_point_addi (fixed_point_multiply (coefficient, t->recent_cpu),
-                      t->nice);
-  t->recent_cpu = new_recent_cpu;
-}
-
-/* The actions to take during a thread_tick when -mlfqs is enabled */
-static void
-mlfqs_thread_tick (void)
-{
-  if(thread_current()->priority == 
-      list_entry (list_begin (&ready_list), struct thread, elem)->priority)
-    {
-      thread_yield ();
-    }
-
-  /* Increment the current thread's recent_cpu */
-  if (thread_current () != idle_thread)
-    {
-      thread_current ()->recent_cpu =
-        fixed_point_addi (thread_current ()->recent_cpu, 1);
-    }
-
-  /* Update all threads' priorities. */
-  if (timer_ticks() % MLFQS_PRIORITY_UPDATE_FREQ == 0)
-    {
-      thread_foreach (mlfqs_update_priority, NULL);
-      list_sort (&ready_list, priority_less_than, NULL);
-    }
-
-  /* Updates load_avg, and the recent_cpu of all threads, when the system tick
-     counter reaches a multiple of a second.
-     This must happen at this time due to assumptions made by the tests.*/
-  if (timer_ticks() % TIMER_FREQ == 0)
-    {
-      thread_foreach (mlfqs_update_recent_cpu, NULL);
-
-      fixed_point load_avg_factor =
-        fixed_point_dividei (to_fixed_point (59), 60);
-      load_avg =
-        fixed_point_add (fixed_point_multiply (load_avg, load_avg_factor),
-                         fixed_point_dividei (get_ready_threads (), 60));
-    }
+  return t == idle_thread;
 }
