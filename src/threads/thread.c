@@ -273,7 +273,7 @@ thread_unblock (struct thread *t)
     }
   else
     {
-      list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
+      list_insert_ordered (&ready_list, &t->elem, thread_priority_lt, NULL);
     }
   intr_set_level (old_level);
 }
@@ -384,18 +384,8 @@ thread_add_to_lock_list (struct lock *lock)
 {
   struct lock_list_elem e;
   e.lock = lock;
-  struct list *locks = &(thread_current ()->lock_list);
+  struct list *locks = &(thread_current ()->locks);
 
-  list_insert_ordered (&ps, &e.elem, &lock_list_elem_lt, NULL);
-}
-
-/* Updates priority on priority list. */
-
-/* Sets the current thread's priority to NEW_PRIORITY. */
-void
-thread_set_priority (int new_priority)
-{
-  thread_current ()->priority = new_priority;
   list_insert_ordered (locks, &e.elem, &lock_list_elem_lt, NULL);
 }
 
@@ -714,8 +704,8 @@ lock_list_elem_lt (const struct list_elem *a,
      call function lock_get_priority_of(lock) */
   int pa
     = lock_get_priority_of (list_entry (a, struct lock_list_elem, elem)->lock);
-  int pa
-    = lock_get_priority_of (list_entry (a, struct lock_list_elem, elem)->lock);
+  int pb
+    = lock_get_priority_of (list_entry (b, struct lock_list_elem, elem)->lock);
 
   return pa < pb;
 }
@@ -724,3 +714,4 @@ bool
 is_idle (const struct thread *t)
 {
   return t == idle_thread;
+}
