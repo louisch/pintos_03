@@ -373,6 +373,8 @@ thread_donate_priority (void)
 void
 thread_set_priority (int new_priority) 
 {
+  ASSERT (new_priority <= PRI_MAX);
+  ASSERT (new_priority >= PRI_MIN);
   thread_current ()->priority = new_priority;
 }
 
