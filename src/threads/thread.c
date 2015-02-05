@@ -428,11 +428,19 @@ thread_get_priority (void)
   return thread_get_priority_of (thread_current ());
 }
 
-/* Get priority of thread t. */
+/* Get efffective priority of thread t. */
 int
 thread_get_priority_of (struct thread *t)
 {
-  return t->priority;
+  struct list *locks = &t->locks;
+  int lock_priority = 0;
+  if (!list_empty (locks))
+  {
+    struct lock *best_lock =
+      list_entry (list_begin (locks), struct lock_list_elem, elem)->lock;
+    lock_priority = lock_get_priority_of (best_lock);
+  }
+  return t->priority >= lock_priority? t->priority : lock_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
