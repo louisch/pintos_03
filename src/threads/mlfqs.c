@@ -91,9 +91,12 @@ mlfqs_update_priority (struct thread *t, void *ready_list)
 {
   int old_priority = t->priority;
 
-  int recent_cpu = to_integer_truncated (fixed_point_dividei (t->recent_cpu, 4));
+  fixed_point recent_cpu = fixed_point_dividei (t->recent_cpu, 4);
   int niceness = t->nice * 2;
-  t->priority = PRI_MAX - recent_cpu - niceness;
+  t->priority =
+    to_integer_truncated (
+      fixed_point_subtracti (fixed_point_subtract (PRI_MAX, recent_cpu),
+                             niceness));
 
   if (t->status == THREAD_READY && old_priority != t->priority)
     {
