@@ -41,10 +41,14 @@ get_load_avg (void)
 void
 mlfqs_thread_tick (struct list *ready_list)
 {
-  if(thread_current()->priority ==
-     list_entry (list_begin (ready_list), struct thread, elem)->priority)
+  /* Updates load_avg, and the recent_cpu of all threads, when the system tick
+     counter reaches a multiple of a second.
+     This must happen at this time due to assumptions made by the tests.*/
+  if (timer_ticks () % TIMER_FREQ == 0)
     {
-      intr_yield_on_return();
+      load_avg = mlfqs_new_load_avg (load_avg, ready_list);
+
+      thread_foreach (mlfqs_update_recent_cpu, NULL);
     }
 
   /* Increment the current thread's recent_cpu */
@@ -60,15 +64,7 @@ mlfqs_thread_tick (struct list *ready_list)
       thread_foreach (mlfqs_update_priority, ready_list);
     }
 
-  /* Updates load_avg, and the recent_cpu of all threads, when the system tick
-     counter reaches a multiple of a second.
-     This must happen at this time due to assumptions made by the tests.*/
-  if (timer_ticks () % TIMER_FREQ == 0)
-    {
-      thread_foreach (mlfqs_update_recent_cpu, NULL);
-
-      load_avg = mlfqs_new_load_avg (load_avg, ready_list);
-    }
+  intr_yield_on_return();
 }
 
 /* Calculates and returns the number of active threads.
