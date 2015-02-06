@@ -114,12 +114,17 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters))
-  {
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
-  }
   sema->value++;
+  if (!list_empty (&sema->waiters))
+    {
+      struct thread *t = list_entry (list_pop_front (&sema->waiters),
+                                     struct thread, elem);
+      thread_unblock (t);
+      if (thread_get_priority () < thread_get_priority_of (t))
+        {
+          thread_yield();
+        }
+    }
   intr_set_level (old_level);
 }
 
@@ -342,11 +347,11 @@ lock_release (struct lock *lock)
   lock_try_decrease_priority (lock);
   sema_up (&lock->semaphore);
   // lock_evaluate_priority (lock);
-  if (oldp > lock->priority)
-  {
-    // printf ("--release: lock priority downed from %d to %d; running thread: %s\n", oldp, lock->priority, thread_current()->name);
-    thread_yield ();
-  }
+  // if (oldp > lock->priority)
+  // {
+  //   // printf ("--release: lock priority downed from %d to %d; running thread: %s\n", oldp, lock->priority, thread_current()->name);
+  //   thread_yield ();
+  // }
   
   intr_set_level (old_level);
 
