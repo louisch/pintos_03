@@ -163,6 +163,7 @@ sema_test_helper (void *sema_)
 
 static void lock_evaluate_priority (struct lock *lock);
 static bool lock_try_increase_priority (struct lock *lock, int p);
+static void lock_try_decrease_priority (struct lock *lock);
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
@@ -205,7 +206,6 @@ lock_acquire (struct lock *lock)
 
   enum intr_level old_level;
   old_level = intr_disable ();
-  // printf ("##acquire: Thread '%s' tries to acquire the lock\n", thread_current()->name);
   if (!lock_try_acquire (lock)) /* this downs the semaphore if it succeeds */
   { /* lock acquisition failure */
     thread_current ()->blocker = lock;  /* tell thread it is now under lock. */
@@ -214,9 +214,10 @@ lock_acquire (struct lock *lock)
       {
         thread_reinsert_lock (lock->holder, lock);
       }
-    printf ("##lock_acquire: thread '%s'; waiting list %d\n", thread_current()->name, list_size(&lock->semaphore.waiters));
+    // printf ("--lock_acquire: thread '%s'; waiting list %d\n", thread_current()->name, list_size(&lock->semaphore.waiters));
     sema_down (&lock->semaphore);
     thread_current ()->blocker = NULL;  /* release thread from lock. */
+    lock->holder = thread_current ();
     thread_add_acquired_lock (lock);
   }
   intr_set_level (old_level);
@@ -284,6 +285,24 @@ lock_try_increase_priority (struct lock *lock, int p)
   return false;
 }
 
+/* Decreases priority value to the next priority in the list, if applicable. */
+static void
+lock_try_decrease_priority (struct lock *lock)
+{
+  struct list *waiters = &lock->semaphore.waiters;
+  if (list_size (waiters) <= 1)
+    {
+      lock->priority = 0;
+    }
+  else
+    {
+      struct thread *next_best_thread =
+        list_entry (list_begin (waiters)->next, struct thread, elem);
+        // printf ("--lock_increase: priority was %d; new lock priority is %d\n", lock->priority, thread_get_priority_of (next_best_thread));
+      lock->priority = thread_get_priority_of (next_best_thread);
+    }
+}
+
 /* Re-inserts thread t into the waiting list, keeping it ordered. */
 void
 lock_reinsert_thread (struct lock *lock, struct thread *t)
@@ -305,29 +324,32 @@ void
 lock_release (struct lock *lock) 
 {
   ASSERT (lock != NULL);
+  if (!lock_held_by_current_thread (lock)) {
+    // printf ("--release: unauthorised resource access detected by '%s'\n",
+      // thread_current()->name);
+    // if (!lock->holder != NULL) {
+    //   // printf ("---current owner: %s\n", lock->holder->name);
+    // }
+    ASSERT (0);
+  }
   ASSERT (lock_held_by_current_thread (lock));
 
   enum intr_level old_level = intr_disable ();
 
   lock->holder = NULL;
   list_remove (&lock->elem);
-<<<<<<< HEAD
-  lock_evaluate_priority (lock);
-
-  sema_up (&lock->semaphore);
-=======
-  sema_up (&lock->semaphore);
-  
   int oldp = lock->priority;
-  lock_evaluate_priority (lock);
->>>>>>> Lock priority is now correctly re-evaled. It should also be able to cause pre-emption correctly.
-
-  intr_set_level (old_level);
-
-  if (oldp < lock->priority) {
-    printf ("##release: '%s' yielding exec time\n", thread_current ()->name);
+  lock_try_decrease_priority (lock);
+  sema_up (&lock->semaphore);
+  // lock_evaluate_priority (lock);
+  if (oldp > lock->priority)
+  {
+    // printf ("--release: lock priority downed from %d to %d; running thread: %s\n", oldp, lock->priority, thread_current()->name);
     thread_yield ();
   }
+  
+  intr_set_level (old_level);
+
 }
 
 /* Returns true if the current thread holds LOCK, false
