@@ -256,7 +256,7 @@ lock_get_priority_of (struct lock *lock)
 static void
 lock_evaluate_priority (struct lock *lock)
 {
-  struct list *waiters = &(lock->semaphore).waiters;
+  struct list *waiters = &(lock->semaphore.waiters);
 
   if (list_empty (waiters))
     {
@@ -306,10 +306,13 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   enum intr_level old_level = intr_disable ();
+
   lock->holder = NULL;
   list_remove (&lock->elem);
   lock_evaluate_priority (lock);
+
   sema_up (&lock->semaphore);
+
   intr_set_level (old_level);
 }
 
