@@ -309,11 +309,23 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   list_remove (&lock->elem);
+<<<<<<< HEAD
   lock_evaluate_priority (lock);
 
   sema_up (&lock->semaphore);
+=======
+  sema_up (&lock->semaphore);
+  
+  int oldp = lock->priority;
+  lock_evaluate_priority (lock);
+>>>>>>> Lock priority is now correctly re-evaled. It should also be able to cause pre-emption correctly.
 
   intr_set_level (old_level);
+
+  if (oldp < lock->priority) {
+    printf ("##release: '%s' yielding exec time\n", thread_current ()->name);
+    thread_yield ();
+  }
 }
 
 /* Returns true if the current thread holds LOCK, false
