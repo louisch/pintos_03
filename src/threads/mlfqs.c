@@ -47,7 +47,7 @@ mlfqs_thread_tick (struct list *ready_list)
   if (timer_ticks () % MLFQS_PRIORITY_UPDATE_FREQ == 0)
     {
       thread_foreach (mlfqs_update_priority, NULL);
-      list_sort (ready_list, priority_less_than, NULL);
+      // list_sort (ready_list, priority_less_than, NULL);
     }
 
   /* Updates load_avg, and the recent_cpu of all threads, when the system tick
