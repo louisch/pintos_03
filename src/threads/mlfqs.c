@@ -12,7 +12,7 @@
 
 /* Estimates the average number of threads ready to run over the
    past minute. */
-static fixed_point load_avg = {0};
+static fixed_point load_avg = 0;
 
 typedef struct
 {
