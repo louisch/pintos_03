@@ -1,7 +1,7 @@
 #include "threads/mlfqs.h"
 #include <debug.h>
 #include <list.h>
-
+#include <malloc.h>
 #include <stddef.h>
 #include "devices/timer.h"
 #include "threads/interrupt.h"
@@ -18,6 +18,26 @@ static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
 /* Estimates the average number of threads ready to run over the
    past minute. */
 static fixed_point load_avg = {0};
+struct list *mlfqs_run_queue;
+
+typedef struct
+{
+  int highest_priority;
+  struct list *ready_list;
+} rebuild_ready_list_struct;
+
+typedef struct
+{
+  struct thread *t;
+  struct list_elem elem;
+} thread_list_elem;
+
+void
+mlfqs_init (void)
+{
+  mlfqs_run_queue = malloc(sizeof *mlfqs_run_queue);
+  list_init (mlfqs_run_queue);
+}
 
 fixed_point
 get_load_avg (void)
@@ -29,7 +49,6 @@ get_load_avg (void)
 void
 mlfqs_thread_tick (struct list *ready_list)
 {
-
   if(thread_current()->priority ==
      list_entry (list_begin (ready_list), struct thread, elem)->priority)
     {
@@ -46,8 +65,8 @@ mlfqs_thread_tick (struct list *ready_list)
   /* Update all threads' priorities. */
   if (timer_ticks () % MLFQS_PRIORITY_UPDATE_FREQ == 0)
     {
-      thread_foreach (mlfqs_update_priority, NULL);
-      list_sort (ready_list, priority_less_than, NULL);
+      int highest_priority_found = PRI_MIN;
+      thread_foreach (mlfqs_update_priority, &mlfqs_run_queue);
     }
 
   /* Updates load_avg, and the recent_cpu of all threads, when the system tick
@@ -65,6 +84,34 @@ mlfqs_thread_tick (struct list *ready_list)
     }
 }
 
+static thread_list_elem *
+create_thread_list_elem (struct thread *wrapped_thread)
+{
+  thread_list_elem *allocated = malloc(sizeof *allocated);
+  allocated->t = wrapped_thread;
+}
+
+/* Assuming that get_from is a list_elem embedded inside a thread_list_elem,
+   return the thread pointer inside the thread_list_elem. */
+static struct thread *
+get_thread (const list_elem *get_from)
+{
+  return list_entry(get_from, thread_list_elem, elem)->t;
+}
+
+/* Removes all elements from a list containing malloc'd thread_list_elem's. */
+static void
+clear_thread_list (struct list *thread_list)
+{
+  while (!list_empty (thread_list))
+    {
+      list_elem *current = list_pop_front (thread_list);
+      thread_list_elem *to_be_freed =
+        list_entry (current, thread_list_elem, elem);
+      free(to_be_freed);
+    }
+}
+
 /* Calculates and returns the number of active threads.
    This is the current thread if it is not idle, and the number of threads with
    the ready status. */
@@ -77,13 +124,23 @@ num_of_active_threads (struct list *ready_list)
 }
 
 /* Updates the priority for a specific thread, based on recent_cpu and
-   niceness. */
+   niceness.
+   Also, updates the given run_queue, adding on threads that are of the right
+   priority, or clearing it and starting again if a thread is found of higher
+   priority than the existing threads in the queue. */
 static void
-mlfqs_update_priority (struct thread *t, void *aux UNUSED)
+mlfqs_update_priority (struct thread *t, void *run_queue_void)
 {
   int recent_cpu = to_integer_truncated (fixed_point_dividei (t->recent_cpu, 4));
   int niceness = t->nice * 2;
   t->priority = PRI_MAX - recent_cpu - niceness;
+
+  struct list *run_queue = (struct list *)run_queue_void;
+  int current_priority = get_thread(list_head(run_queue))->priority;
+  if (t->priority == current_priority)
+    {
+      list_push_back (run_queue, )
+        }
 }
 
 /* A function that updates the recent_cpu of a thread.
