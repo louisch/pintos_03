@@ -689,7 +689,7 @@ thread_priority_lt (const struct list_elem *a,
   int pa = thread_get_priority_of (list_entry (a, struct thread, elem));
   int pb = thread_get_priority_of (list_entry (b, struct thread, elem));
 
-  return pa < pb;
+  return pa > pb;
 }
 
 
@@ -706,5 +706,5 @@ lock_list_elem_lt (const struct list_elem *a,
   int pa = lock_get_priority_of (list_entry (a, struct lock, elem));
   int pb = lock_get_priority_of (list_entry (b, struct lock, elem));
 
-  return pa < pb;
+  return pa > pb;
 }
