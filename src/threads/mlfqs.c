@@ -17,7 +17,7 @@ static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
 
 /* Estimates the average number of threads ready to run over the
    past minute. */
-static fixed_point load_avg = {0};
+static fixed_point load_avg = 0;
 
 fixed_point
 get_load_avg (void)
