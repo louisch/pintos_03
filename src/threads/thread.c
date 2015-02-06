@@ -95,6 +95,7 @@ thread_init (void)
 {
   printf("thread init is running \n");
   ASSERT (intr_get_level () == INTR_OFF);
+  printf ("#init: running\n");
 
   lock_init (&tid_lock);
   list_init (&ready_list);
@@ -337,6 +338,8 @@ thread_yield (void)
   struct thread *cur = thread_current ();
   enum intr_level old_level;
 
+  printf ("#yield: cur: %s, rdy_length %d\n", cur->name, list_size (&ready_list));
+
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
@@ -432,7 +435,7 @@ thread_set_priority (int new_priority)
 
   thread_current ()->priority = new_priority;
 
-  printf ("Thread P: %d, new p: %d\n", thread_current ()->priority, new_priority);
+  printf ("#set_priority: '%s' old p: %d, new p: %d\n", thread_current ()->name, thread_current ()->priority, new_priority);
 
   struct thread *next_thread =
     list_entry (list_begin (&ready_list), struct thread, elem);
@@ -463,7 +466,7 @@ thread_get_priority_of (struct thread *t)
       list_entry (list_begin (locks), struct lock, elem);
     lock_priority = lock_get_priority_of (best_lock);
   }
-  printf ("thread_get_priority: thread P: %d, list p: %d\n", t->priority, lock_priority);
+  printf ("#get_priority: '%s' p: %d, list p: %d\n", t->name, t->priority, lock_priority);
   intr_set_level (old_level);
   return t->priority >= lock_priority ? t->priority : lock_priority;
 }
@@ -583,7 +586,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  printf ("init_thread getting priority %d, rdylist size: %d\n", priority, list_size (&ready_list));
+  printf ("#init_thread: '%s' p: %d, rdylist size: %d\n", name, priority, list_size (&ready_list));
 
   /* Used for mlfqs. These are initialized regardless to not leave
      uninitialized variables. */
