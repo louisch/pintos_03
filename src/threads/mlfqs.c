@@ -14,6 +14,8 @@
    past minute. */
 static fixed_point load_avg = 0;
 
+static struct list ready_array[PRI_NUM];
+
 typedef struct
 {
   int highest_priority;
@@ -26,15 +28,34 @@ typedef struct
   struct list_elem elem;
 } thread_list_elem;
 
+static void mlfqs_ready_threads_init (void);
 static inline fixed_point num_of_active_threads (struct list *ready_list);
 static void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
 static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
 static fixed_point mlfqs_new_load_avg (fixed_point old_load_avg, struct list *ready_list);
 
+void
+mlfqs_init (void)
+{
+  mlfqs_ready_threads_init ();
+}
+
 fixed_point
 get_load_avg (void)
 {
   return load_avg;
+}
+
+/* Adds a thread with THREAD_RUNNING status to the MLFQS */
+void
+mlfqs_add_ready_thread (struct thread *ready_thread)
+{
+  ASSERT(ready_thread->status == THREAD_READY);
+  ASSERT(ready_thread->priority >= PRI_MIN);
+  ASSERT(ready_thread->priority <= PRI_MAX);
+
+  list_push_back (&ready_array[ready_thread->priority],
+                  &(ready_thread->mlfqs_elem));
 }
 
 /* The actions to take during a thread_tick when -mlfqs is enabled */
@@ -61,10 +82,22 @@ mlfqs_thread_tick (struct list *ready_list)
   /* Update all threads' priorities. */
   if (timer_ticks () % MLFQS_PRIORITY_UPDATE_FREQ == 0)
     {
-      thread_foreach (mlfqs_update_priority, ready_list);
+      mlfqs_ready_threads_init ();
+      thread_foreach (mlfqs_update_priority, NULL);
     }
 
   intr_yield_on_return();
+}
+
+static void
+mlfqs_ready_threads_init (void)
+{
+  int i = 0;
+  while (i < PRI_NUM)
+    {
+      list_init (&ready_array[i]);
+      i++;
+    }
 }
 
 /* Calculates and returns the number of active threads.
@@ -80,13 +113,16 @@ num_of_active_threads (struct list *ready_list)
 
 /* Updates the priority for a specific thread, based on recent_cpu and
    niceness.
-   If the priority for a ready thread changes, then it is removed and reinserted
-   into the ready_list. */
-static void
-mlfqs_update_priority (struct thread *t, void *ready_list)
-{
-  int old_priority = t->priority;
 
+   If a ready thread is found, it will be added to ready_array, at the list at
+   index equal to its priority.
+
+   Note that there is nothing stopping one thread from being added twice to the
+   array if this method is called multiple times without clearing the array in
+   between. */
+static void
+mlfqs_update_priority (struct thread *t, void *aux UNUSED)
+{
   fixed_point recent_cpu = fixed_point_dividei (t->recent_cpu, 4);
   int niceness = t->nice * 2;
   t->priority =
@@ -94,11 +130,9 @@ mlfqs_update_priority (struct thread *t, void *ready_list)
       fixed_point_subtracti (fixed_point_subtract (PRI_MAX, recent_cpu),
                              niceness));
 
-  if (t->status == THREAD_READY && old_priority != t->priority)
+  if (t->status == THREAD_READY)
     {
-      list_remove (&(t->elem));
-      list_insert_ordered ((struct list *)ready_list, &(t->elem),
-                           priority_less_than, NULL);
+      mlfqs_add_ready_thread(t);
     }
 }
 

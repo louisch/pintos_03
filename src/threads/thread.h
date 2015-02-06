@@ -24,6 +24,7 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+#define PRI_NUM 64                      /* Number of priority states. */
 
 /* A kernel thread or user process.
 
@@ -95,6 +96,8 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    struct list_elem mlfqs_elem;        /* Used by the MLFQS */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
