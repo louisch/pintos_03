@@ -95,7 +95,6 @@ thread_init (void)
 {
   printf("thread init is running \n");
   ASSERT (intr_get_level () == INTR_OFF);
-  // printf (">>init: running\n");
 
   lock_init (&tid_lock);
   list_init (&ready_list);
@@ -337,8 +336,6 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-
-  // printf (">>yield: cur: %s, rdy_length %d\n", cur->name, list_size (&ready_list));
   
   ASSERT (!intr_context ());
 
@@ -391,19 +388,16 @@ void
 thread_reinsert_lock (struct thread *t, struct lock *lock)
 {
   struct list *locks = &t->locks;
+  int previous_p = thread_get_priority_of (t);
   list_remove (&lock->elem);
   list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
 
-  thread_notify_blocker (t);
+  /* Reordering only takes place when thread priority changes. */
+  if (previous_p != thread_get_priority_of (t))
+    {
+      thread_notify_blocker (t);
+    }
 }
-
-// /* Removes lock from thread's list of locks. */
-// void
-// thread_remove_lock (struct thread *t, struct lock *lock)
-// {
-//   list_remove (&lock->elem);
-//   thread_notify_blocker (t);
-// }
 
 /* If the thread is blocked, asks blocker to resort its queue. */
 static void
@@ -423,17 +417,6 @@ thread_notify_blocker (struct thread *t)
     }
 }
 
-/* Contact the blocker to notify it that thread priority has changed. */
-// void
-// thread_donate_priority (void)
-// {
-//   struct thread *t = thread_current ();
-//   ASSERT (t->blocker != NULL)
-  
-//   struct thread *reciever = t->blocker->holder;
-  
-// }
-
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
@@ -442,8 +425,6 @@ thread_set_priority (int new_priority)
   ASSERT (new_priority >= PRI_MIN);
 
   thread_current ()->priority = new_priority;
-
-  // printf (">>set_priority: '%s' old p: %d, new p: %d\n", thread_current ()->name, thread_current ()->priority, new_priority);
 
   struct thread *next_thread =
     list_entry (list_begin (&ready_list), struct thread, elem);
@@ -593,15 +574,13 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  // printf (">>init_thread: '%s' p: %d, rdylist size: %d\n", name, priority, list_size (&ready_list));
-
   /* Used for mlfqs. These are initialized regardless to not leave
      uninitialized variables. */
   t->nice = 0;
   t->recent_cpu = to_fixed_point (0);
 
   list_init (&t->locks);
-  t->blocker = NULL; // threads are born with limitless possibilities
+  t->blocker = NULL; /* Threads are born with limitless possibilities. */
   
   t->magic = THREAD_MAGIC;
 
