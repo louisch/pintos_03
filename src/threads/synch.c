@@ -384,6 +384,13 @@ struct semaphore_elem
     struct semaphore semaphore;         /* This semaphore. */
   };
 
+/* Function for comparing the priority of the threads in the
+   waiting list to the priotity of the thread put to wait. */
+bool
+cond_sema_insert_priority (const struct list_elem *a,
+                           const struct list_elem *b,
+                           void *aux);
+
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
    code to receive the signal and act upon it. */
@@ -426,7 +433,10 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  // list_push_back (&cond->waiters, &waiter.elem);
+  int p = thread_get_priority_of (thread_current ());
+  list_insert_ordered (&cond->waiters, &waiter.elem,
+                       &cond_sema_insert_priority, &p);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -466,4 +476,16 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 
   while (!list_empty (&cond->waiters))
     cond_signal (cond, lock);
+}
+
+/* Extracts and compares the priorities of two semas. */
+bool
+cond_sema_insert_priority (const struct list_elem *a UNUSED,
+                           const struct list_elem *b,
+                           void *aux)
+{
+  int pa = *(int *) aux;
+  int pb = sema_get_priority (&list_entry (b, struct semaphore_elem, elem)
+                                            ->semaphore);
+  return pa > pb;
 }
