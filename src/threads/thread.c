@@ -379,6 +379,14 @@ thread_notify_blocker (struct thread *t)
     {
       lock_reinsert_thread (t->blocker, t);
     }
+  else
+    {
+      /* Silently reorder list t is contained in. Breaks recursive call. */
+      struct list *containing_list = list_containing (&t->elem);
+      list_remove (&t->elem);
+      list_insert_ordered (containing_list, &t->elem,
+                            &thread_priority_lt, NULL);
+    }
 }
 
 /* Contact the blocker to notify it that thread priority has changed. */
