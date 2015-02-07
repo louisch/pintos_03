@@ -27,6 +27,10 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* An array of 64 lists representing the priorties of the 
+   threads that are ready to run but are not actually running. */
+static struct list ready_array[PRI_NUM];
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -145,7 +149,7 @@ thread_tick (void)
 
   if (thread_mlfqs)
     {
-      mlfqs_thread_tick (&ready_list);
+      mlfqs_thread_tick ();
     }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -258,8 +262,11 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
   t->status = THREAD_READY;
+  if (thread_mlfqs)
+    mlfqs_add_ready_thread(t);
+  else
+    list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
   intr_set_level (old_level);
 }
 
@@ -328,11 +335,14 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
+  cur->status = THREAD_READY;
   if (cur != idle_thread)
     {
-      list_push_back (&ready_list, &cur->elem);
+      if (thread_mlfqs)
+        mlfqs_add_ready_thread(cur);
+      else
+        list_push_back (&ready_list, &cur->elem);
     }
-  cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
 }
@@ -517,8 +527,15 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void)
 {
-  return list_empty (&ready_list) ? idle_thread :
+  if(thread_mlfqs)
+  {
+    return mlfqs_pop_next_thread_to_run (ready_array, idle_thread);
+  }
+  else
+  {
+    return list_empty (&ready_list) ? idle_thread :
     list_entry (list_pop_front (&ready_list), struct thread, elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
