@@ -350,17 +350,22 @@ thread_add_acquired_lock (struct lock *lock)
   list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
 }
 
-/* Resinserts lock into the thread's list of locks to keep it ordered. */
+/* Reinserts lock into the thread's list of locks to keep it ordered. */
 void
 thread_reinsert_lock (struct thread *t, struct lock *lock)
 {
   struct list *locks = &t->locks;
-  int previous_p = thread_get_priority_of (t);
+  ASSERT (!list_empty (locks));
+
+  bool lock_was_first = list_begin (locks) == &lock->elem;
+
   list_remove (&lock->elem);
+  int previous_p = thread_get_priority_of (t);
   list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
 
-  /* Reordering only takes place when thread priority changes. */
-  if (previous_p != thread_get_priority_of (t))
+  /* Reordering only takes place when effective thread priority changes. */
+  if ((lock_was_first && previous_p != lock->priority)
+      || (!lock_was_first && previous_p < lock->priority))
     {
       thread_notify_blocker (t);
     }
