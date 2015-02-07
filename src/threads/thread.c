@@ -27,10 +27,6 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
-/* An array of 64 lists representing the priorties of the 
-   threads that are ready to run but are not actually running. */
-static struct list ready_array[PRI_NUM];
-
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -95,6 +91,7 @@ static tid_t allocate_tid (void);
 void
 thread_init (void)
 {
+  printf("thread init is running \n");
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
@@ -106,7 +103,6 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-
   if (thread_mlfqs)
     {
       mlfqs_init ();
@@ -119,6 +115,7 @@ void
 thread_start (void)
 {
   /* Create the idle thread. */
+  printf("Thread is starting. \n");
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
@@ -264,9 +261,13 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   t->status = THREAD_READY;
   if (thread_mlfqs)
-    mlfqs_add_ready_thread(t);
+    {
+      mlfqs_add_ready_thread(t);
+    }
   else
-    list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
+    {
+      list_insert_ordered (&ready_list, &t->elem, priority_less_than, NULL);
+    }
   intr_set_level (old_level);
 }
 
@@ -339,9 +340,13 @@ thread_yield (void)
   if (cur != idle_thread)
     {
       if (thread_mlfqs)
-        mlfqs_add_ready_thread(cur);
+        {
+          mlfqs_add_ready_thread(cur);
+        }
       else
-        list_push_back (&ready_list, &cur->elem);
+        {
+          list_push_back (&ready_list, &cur->elem);
+        }
     }
   schedule ();
   intr_set_level (old_level);
@@ -529,7 +534,7 @@ next_thread_to_run (void)
 {
   if(thread_mlfqs)
   {
-    return mlfqs_pop_next_thread_to_run (ready_array, idle_thread);
+    return mlfqs_pop_next_thread_to_run (idle_thread);
   }
   else
   {

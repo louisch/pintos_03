@@ -29,10 +29,11 @@ typedef struct
 } thread_list_elem;
 
 static void mlfqs_ready_threads_init (void);
-static inline fixed_point num_of_active_threads (struct list *ready_list);
+static inline fixed_point num_of_active_threads (struct list *ready_array);
 static void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
 static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
-static fixed_point mlfqs_new_load_avg (fixed_point old_load_avg, struct list *ready_list);
+static fixed_point mlfqs_new_load_avg (fixed_point old_load_avg, struct list *ready_array);
+static int size_of_ready_array (struct list *ready_array);
 
 void
 mlfqs_init (void)
@@ -90,9 +91,9 @@ mlfqs_thread_tick (void)
 }
 
 struct thread *
-mlfqs_pop_next_thread_to_run (struct list *ready_array, struct thread *idle_thread)
+mlfqs_pop_next_thread_to_run (struct thread *idle_thread)
 {
-  int i = PRI_MAX;
+  int i = PRI_NUM - 1;
   while( i >= 0)
     {
       if(!list_empty (&ready_array[i]))
@@ -118,7 +119,7 @@ mlfqs_ready_threads_init (void)
 static int
 size_of_ready_array (struct list *ready_array)
 {
-  int size_of_ready_list;
+  int size_of_ready_list = 0;
   int i = 0;
   while (i < PRI_NUM)
   {
