@@ -721,7 +721,8 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-/* list_less_func for comparing thread priority */
+/* list_less_func for comparing thread priority. Note that here, A
+   is the element to be inserted and B is the element in the list. */
 bool
 thread_priority_lt (const struct list_elem *a,
                     const struct list_elem *b,
@@ -730,10 +731,10 @@ thread_priority_lt (const struct list_elem *a,
   int pa = thread_get_priority_of (list_entry (a, struct thread, elem));
   int pb = thread_get_priority_of (list_entry (b, struct thread, elem));
 
-  return pa >= pb;
+  return pa > pb;
 }
 
-/* list_less_func for comparing list_elems from struct lock_list_elems */
+/* list_less_func for comparing list_elems from struct lock_list_elems. */
 bool
 lock_list_elem_lt (const struct list_elem *a,
                    const struct list_elem *b,
@@ -745,7 +746,7 @@ lock_list_elem_lt (const struct list_elem *a,
   int pa = lock_get_priority_of (list_entry (a, struct lock, elem));
   int pb = lock_get_priority_of (list_entry (b, struct lock, elem));
 
-  return pa >= pb;
+  return pa > pb;
 }
 
 bool
