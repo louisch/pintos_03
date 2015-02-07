@@ -338,7 +338,7 @@ list_reverse (struct list *list)
 
 /* Returns pointer to the list that contains the given list_elem. */
 struct list*
-list_get_from_elem (struct list_elem* elem)
+list_containing (struct list_elem* elem)
 {
   ASSERT (elem != NULL);
   while (elem->prev != NULL)
