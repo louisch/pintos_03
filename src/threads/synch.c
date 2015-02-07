@@ -128,6 +128,26 @@ sema_up (struct semaphore *sema)
   intr_set_level (old_level);
 }
 
+
+static int sema_get_priority (struct semaphore *sema);
+
+/* Method for extracting the priority of the
+   top thread in the semaphore's waiting list. */
+static int
+sema_get_priority (struct semaphore *sema)
+{
+  if (list_empty (&sema->waiters))
+    {
+      return 0;
+    }
+  else
+    {
+      struct thread *best_thread =
+            list_entry (list_begin (&sema->waiters), struct thread, elem);
+      return thread_get_priority_of (best_thread);
+    }
+}
+
 static void sema_test_helper (void *sema_);
 
 /* Self-test for semaphores that makes control "ping-pong"
@@ -264,18 +284,7 @@ lock_get_priority_of (struct lock *lock)
 static void
 lock_evaluate_priority (struct lock *lock)
 {
-  struct list *waiters = &(lock->semaphore.waiters);
-
-  if (list_empty (waiters))
-    {
-      lock->priority = 0;
-    }
-  else
-    {
-      struct thread *best_thread =
-        list_entry (list_begin (waiters), struct thread, elem);
-      lock->priority = thread_get_priority_of (best_thread);
-    }
+  lock->priority = sema_get_priority (&lock->semaphore);
 }
 
 /* Set lock's priority to p if it is higher than its current priority. */
@@ -329,21 +338,21 @@ void
 lock_release (struct lock *lock) 
 {
   ASSERT (lock != NULL);
-  if (!lock_held_by_current_thread (lock)) {
-    // printf ("--release: unauthorised resource access detected by '%s'\n",
-      // thread_current()->name);
-    // if (!lock->holder != NULL) {
-    //   // printf ("---current owner: %s\n", lock->holder->name);
-    // }
-    ASSERT (0);
-  }
+  // if (!lock_held_by_current_thread (lock)) {
+  //   // printf ("--release: unauthorised resource access detected by '%s'\n",
+  //     // thread_current()->name);
+  //   // if (!lock->holder != NULL) {
+  //   //   // printf ("---current owner: %s\n", lock->holder->name);
+  //   // }
+  //   ASSERT (0);
+  // }
   ASSERT (lock_held_by_current_thread (lock));
 
   enum intr_level old_level = intr_disable ();
 
   lock->holder = NULL;
   list_remove (&lock->elem);
-  int oldp = lock->priority;
+  // int oldp = lock->priority;
   lock_try_decrease_priority (lock);
   sema_up (&lock->semaphore);
   // lock_evaluate_priority (lock);
