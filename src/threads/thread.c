@@ -76,7 +76,6 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -117,7 +116,6 @@ void
 thread_start (void)
 {
   /* Create the idle thread. */
-  printf("Thread is starting. \n");
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
@@ -269,9 +267,9 @@ thread_unblock (struct thread *t)
     }
   else
     {
-      list_insert_ordered (&ready_list, &t->elem, thread_priority_lt, NULL);
       t->blocker = NULL;
       t->type = NONE;
+      list_insert_ordered (&ready_list, &t->elem, thread_priority_lt, NULL);
 
       /* Causes preemption in priority donation mode iff
          priority of unblocked thread is higher than current thread. */
@@ -349,9 +347,7 @@ thread_yield (void)
   
   ASSERT (!intr_context ());
 
-  old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, &thread_priority_lt, NULL);
+  old_level = intr_disable ();  
   cur->status = THREAD_READY;
   if (cur != idle_thread)
     {
@@ -361,7 +357,7 @@ thread_yield (void)
         }
       else
         {
-          list_push_back (&ready_list, &cur->elem);
+          list_insert_ordered (&ready_list, &cur->elem, &thread_priority_lt, NULL);
         }
     }
   schedule ();
