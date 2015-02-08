@@ -428,12 +428,22 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);
+  thread_current ()->blocker = (void *) cond;
+  thread_current ()->type = COND;
+
   int p = thread_get_priority_of (thread_current ());
   list_insert_ordered (&cond->waiters, &waiter.elem,
                        &cond_sema_insert_priority, &p);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
+}
+
+/* Resorts waiting list in cond according to new priorities. */
+void
+cond_update (struct condition *cond)
+{
+  list_sort (&cond->waiters, &cond_sema_insert_priority, NULL);
 }
 
 /* If any threads are waiting on COND (protected by LOCK), then
@@ -472,14 +482,22 @@ cond_broadcast (struct condition *cond, struct lock *lock)
     cond_signal (cond, lock);
 }
 
-/* In cond_wait, compares the priority value of the threads waiting on
-   semaphores to the priority value of the current thread, held in AUX. */
+/* If given aux, uses value from aux for pa. */
 bool
 cond_sema_insert_priority (const struct list_elem *a UNUSED,
                            const struct list_elem *b,
                            void *aux)
 {
-  int pa = *(int *) aux;
+  int pa;
+  if (aux != NULL)
+    {
+      pa = *(int *) aux;
+    }
+  else
+    {
+      pa = sema_get_priority (&list_entry (a, struct semaphore_elem, elem)
+                                              ->semaphore);
+    }
   int pb = sema_get_priority (&list_entry (b, struct semaphore_elem, elem)
                                             ->semaphore);
   return pa > pb;

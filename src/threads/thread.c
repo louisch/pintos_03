@@ -375,8 +375,8 @@ thread_reinsert_lock (struct thread *t, struct lock *lock)
   list_insert_ordered (locks, &lock->elem, &lock_list_elem_lt, NULL);
 
   /* Reordering only takes place when effective thread priority changes. */
-  if ((lock_was_first && previous_p != lock->priority)
-      || (!lock_was_first && previous_p < lock->priority))
+  if (!thread_mlfqs && ((lock_was_first && previous_p != lock->priority)
+      || (!lock_was_first && previous_p < lock->priority)))
     {
       thread_notify_blocker (t);
     }
@@ -390,6 +390,10 @@ thread_notify_blocker (struct thread *t)
     {
       lock_reinsert_thread ((struct lock *) t->blocker, t);
     }
+  else if (t->type == COND)
+    {
+      cond_update ((struct condition *) t->blocker);
+    }
   else if (t->type == NONE || t->type == SEMA)
     {
       /* Silently reorder list t is contained in. Breaks recursive call. */
@@ -398,6 +402,7 @@ thread_notify_blocker (struct thread *t)
       list_insert_ordered (containing_list, &t->elem,
                             &thread_priority_lt, NULL);
     }
+  else ASSERT (0); /* What have you done to type ?! */
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
