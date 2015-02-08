@@ -156,12 +156,15 @@ num_of_active_threads (struct list *ready_array)
 static void
 mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 {
+  /* The factors of recent_cpu and nice (4 and 1/2 respectively) are slightly
+     arbitary and were just found to work well. */
   fixed_point recent_cpu = fixed_point_dividei (t->recent_cpu, 4);
   int niceness = t->nice * 2;
+  fixed_point pri_max_minus_recent_cpu =
+    fixed_point_subtract (to_fixed_point (PRI_MAX), recent_cpu);
   t->priority =
-    to_integer_truncated (
-      fixed_point_subtracti (fixed_point_subtract (PRI_MAX, recent_cpu),
-                             niceness));
+    to_integer_truncated (fixed_point_subtracti (pri_max_minus_recent_cpu,
+                                                 niceness));
 
   if (t->status == THREAD_READY)
     {
