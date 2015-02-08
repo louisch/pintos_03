@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -12,6 +13,16 @@ enum thread_status
     THREAD_READY,       /* Not running but ready to run. */
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
     THREAD_DYING        /* About to be destroyed. */
+  };
+
+/* Enum for determining the type of structure 
+ that is currently blocking the thread. */
+enum blocker_type
+  {
+    NONE,
+    SEMA,
+    LOCK,
+    COND
   };
 
 /* Thread identifier type.
@@ -91,8 +102,10 @@ struct thread
     /* Ordered list of locks the thread has acquired.
        They are ordered by highest donated priority. */
     struct list locks;
-    /* Pointer to lock currently holding this thread. */
-    struct lock *blocker;
+    /* Pointer to construct currently holding the thread. */
+    void *blocker;
+    /* Type of structure that is blocking the thread. */
+    enum blocker_type type;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
