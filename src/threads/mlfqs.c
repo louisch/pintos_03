@@ -84,7 +84,6 @@ mlfqs_thread_tick (void)
   /* Update all threads' priorities. */
   if (timer_ticks () % MLFQS_PRIORITY_UPDATE_FREQ == 0)
     {
-      mlfqs_ready_threads_init ();
       thread_foreach (mlfqs_update_priority, NULL);
     }
 
@@ -182,8 +181,10 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
       new_priority = PRI_MAX;
     }
 
-  if (t->status == THREAD_READY)
+  if (new_priority != t->priority && t->status == THREAD_READY)
     {
+      mlfqs_remove_ready_thread (t);
+      t->priority = new_priority;
       mlfqs_add_ready_thread (t);
     }
 }
