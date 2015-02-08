@@ -98,7 +98,8 @@ mlfqs_pop_next_thread_to_run (struct thread *idle_thread)
     {
       if (!list_empty (&ready_array[i]))
         {
-          return list_entry (list_pop_front (&ready_array[i]), struct thread, elem);
+          return list_entry
+            (list_pop_front (&ready_array[i]), struct thread, mlfqs_elem);
         }
         i--;
     }
