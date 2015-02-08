@@ -224,7 +224,6 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  thread_yield (); /* Check whether the CPU should be pre-empted */
 
   return tid;
 }
@@ -262,7 +261,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, &thread_priority_lt, NULL);
+  /* Returns thread's freedom. */
   t->status = THREAD_READY;
   if (thread_mlfqs)
     {
@@ -271,7 +270,18 @@ thread_unblock (struct thread *t)
   else
     {
       list_insert_ordered (&ready_list, &t->elem, thread_priority_lt, NULL);
+      t->blocker = NULL;
+      t->type = NONE;
+
+      /* Causes preemption in priority donation mode iff
+         priority of unblocked thread is higher than current thread. */
+      if (!intr_context ()
+          && thread_get_priority () < thread_get_priority_of (t))
+        {
+          thread_yield();
+        }
     }
+
   intr_set_level (old_level);
 }
 
