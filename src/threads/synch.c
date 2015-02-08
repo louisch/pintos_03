@@ -250,8 +250,6 @@ lock_acquire (struct lock *lock)
 
     sema_down (&lock->semaphore);
     /* Thread now acquires the lock. */
-    thread_current ()->blocker = NULL;
-    thread_current ()->type = NONE;
     lock->holder = thread_current ();
     thread_add_acquired_lock (lock);
   }
