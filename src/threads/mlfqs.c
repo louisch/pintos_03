@@ -81,7 +81,7 @@ mlfqs_thread_tick (void)
 struct thread *
 mlfqs_pop_next_thread_to_run (struct thread *idle_thread)
 {
-  int i = PRI_MAX - 1;
+  int i = PRI_MAX;
   while (i >= PRI_MIN)
     {
       if (!list_empty (&ready_array[i]))
