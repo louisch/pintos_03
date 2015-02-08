@@ -143,10 +143,6 @@ void thread_foreach (thread_action_func *, void *);
 
 void thread_set_priority (int);
 
-// void thread_give_priority (struct thread*, int);
-// void thread_remove_priority (struct thread*, int);
-// void thread_update_priority (struct thread*, int, int);
-
 void thread_add_acquired_lock (struct lock *);
 void thread_reinsert_lock (struct thread *, struct lock *);
 

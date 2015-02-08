@@ -58,8 +58,8 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
-   If true, use multi-level feedback Pqueue scheduler.
-   Controlled by kernel command-line option ">>o mlfqs". */
+   If true, use multi-level feedback queue scheduler.
+   Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
 static void thread_notify_blocker (struct thread *t);
@@ -224,7 +224,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  thread_yield ();
+  thread_yield (); /* Check whether the CPU should be pre-empted */
 
   return tid;
 }
