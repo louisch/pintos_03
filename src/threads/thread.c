@@ -686,7 +686,6 @@ thread_priority_lt (const struct list_elem *a,
   return pa > pb;
 }
 
-
 /* list_less_func for comparing list_elems from struct lock_list_elems. */
 bool
 lock_list_elem_lt (const struct list_elem *a,
