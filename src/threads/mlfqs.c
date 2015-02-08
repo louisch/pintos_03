@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stddef.h>
+#include <stdio.h>
 #include "devices/timer.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -15,18 +16,6 @@
 static fixed_point load_avg = 0;
 
 static struct list ready_array[PRI_NUM];
-
-typedef struct
-{
-  int highest_priority;
-  struct list *ready_list;
-} rebuild_ready_list_struct;
-
-typedef struct
-{
-  struct thread *t;
-  struct list_elem elem;
-} thread_list_elem;
 
 static void mlfqs_ready_threads_init (void);
 static inline fixed_point num_of_active_threads (struct list *ready_array);
