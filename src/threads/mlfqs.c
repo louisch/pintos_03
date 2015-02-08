@@ -94,9 +94,9 @@ struct thread *
 mlfqs_pop_next_thread_to_run (struct thread *idle_thread)
 {
   int i = PRI_NUM - 1;
-  while( i >= 0)
+  while (i >= 0)
     {
-      if(!list_empty (&ready_array[i]))
+      if (!list_empty (&ready_array[i]))
         {
           return list_entry (list_pop_front (&ready_array[i]), struct thread, elem);
         }
