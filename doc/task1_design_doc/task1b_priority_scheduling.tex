@@ -53,9 +53,9 @@ Both the waiting lists inside locks and inside threads are now ordered,
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
 
-In our implementation, we guarantee that the ready list, as well as the waiting lists contained within semaphores (and by extension, locks) and condition structs are ordered by priority.
+In our implementation, we guarantee that ready_list, as well as the waiters lists contained within semaphores (and by extension, locks) and condition structs are ordered by priority.
 
-When we cause a change to a thread's effective priority, if this thread is waiting then we also resort that list.
+We maintain this order firstly by calling list_insert_ordered() upon list insertion. When we cause a change to a thread's effective priority, we also check if this thread is waiting in a list, and resort it if so.
 
 We also ensure that the current thread always has higher priority.
 Hence, when a thread is released from the queue, it is guaranteed to have higher priority.
