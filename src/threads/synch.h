@@ -20,7 +20,7 @@ void sema_self_test (void);
 /* Lock. */
 struct lock 
   {
-    struct thread *holder;      /* Thread holding lock (for debugging). */
+    struct thread *holder;      /* Thread holding lock (for priority stuff). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
     /* Caches the highest priority of the threads waiting on the lock. */
     int priority;
@@ -44,6 +44,7 @@ struct condition
 
 void cond_init (struct condition *);
 void cond_wait (struct condition *, struct lock *);
+void cond_update (struct condition *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
