@@ -1,0 +1,29 @@
+\section{Priority Scheduling}
+\subsection{Data Structures}
+\paragraph{A1: (5 marks)}
+Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
+
+\begin{verbatim}
+stick code here
+\end{verbatim}
+
+\subsection{Algorithms}
+\paragraph{A2: (10 marks)}
+Explain the data structure used to track priority donation. Give a diagram that illustrates a nested donation in your structure.
+
+\paragraph{A3: (5 marks)}
+How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
+
+\paragraph{A4: (5 marks)}
+Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
+
+\paragraph{A5: (5 marks)}
+Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
+
+\subsection{Synchronisation}
+\paragraph{A6: (5 marks)}
+Describe a potential race in thread\_set\_priority() and explain how your implementation avoids it.  Can you use a lock to avoid this race?
+
+\subsection{Rationale}
+\paragraph{A7: (5 marks)}
+Why did you choose this design?  In what ways is it superior to another design you considered?
