@@ -408,11 +408,11 @@ thread_reinsert_lock (struct thread *t, struct lock *lock)
 static void
 thread_notify_blocker (struct thread *t)
 {
-  if (t->blocker != NULL)
+  if (t->type == LOCK)
     {
-      lock_reinsert_thread (t->blocker, t);
+      lock_reinsert_thread ((struct lock *) t->blocker, t);
     }
-  else
+  else if (t->type == NONE || t->type == SEMA)
     {
       /* Silently reorder list t is contained in. Breaks recursive call. */
       struct list *containing_list = list_containing (&t->elem);
@@ -586,6 +586,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
   list_init (&t->locks);
   t->blocker = NULL; /* Threads are born with limitless possibilities. */
+  t->type = NONE;
   
   t->magic = THREAD_MAGIC;
 

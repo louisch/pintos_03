@@ -70,6 +70,11 @@ sema_down (struct semaphore *sema)
     {
       list_insert_ordered (&sema->waiters, &thread_current ()->elem,
                            &thread_priority_lt, NULL);
+      if (thread_current ()->type == NONE)
+        {
+          thread_current ()->blocker = (void *) sema;
+          thread_current ()->type = SEMA;
+        }
       thread_block ();
     }
   sema->value--;
@@ -119,6 +124,8 @@ sema_up (struct semaphore *sema)
     {
       struct thread *t = list_entry (list_pop_front (&sema->waiters),
                                      struct thread, elem);
+      t->blocker = NULL;
+      t->type = NONE;
       thread_unblock (t);
       if (!intr_context ()
           && thread_get_priority () < thread_get_priority_of (t))
@@ -241,7 +248,8 @@ lock_acquire (struct lock *lock)
   {
     /* Lock acquisition failure. */
     /* Tell thread it is now under lock. */
-    thread_current ()->blocker = lock;
+    thread_current ()->blocker = (void *) lock;
+    thread_current ()->type = LOCK;
     if (lock_try_increase_priority (lock, thread_get_priority ()))
       {
         thread_reinsert_lock (lock->holder, lock);
@@ -250,6 +258,7 @@ lock_acquire (struct lock *lock)
     sema_down (&lock->semaphore);
     /* Thread now acquires the lock. */
     thread_current ()->blocker = NULL;
+    thread_current ()->type = NONE;
     lock->holder = thread_current ();
     thread_add_acquired_lock (lock);
   }
