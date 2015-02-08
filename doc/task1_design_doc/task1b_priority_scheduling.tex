@@ -11,6 +11,11 @@ stick code here
 \paragraph{A2: (10 marks)}
 Explain the data structure used to track priority donation. Give a diagram that illustrates a nested donation in your structure.
 
+There is no distinct datastructure for tracking donations.
+Instead, locks are now able to determine the hihghest priority among the threads waiting to acquire them and cache it.
+In addition, threads keep a list of the locks they currently hold. Their effective priority is determined by picking the highest of 
+Both the waiting lists inside locks and inside threads are now ordered, 
+
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
 
