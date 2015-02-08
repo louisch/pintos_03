@@ -341,7 +341,7 @@ thread_yield (void)
     {
       if (thread_mlfqs)
         {
-          mlfqs_add_ready_thread(cur);
+          mlfqs_add_ready_thread (cur);
         }
       else
         {

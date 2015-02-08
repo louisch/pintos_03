@@ -29,7 +29,6 @@ typedef struct
 } thread_list_elem;
 
 static void mlfqs_ready_threads_init (void);
-static void mlfqs_remove_ready_thread (struct thread *ready_thread);
 static inline fixed_point num_of_active_threads (struct list *ready_array);
 static void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
 static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
@@ -87,7 +86,7 @@ mlfqs_thread_tick (void)
       thread_foreach (mlfqs_update_priority, NULL);
     }
 
-  intr_yield_on_return();
+  intr_yield_on_return ();
 }
 
 struct thread *
@@ -101,7 +100,7 @@ mlfqs_pop_next_thread_to_run (struct thread *idle_thread)
           return list_entry
             (list_pop_front (&ready_array[i]), struct thread, mlfqs_elem);
         }
-        i--;
+      i--;
     }
   return idle_thread;
 }
@@ -115,13 +114,6 @@ mlfqs_ready_threads_init (void)
       list_init (&ready_array[i]);
       i++;
     }
-}
-
-/* Removes a thread from the ready_array. */
-static void
-mlfqs_remove_ready_thread (struct thread *ready_thread)
-{
-  list_remove (&(ready_thread->mlfqs_elem));
 }
 
 static int
@@ -181,11 +173,16 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
       new_priority = PRI_MAX;
     }
 
-  if (new_priority != t->priority && t->status == THREAD_READY)
+  if (new_priority != t->priority)
     {
-      mlfqs_remove_ready_thread (t);
       t->priority = new_priority;
-      mlfqs_add_ready_thread (t);
+      /* If a thread's status is THREAD_READY, it ought to have been inserted
+         into the ready_array. */
+      if (t->status == THREAD_READY)
+        {
+          list_remove (&(t->mlfqs_elem));
+          mlfqs_add_ready_thread (t);
+        }
     }
 }
 
