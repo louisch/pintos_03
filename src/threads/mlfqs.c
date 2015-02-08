@@ -29,6 +29,7 @@ typedef struct
 } thread_list_elem;
 
 static void mlfqs_ready_threads_init (void);
+static void mlfqs_remove_ready_thread (struct thread *ready_thread);
 static inline fixed_point num_of_active_threads (struct list *ready_array);
 static void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
 static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
@@ -115,6 +116,13 @@ mlfqs_ready_threads_init (void)
       list_init (&ready_array[i]);
       i++;
     }
+}
+
+/* Removes a thread from the ready_array. */
+static void
+mlfqs_remove_ready_thread (struct thread *ready_thread)
+{
+  list_remove (&(ready_thread->mlfqs_elem));
 }
 
 static int
