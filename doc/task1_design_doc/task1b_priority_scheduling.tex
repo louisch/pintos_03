@@ -4,12 +4,46 @@
 Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
 
 \begin{verbatim}
-stick code here
+synch.h:
+
+  struct lock
+    {
+      struct thread *holder;      /* Thread holding lock (for debugging). */
+      struct semaphore semaphore; /* Binary semaphore controlling access. */
++     /* Caches the highest priority of the threads waiting on the lock. */
++     int priority;
++     /* Used by thread.c to keep track of acquired locks. */
++     struct list_elem elem;
+    };
+
+thread.h:
+  
+  struct thread
+    {
+      ...
+
+      char name[16];                      /* Name (for debugging purposes). */
+      uint8_t *stack;                     /* Saved stack pointer. */
+-     int priority;                       /* Priority. */
++     int priority;                       /* Base priority of thread. */
++     /* Ordered list of locks the thread has acquired.
++        They are ordered by highest donated priority. */
++     struct list locks;
++     /* Pointer to lock currently holding this thread. */
++     struct lock *blocker;
+      struct list_elem allelem;           /* List element for all threads list. */
+
+      ...
+    };
+TODO: make changes to struct thread and struct lock (the comment) and add new enum
 \end{verbatim}
 
 \subsection{Algorithms}
 \paragraph{A2: (10 marks)}
 Explain the data structure used to track priority donation. Give a diagram that illustrates a nested donation in your structure.
+\\
+Stuff stuff
+\includegraphics{roundrobin1}
 
 There is no distinct datastructure for tracking donations.
 Instead, locks are now able to determine the hihghest priority among the threads waiting to acquire them and cache it.
@@ -19,8 +53,28 @@ Both the waiting lists inside locks and inside threads are now ordered,
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
 
+In our implementation, we guarantee that the ready list, as well as the waiting lists contained within semaphores (and by extension, locks) and condition structs are ordered by priority.
+
+When we cause a change to a thread's effective priority, if this thread is waiting then we also resort that list.
+
+We also ensure that the current thread always has higher priority.
+Hence, when a thread is released from the queue, it is guaranteed to have higher priority.
+
 \paragraph{A4: (5 marks)}
 Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
+
+  Firstly, thread A acquires lock 1.
+    this sets the lock's holder to A and adds the lock into thread A's list of acquired locks.
+
+  Then, thread B calls lock_acquire() on lock 1
+  Lock 1 has already been acquired, so
+    update what thread B is blocking on (record the type of blocker and a pointer to it)
+    check whether priority donation is needed (in this case it is)
+      this updates the lock's cached priority, which is used by 
+    now we take the lock's holding thread (i.e. thread A) and reorder its list of locks to place the lock donating the highest priority at the head. This thus indirectly causes thread B to donate its priority to thread A, assuming the highest donated priority thread A is receiving is from lock 1.
+    ### TODO: make sure thread_get_priiority is explained in A2.
+
+    Then, we check if we need to recurse. TODO: finish this part
 
 \paragraph{A5: (5 marks)}
 Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
@@ -32,3 +86,8 @@ Describe a potential race in thread\_set\_priority() and explain how your implem
 \subsection{Rationale}
 \paragraph{A7: (5 marks)}
 Why did you choose this design?  In what ways is it superior to another design you considered?
+
+Talk about:
+	caching priorities in locks
+	using priority queues for the list of locks
+	disabling interrupts being necessary? (We didn't come up with a viable solution that could avoid these though, besides a lock for a list of locks which could block the scheduler)
