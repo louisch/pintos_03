@@ -1,6 +1,6 @@
 \section{Advanced Scheduler}
 \subsection{Data Structures}
-\paragraph{B1: (5 marks)}
+\paragraph{B1:} % (5 marks)
 % Copy here the declaration of each new or changed `struct' or `struct' member,
 % global or static variable, `typedef', or enumeration.  Identify the purpose of
 % each in 25 words or less.
@@ -76,7 +76,7 @@ static struct list ready_array[PRI_NUM];
 \end{description}
 
 \subsection{Algorithms}
-\paragraph{B2: (5 marks)}
+\paragraph{B2:} % (5 marks)
 % Suppose threads A, B, and C have nice values 0, 1, and 2.  Each has a
 % recent\_cpu value of 0.  Fill in the table below showing the scheduling
 % decision and the priority and recent\_cpu values for each thread after each
@@ -104,8 +104,7 @@ three are ever considered for running.
   \hline
 \end{tabular}
 
-
-\paragraph{B3: (5 marks)}
+\paragraph{B3:} % (5 marks)
 % Did any ambiguities in the scheduler specification make values in the table
 % uncertain?  If so, what rule did you use to resolve them?  Does this match the
 % behaviour of your scheduler?
@@ -124,17 +123,17 @@ highest priority queue.
 
 As for the frequency of yields, we simply yield every tick.
 
-\paragraph{B4: (5 marks)}
+\paragraph{B4:} % (5 marks)
 % How is the way you divided the cost of scheduling between code inside and
 % outside interrupt context likely to affect performance?
 
 \subsection{Rationale}
-\paragraph{B5: (5 marks)}
+\paragraph{B5:} % (5 marks)
 % Briefly critique your design, pointing out advantages and disadvantages in
 % your design choices.  If you were to have extra time to work on this part of
 % the task, how might you choose to refine or improve your design?
 
-\paragraph{B6: (5 marks)}
+\paragraph{B6:} % (5 marks)
 % The assignment explains arithmetic for fixed-point mathematics in detail, but
 % it leaves it open to you to implement it.  Why did you decide to implement it
 % the way you did?  If you created an abstraction layer for fixed-point
