@@ -110,6 +110,20 @@ three are ever considered for running.
 % uncertain?  If so, what rule did you use to resolve them?  Does this match the
 % behaviour of your scheduler?
 
+The order in which threads are chosen from the highest priority queue is
+unspecified, and furthermore, the frequency with which the current thread should
+be yielded is also unspecified.
+
+The rules we used to resolve these ambiguities are the same as the ones that we
+implemented in our scheduler.
+
+We decided to simply add threads to the end of their respective queue when
+yielding or unblocking, and to pop the first thread when fetching the next
+thread to run. This FIFO strategy ensures we rotate through all threads in the
+highest priority queue.
+
+As for the frequency of yields, we simply yield every tick.
+
 \paragraph{B4: (5 marks)}
 % How is the way you divided the cost of scheduling between code inside and
 % outside interrupt context likely to affect performance?
