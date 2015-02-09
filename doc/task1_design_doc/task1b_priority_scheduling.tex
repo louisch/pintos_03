@@ -53,12 +53,13 @@ Both the waiting lists inside locks and inside threads are now ordered,
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
 
-In our implementation, we guarantee that ready_list, as well as the waiters lists contained within semaphores (and by extension, locks) and condition structs are ordered by priority.
+In our implementation, we guarantee that the lists of waiting threads contained within semaphores (and by extension, locks) and condition structs are ordered by their effective priority.
 
-We maintain this order firstly by calling list_insert_ordered() upon list insertion. When we cause a change to a thread's effective priority, we also check if this thread is waiting in a list, and resort it if so.
+We maintain this order firstly by calling list_insert_ordered() whenever a thread is inserted into the list, passing in a pointer to the function thread_priority_lt() which compares thread priority. Secondly, whenever we cause a change to a thread's effective priority (either by changing its base or donated priority), we also check if this thread is waiting in a list, and resort this list if so (by removing and reinserting).
 
-We also ensure that the current thread always has higher priority.
-Hence, when a thread is released from the queue, it is guaranteed to have higher priority.
+Hence when a thread is released from the waiters list, it is guaranteed to be (one of) the thread(s) with highest priority.
+
+TODO: generalise for cond vars
 
 \paragraph{A4: (5 marks)}
 Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
@@ -78,6 +79,19 @@ Describe the sequence of events when a call to lock\_acquire() causes a priority
 
 \paragraph{A5: (5 marks)}
 Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
+  
+Assuming:
+  Thread A - low priority thread holding the lock
+  Thread B - high priority thread waiting for the lock
+
+  Disable interrupts (synchronise access to Thread A's list of acquired locks)
+  Reset lock's holder to NULL
+  Remove lock from Thread A's list of acquired locks
+  Update the lock's cached priority (i.e. the priority it donates to any thread holding it)
+  sema_up(), which:
+    this calls thread_unblock on Thread B, which:
+      unsets Thread B's blocker enum and pointer
+      TODO: finish answer
 
 \subsection{Synchronisation}
 \paragraph{A6: (5 marks)}
@@ -90,4 +104,5 @@ Why did you choose this design?  In what ways is it superior to another design y
 Talk about:
 	caching priorities in locks
 	using priority queues for the list of locks
+  removing/reinserting element vs calling resort() on list <-- more efficient?
 	disabling interrupts being necessary? (We didn't come up with a viable solution that could avoid these though, besides a lock for a list of locks which could block the scheduler)
