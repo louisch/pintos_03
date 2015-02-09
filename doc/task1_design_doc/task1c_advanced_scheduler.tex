@@ -19,7 +19,7 @@ typedef int fixed_point;
   This is a typedef int which represents the type fixed\_point. The use
   of the typedef is to help with readability of code.
 
-\item[(src/threads/mlfqs.c)] This file provides provides the bulk of the
+\item[(src/threads/mlfqs.c)] This file provides the bulk of the
   functionality for the advanced scheduler.
 
 \begin{verbatim}
@@ -63,7 +63,7 @@ static struct list ready_array[PRI_NUM];
   \begin{description}
 
   \item[int nice] A factor which determines the CPU time a thread takes or gives
-    out to other threads. Threads with higher nice decays in priority faster.
+    out to other threads. Threads with a higher nice value decay in priority faster.
 
   \item[fixed\_point recent\_cpu] The amount of CPU time this thread has received
     recently.
@@ -154,6 +154,7 @@ We chose to place all ready threads into the array of queues, ready\_array, whic
 was that it allowed for constant time insertion of threads and n time sorting. However this comes with the disadvantage that it takes a constant space of 64*mlfqs\_elem as opposed to a
 varying size ready\_list. 
 
+%Adam - I think this should be removed as this covers what has been answered in B6.
 For the sake of performance, we chose to make the fixed point operations macros,
 with no type checking. This means one could potentially convert an integer to a
 fixed point twice, as a fixed\_point is simply an alias for int.
@@ -180,3 +181,6 @@ desired.
 % the way you did?  If you created an abstraction layer for fixed-point
 % mathematics, that is, an abstract data type and/or a set of functions or
 % macros to manipulate fixed-point numbers, why did you do so?  If not, why not?
+We decided to implement fixed point operations using macros. It was initially implemented using functions however this was replaced for the sake of performance which macros offered.
+The fixed\_point was created as a typedef int which purely increased the readability of the code allowing us to identify when a fixed_\point was being used. However because it was simply an alias for an int allowed for the possibility of an integer be converted to a fixed\_point more than once.
+A struct encapsulating an int could of been used but 
