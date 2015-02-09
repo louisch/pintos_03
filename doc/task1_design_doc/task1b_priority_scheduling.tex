@@ -79,7 +79,7 @@ Describe the sequence of events when a call to lock\_acquire() causes a priority
 \paragraph{A5: (5 marks)}
 Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
 
-We shall assume that the higher priority priority thread (say thread B) is the thread at the head of the lock\'s waiters list, and is donating its priority to the thread holding the lock (say thread A).
+We shall assume that the higher priority priority thread (say thread B) is at the head of the lock\'s waiters list, and is donating its priority to the thread holding the lock (say thread A).
 
 Firstly, thread A calls lock\_release(). This resets the lock's holder to NULL and removes the lock from thread A\'s list of acquired locks (interrupts are also disabled here to synchronise access to this list as it may be accessed in an interrupt handler).
 
