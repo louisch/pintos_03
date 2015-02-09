@@ -16,17 +16,17 @@ static fixed_point load_avg = 0;
 
 static struct list ready_array[PRI_NUM];
 
-static void mlfqs_ready_threads_init (void);
-static inline fixed_point num_of_active_threads (struct list *ready_array);
+static void mlfqs_ready_array_init (void);
+static int num_of_threads_in_ready_array (void);
+static inline fixed_point num_of_active_threads (void);
 static void mlfqs_update_priority (struct thread *t, void *aux UNUSED);
 static void mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED);
-static fixed_point mlfqs_new_load_avg (fixed_point old_load_avg, struct list *ready_array);
-static int size_of_ready_array (struct list *ready_array);
+static fixed_point mlfqs_new_load_avg (fixed_point old_load_avg);
 
 void
 mlfqs_init (void)
 {
-  mlfqs_ready_threads_init ();
+  mlfqs_ready_array_init ();
 }
 
 fixed_point
@@ -56,7 +56,7 @@ mlfqs_thread_tick (void)
      This must happen at this time due to assumptions made by the tests.*/
   if (timer_ticks () % TIMER_FREQ == 0)
     {
-      load_avg = mlfqs_new_load_avg (load_avg, ready_array);
+      load_avg = mlfqs_new_load_avg (load_avg);
 
       thread_foreach (mlfqs_update_recent_cpu, NULL);
     }
@@ -96,8 +96,9 @@ mlfqs_pop_next_thread_to_run (struct thread *default_thread)
   return default_thread;
 }
 
+/* Initialize the ready_array. */
 static void
-mlfqs_ready_threads_init (void)
+mlfqs_ready_array_init (void)
 {
   int i = 0;
   while (i < PRI_NUM)
@@ -107,30 +108,29 @@ mlfqs_ready_threads_init (void)
     }
 }
 
+/* Calculates and returns the number of threads in ready_array. */
 static int
-size_of_ready_array (struct list *ready_array)
+num_of_threads_in_ready_array (void)
 {
   int size_of_ready_list = 0;
-  int i = 0;
-  while (i < PRI_NUM)
-  {
-    size_of_ready_list += list_size (&ready_array[i]);
-    i++;
-  }
+  int i = PRI_MIN;
+  while (i <= PRI_MAX)
+    {
+      size_of_ready_list += list_size (&ready_array[i]);
+      i++;
+    }
 
   return size_of_ready_list;
 }
 
 /* Calculates and returns the number of active threads.
-   This is the current thread if it is not idle, and the number of threads with
-   the ready status. */
+   This is the current thread if it is not idle, plus the number of threads
+   added into ready_array. */
 static inline fixed_point
-num_of_active_threads (struct list *ready_array)
+num_of_active_threads (void)
 {
-  int size_of_ready_list = size_of_ready_array (ready_array);
-
   int result = (is_idle (thread_current ()) ? 0 : 1) +
-                size_of_ready_list;
+    num_of_threads_in_ready_array ();
   return to_fixed_point(result);
 }
 
@@ -142,7 +142,12 @@ num_of_active_threads (struct list *ready_array)
 
    Note that there is nothing stopping one thread from being added twice to the
    array if this method is called multiple times without clearing the array in
-   between. */
+   between.
+
+   The new priority is given by PRI_MAX - recent_cpu / 4 - nice * 2
+
+   The new priority is kept within bounds by being set to PRI_MAX if it exceeds
+   PRI_MAX, and being set to PRI_MIN if it is below PRI_MIN. */
 static void
 mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 {
@@ -179,7 +184,9 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 
 /* A function that updates the recent_cpu of a thread.
    This matches the thread_action_func type, so can be used with
-   thread_foreach. */
+   thread_foreach.
+   This is (2 * load_avg / 2 * load_avg + 1) * recent_cpu + nice
+   Note how nice affects the decay of recent_cpu by adding a constant factor. */
 static void
 mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED)
 {
@@ -193,13 +200,16 @@ mlfqs_update_recent_cpu (struct thread *t, void *aux UNUSED)
   t->recent_cpu = new_recent_cpu;
 }
 
+/* Given the current load_avg, calculates the load_avg for the next update of
+   load_avg.
+   This is (59/60) * old_load_avg + num_of_active_threads() / 60 */
 static fixed_point
-mlfqs_new_load_avg (fixed_point old_load_avg, struct list *ready_array)
+mlfqs_new_load_avg (fixed_point old_load_avg)
 {
   fixed_point load_avg_factor =
     fixed_point_dividei (to_fixed_point (59), 60);
   fixed_point new_load_avg =
     fixed_point_add (fixed_point_multiply (old_load_avg, load_avg_factor),
-                     fixed_point_dividei (num_of_active_threads (ready_array), 60));
+                     fixed_point_dividei (num_of_active_threads (), 60));
   return new_load_avg;
 }
