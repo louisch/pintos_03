@@ -28,15 +28,15 @@ typedef int fixed_point;
 static fixed_point load_avg = 0;
 \end{verbatim}
 
-  This variable is used to store the value of load_avg somewhere so that it may
+  This variable is used to store the value of load\_avg somewhere so that it may
   be fetched at any time for testing.
 
 \begin{verbatim}
 static struct list ready_array[PRI_NUM];
 \end{verbatim}
 
-  ready_array is an array of queues of threads. Allows lookup of threads by
-  priority. PRI_NUM is PRI_MAX - PRI_MIN.
+  ready\_array is an array of queues of threads. Allows lookup of threads by
+  priority. PRI\_NUM is PRI\_MAX - PRI\_MIN.
 
 \item[(src/threads/thread.h)]
   A diff of the changes made to struct thread:
