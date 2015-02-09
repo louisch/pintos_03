@@ -261,23 +261,24 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   /* Returns thread's freedom. */
   t->status = THREAD_READY;
+  t->blocker = NULL;
+  t->type = NONE;
+
   if (thread_mlfqs)
     {
       mlfqs_add_ready_thread(t);
     }
   else
     {
-      t->blocker = NULL;
-      t->type = NONE;
       list_insert_ordered (&ready_list, &t->elem, thread_priority_lt, NULL);
+    }
 
-      /* Causes preemption in priority donation mode iff
-         priority of unblocked thread is higher than current thread. */
-      if (!intr_context ()
-          && thread_get_priority () < thread_get_priority_of (t))
-        {
-          thread_yield();
-        }
+  /* Cause preemption in priority donation mode iff
+     priority of unblocked thread is higher than current thread. */
+  if (!intr_context ()
+      && thread_get_priority () < thread_get_priority_of (t))
+    {
+      thread_yield();
     }
 
   intr_set_level (old_level);
@@ -349,7 +350,7 @@ thread_yield (void)
 
   old_level = intr_disable ();  
   cur->status = THREAD_READY;
-  if (cur != idle_thread)
+  if (!is_idle (cur))
     {
       if (thread_mlfqs)
         {
@@ -410,44 +411,102 @@ thread_reinsert_lock (struct thread *t, struct lock *lock)
     }
 }
 
-/* If the thread is blocked, asks blocker to resort its queue. */
+/* Extrapolate which list t is contained in and reorder it silently,
+   i.e. without notifying the owner of the list. */
+static void
+thread_silent_reorder (struct thread *t)
+{
+  struct list *containing_list = list_containing (&t->elem);
+  list_remove (&t->elem);
+  list_insert_ordered (containing_list, &t->elem,
+                        &thread_priority_lt, NULL);   
+}
+
+/* If a thread is not blocked by anything, it could either be running or
+  on the ready list. In the former case, we only need to check that it still
+  has the highest priority. In the latter, we need to reorder the ready queue
+  first, in order to ensure that it remains sorted. */
+static void
+thread_update (struct thread *t)
+{
+  if (t != thread_current ())
+    {
+    if (thread_mlfqs && t->status == THREAD_READY)
+      {
+        list_remove (&(t->mlfqs_elem));
+        mlfqs_add_ready_thread (t);
+      }
+    else
+      {
+        thread_silent_reorder (t);      
+      }
+    }
+
+  if (!list_empty (&ready_list))
+    {
+      struct thread *next_thread_to_run =
+        list_entry (list_begin (&ready_list), struct thread, elem);
+
+      /* We do not care about thread t here, as we only want the highest
+         priority thread to be running at any point in time. */
+      if (thread_get_priority () < thread_get_priority_of (next_thread_to_run))
+        {
+          thread_yield ();
+        }
+  }
+}
+
+/* Should be called when the priority of thread t changes.
+   Ensures that the priority queue that contains t is sorted,
+   and causes pre-emption.
+
+   In the case of locks, results in a recursive call into the blocking lock.
+
+   In the case of semas, conds and if the thread is in the ready_list,
+   simply re-inserts the thread according to its new priority. */
 static void
 thread_notify_blocker (struct thread *t)
 {
-  if (t->type == LOCK)
-    {
+  switch (t->type)
+  {
+    case (SEMA):
+      thread_silent_reorder (t);
+      break;
+    case (LOCK):
       lock_reinsert_thread ((struct lock *) t->blocker, t);
-    }
-  else if (t->type == COND)
-    {
+      break;
+    case (COND):
       cond_update ((struct condition *) t->blocker);
-    }
-  else if (t->type == NONE || t->type == SEMA)
-    {
-      /* Silently reorder list t is contained in. Breaks recursive call. */
-      struct list *containing_list = list_containing (&t->elem);
-      list_remove (&t->elem);
-      list_insert_ordered (containing_list, &t->elem,
-                            &thread_priority_lt, NULL);
-    }
-  else ASSERT (0); /* What have you done to type ?! */
+      break;
+    case (NONE):
+      thread_update (t);
+      break;
+    default: ASSERT (0); /* What have you done to type ?! */
+  }
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
+  thread_set_priority_of (thread_current (), new_priority);
+}
+
+/* Sets priority of the given thread to new_priority. */
+void
+thread_set_priority_of (struct thread *t, int new_priority) 
+{
+  if (t->priority == new_priority)
+    return;
+
   ASSERT (new_priority <= PRI_MAX);
   ASSERT (new_priority >= PRI_MIN);
+  enum intr_level old_level = intr_disable ();
+  
+  t->priority = new_priority;
+  thread_notify_blocker (t);
 
-  thread_current ()->priority = new_priority;
-
-  struct thread *next_thread =
-    list_entry (list_begin (&ready_list), struct thread, elem);
-  if (!list_empty (&ready_list) && thread_get_priority () < thread_get_priority_of (next_thread))
-    {
-      thread_yield ();
-    }
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -633,8 +692,8 @@ next_thread_to_run (void)
   }
   else
   {
-    return list_empty (&ready_list) ? idle_thread :
-    list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_empty (&ready_list) ? idle_thread
+      : list_entry (list_pop_front (&ready_list), struct thread, elem);
   }
 }
 
@@ -753,6 +812,7 @@ lock_list_elem_lt (const struct list_elem *a,
   return pa > pb;
 }
 
+/* Returns true if given thread is the idle thread. */
 bool
 is_idle (const struct thread *t)
 {

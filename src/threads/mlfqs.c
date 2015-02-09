@@ -171,14 +171,7 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
 
   if (new_priority != t->priority)
     {
-      t->priority = new_priority;
-      /* If a thread's status is THREAD_READY, it ought to have been inserted
-         into the ready_array. */
-      if (t->status == THREAD_READY)
-        {
-          list_remove (&t->mlfqs_elem);
-          mlfqs_add_ready_thread (t);
-        }
+      thread_set_priority_of (t, new_priority);
     }
 }
 
