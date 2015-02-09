@@ -87,8 +87,10 @@ shutdown_reboot (void)
 void
 shutdown_power_off (void)
 {
+  /* Random unused variables from original codebase
   const char s[] = "Shutdown";
   const char *p;
+   */
 
 #ifdef FILESYS
   filesys_done ();
