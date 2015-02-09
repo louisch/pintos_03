@@ -77,8 +77,11 @@ mlfqs_thread_tick (void)
   intr_yield_on_return ();
 }
 
+/* Pops off the next thread to run from the ready_array.
+   Returns the given default_thread if no thread can be found in the
+   ready_array.*/
 struct thread *
-mlfqs_pop_next_thread_to_run (struct thread *idle_thread)
+mlfqs_pop_next_thread_to_run (struct thread *default_thread)
 {
   int i = PRI_MAX;
   while (i >= PRI_MIN)
@@ -90,7 +93,7 @@ mlfqs_pop_next_thread_to_run (struct thread *idle_thread)
         }
       i--;
     }
-  return idle_thread;
+  return default_thread;
 }
 
 static void
