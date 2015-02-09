@@ -9,7 +9,7 @@ Added to struct lock :
     int priority;               /* Caches priority of threaads in lock. */
     struct list_elem elem;      /* Used in thread.c */
 \end{verbatim}
-Locks now cache the priority of the most important thread in their waiting list (this number is PRI_MIN for empty waiting lists).
+Locks now cache the priority of the most important thread in their waiting list (this number is PRI\_MIN for empty waiting lists).
 
 thread.h:
 \begin{verbatim}
