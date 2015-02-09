@@ -16,14 +16,13 @@ enum thread_status
     THREAD_DYING        /* About to be destroyed. */
   };
 
-/* Enum for determining the type of structure 
- that is currently blocking the thread. */
+/* Lists various structures that thread can be waiting on. */
 enum blocker_type
   {
-    NONE,
-    SEMA,
-    LOCK,
-    COND
+    NONE,      /* Thread is running or in ready list. */
+    SEMA,      /* Thread is waiting on a semaphore. */
+    LOCK,      /* Thread is waiting on a lock. */
+    COND       /* Thread is waiting on a conditional. */
   };
 
 /* Thread identifier type.
@@ -100,17 +99,17 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Base priority of thread. */
+    int priority;                       /* Priority of thread. */
+
     int nice;                           /* Niceness. */
     fixed_point recent_cpu;             /* CPU time this received 'recently' */
-    /* Ordered list of locks the thread has acquired.
-       They are ordered by highest donated priority. */
-    struct list locks;
-    /* Pointer to construct currently holding the thread. */
-    void *blocker;
-    /* Type of structure that is blocking the thread. */
-    enum blocker_type type;
-    struct list_elem allelem;           /* List element for all threads list. */
+
+    struct list_elem allelem;           /* List element for all threads list */
+
+    /* Added for priority sorting and donations. */
+    struct list locks;                  /* Locks acquired by the thread. */
+    void *blocker;                      /* Struct that blocks this thread.*/
+    enum blocker_type type;             /* What is blocking the thread? */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
