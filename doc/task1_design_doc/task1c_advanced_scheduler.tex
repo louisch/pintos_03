@@ -150,6 +150,28 @@ unacceptable in larger OSs.
 % your design choices.  If you were to have extra time to work on this part of
 % the task, how might you choose to refine or improve your design?
 
+We chose to place all ready threads into the array of queues, ready\_array, which forms a lookup table of sorts for the threads by priority.
+
+For the sake of performance, we chose to make the fixed point operations macros,
+with no type checking. This means one could potentially convert an integer to a
+fixed point twice, as a fixed_point is simply an alias for int.
+
+We factored out many functions for interacting with ready\_array, as well as
+ready\_array itself, into a separate file, mlfqs.c. This has many advantages,
+apart from modularisation. It allows for encapsulation, hiding away functions
+that are irrelevant to the operation of the scheduler, and preventing direct
+modification of the ready\_array.
+
+While we did try to create functions for representing various `units of work'
+(for example, `calculate a new load_avg'), and this does help with readability
+of the code, some of the functions simply modify the global ready\_array
+directly, rather than taking it as an argument. This couples the function with
+the variable quite tightly, and would make further modularisation difficult.
+
+If we had more time, we would probably change the functions to take arguments
+such that the function could easily be modularised into different files if
+desired.
+
 \paragraph{B6:} % (5 marks)
 % The assignment explains arithmetic for fixed-point mathematics in detail, but
 % it leaves it open to you to implement it.  Why did you decide to implement it
