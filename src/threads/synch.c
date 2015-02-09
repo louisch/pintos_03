@@ -314,7 +314,7 @@ lock_try_decrease_priority (struct lock *lock)
   struct list *waiters = &lock->semaphore.waiters;
   if (list_size (waiters) <= 1)
     {
-      lock->priority = 0;
+      lock->priority = PRI_MIN;
     }
   else
     {
