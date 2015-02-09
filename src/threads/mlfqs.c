@@ -2,7 +2,6 @@
 #include <debug.h>
 #include <list.h>
 #include <stddef.h>
-#include <stdio.h>
 #include "devices/timer.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -45,7 +44,7 @@ mlfqs_add_ready_thread (struct thread *ready_thread)
   ASSERT(ready_thread->priority <= PRI_MAX);
 
   list_push_back (&ready_array[ready_thread->priority],
-                  &(ready_thread->mlfqs_elem));
+                  &ready_thread->mlfqs_elem);
 }
 
 /* The actions to take during a thread_tick when -mlfqs is enabled */
@@ -169,7 +168,7 @@ mlfqs_update_priority (struct thread *t, void *aux UNUSED)
          into the ready_array. */
       if (t->status == THREAD_READY)
         {
-          list_remove (&(t->mlfqs_elem));
+          list_remove (&t->mlfqs_elem);
           mlfqs_add_ready_thread (t);
         }
     }
