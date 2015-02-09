@@ -51,6 +51,11 @@ mlfqs_add_ready_thread (struct thread *ready_thread)
 void
 mlfqs_thread_tick (void)
 {
+  /* The order of the calculations of load_avg, recent_cpu, and priority, is
+     ordered in this way such that each calculation that depends on another
+     happens after its dependency. This ensures the most up-to-date values are
+     used for each calculation. */
+
   /* Updates load_avg, and the recent_cpu of all threads, when the system tick
      counter reaches a multiple of a second.
      This must happen at this time due to assumptions made by the tests.*/
@@ -61,7 +66,8 @@ mlfqs_thread_tick (void)
       thread_foreach (mlfqs_update_recent_cpu, NULL);
     }
 
-  /* Increment the current thread's recent_cpu */
+  /* Increment the current thread's recent_cpu. Whether this happens before or
+     after updating all threads' recent_cpu isn't too important. */
   if (!is_idle (thread_current ()))
     {
       thread_current ()->recent_cpu =
