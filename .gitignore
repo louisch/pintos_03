@@ -1,7 +1,7 @@
 build/
 *.html
 *~
-/doc/auto/
+auto/
 /tests/p0/
 
 ### C ###
