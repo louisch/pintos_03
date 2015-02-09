@@ -82,6 +82,29 @@ recent\_cpu value of 0.  Fill in the table below showing the scheduling decision
 and the priority and recent\_cpu values for each thread after each given number
 of timer ticks:
 
+Assuming that no other threads apart from these three exist, so that only these
+three are ever considered for running.
+
+\begin{tabular}{ | l | r r r | r r r | r | }
+  \hline
+  \multirow{2}{*}{timer ticks} & \multicolumn{3}{|c|}{recent\_cpu} &
+    \multicolumn{3}{|c|}{priority} & \multirow{2}{*}{thread to run} \\
+     & A  & B & C & A  & B  & C  &   \\
+  \hline
+  0  & 0  & 1  & 2 & 63 & 60 & 58 & A                     \\
+  4  & 4  & 1  & 2 & 62 & 60 & 58 & A                     \\
+  8  & 8  & 1  & 2 & 61 & 60 & 58 & A                     \\
+  12 & 12 & 1  & 2 & 60 & 60 & 58 & A \and B              \\
+  16 & 14 & 3  & 2 & 59 & 60 & 58 & B                     \\
+  20 & 14 & 7  & 2 & 59 & 59 & 58 & A \and B              \\
+  24 & 16 & 9  & 2 & 59 & 58 & 58 & A                     \\
+  28 & 20 & 9  & 2 & 58 & 58 & 58 & C, B, A, then C again \\
+  32 & 21 & 10 & 4 & 57 & 58 & 58 & B \and C              \\
+  36 & 21 & 12 & 6 & 57 & 58 & 57 & B                     \\
+  \hline
+\end{tabular}
+
+
 \paragraph{B3: (5 marks)}
 Did any ambiguities in the scheduler specification make values in the table
 uncertain?  If so, what rule did you use to resolve them?  Does this match the
