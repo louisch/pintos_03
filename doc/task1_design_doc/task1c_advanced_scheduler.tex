@@ -1,23 +1,105 @@
 \section{Advanced Scheduler}
 \subsection{Data Structures}
 \paragraph{B1: (5 marks)}
-Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
+Copy here the declaration of each new or changed `struct' or `struct' member,
+global or static variable, `typedef', or enumeration.  Identify the purpose of
+each in 25 words or less.
+
+Listed here is a list of files that have new or changed `struct' or `struct'
+members, global or static variable, `typedef', or enumeration.
+
+\begin{description}
+
+\item[(src/lib/kernel/fixed\_point.h)] This file provides fixed point
+  operations.
+
+\begin{verbatim}
+typedef int fixed_point;
+\end{verbatim}
+  This is a typedef int which represents the type fixed\_point. The use
+  of the typedef is to help with readability of code.
+
+\item[(src/threads/mlfqs.c)] This file provides provides the bulk of the
+  functionality for the advanced scheduler.
+
+\begin{verbatim}
+/* Estimates the average number of threads ready to run over the
+   past minute. */
+static fixed_point load_avg = 0;
+\end{verbatim}
+
+  This variable is used to store the value of load_avg somewhere so that it may
+  be fetched at any time for testing.
+
+\begin{verbatim}
+static struct list ready_array[PRI_NUM];
+\end{verbatim}
+
+  ready_array is an array of queues of threads. Allows lookup of threads by
+  priority. PRI_NUM is PRI_MAX - PRI_MIN.
+
+\item[(src/threads/thread.h)]
+  A diff of the changes made to struct thread:
+
+\begin{verbatim}
+@@ -88,11 +90,15 @@ struct thread
+     char name[16];                      /* Name (for debugging purposes). */
+     uint8_t *stack;                     /* Saved stack pointer. */
+     int priority;                       /* Priority. */
++    int nice;                           /* Niceness. */
++    fixed_point recent_cpu;             /* CPU time this received 'recently' */
+     struct list_elem allelem;           /* List element for all threads list. */
+
+     /* Shared between thread.c and synch.c. */
+     struct list_elem elem;              /* List element. */
+
++    struct list_elem mlfqs_elem;        /* Used by the MLFQS */
++
+ #ifdef USERPROG
+     /* Owned by userprog/process.c. */
+     uint32_t *pagedir;                  /* Page directory. *
+\end{verbatim}
+
+  \begin{description}
+
+  \item[int nice] A factor which determines the CPU time a thread takes or gives
+    out to other threads. Threads with higher nice decays in priority faster.
+
+  \item[fixed\_point recent\_cpu] The amount of CPU time this thread has received
+    recently.
+
+  \item[struct list\_elem mlfqs\_elem] Allows threads to be placed inside
+    ready\_array.
+
+  \end{description}
+
+\end{description}
 
 \subsection{Algorithms}
 \paragraph{B2: (5 marks)}
-Suppose threads A, B, and C have nice values 0, 1, and 2.  Each has a recent\_cpu value of 0.  Fill in the table below showing the scheduling decision and the priority and recent\_cpu values for each thread after each given number of timer ticks:
+Suppose threads A, B, and C have nice values 0, 1, and 2.  Each has a
+recent\_cpu value of 0.  Fill in the table below showing the scheduling decision
+and the priority and recent\_cpu values for each thread after each given number
+of timer ticks:
 
 \paragraph{B3: (5 marks)}
-Did any ambiguities in the scheduler specification make values
-in the table uncertain?  If so, what rule did you use to resolve
-them?  Does this match the behaviour of your scheduler?
+Did any ambiguities in the scheduler specification make values in the table
+uncertain?  If so, what rule did you use to resolve them?  Does this match the
+behaviour of your scheduler?
 
 \paragraph{B4: (5 marks)}
-How is the way you divided the cost of scheduling between code inside and outside interrupt context likely to affect performance?
+How is the way you divided the cost of scheduling between code inside and
+outside interrupt context likely to affect performance?
 
 \subsection{Rationale}
 \paragraph{B5: (5 marks)}
-Briefly critique your design, pointing out advantages and disadvantages in your design choices.  If you were to have extra time to work on this part of the task, how might you choose to refine or improve your design?
+Briefly critique your design, pointing out advantages and disadvantages in your
+design choices.  If you were to have extra time to work on this part of the
+task, how might you choose to refine or improve your design?
 
 \paragraph{B6: (5 marks)}
-The assignment explains arithmetic for fixed-point mathematics in detail, but it leaves it open to you to implement it.  Why did you decide to implement it the way you did?  If you created an abstraction layer for fixed-point mathematics, that is, an abstract data type and/or a set of functions or macros to manipulate fixed-point numbers, why did you do so?  If not, why not?
+The assignment explains arithmetic for fixed-point mathematics in detail, but it
+leaves it open to you to implement it.  Why did you decide to implement it the
+way you did?  If you created an abstraction layer for fixed-point mathematics,
+that is, an abstract data type and/or a set of functions or macros to manipulate
+fixed-point numbers, why did you do so?  If not, why not?

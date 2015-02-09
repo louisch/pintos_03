@@ -3,7 +3,7 @@
             |  TASK 1: SCHEDULING  |
             |    DESIGN DOCUMENT   |
             +----------------------+
-                   
+
 ---- GROUP ----
 
 >> Fill in the names and email addresses of your group members.
@@ -26,18 +26,18 @@ FirstName LastName <email@domain.example>
 
 ---- DATA STRUCTURES ----
 
->> A1: (5 marks) 
+>> A1: (5 marks)
 >> Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
->> A2: (10 marks) 
+>> A2: (10 marks)
 >> Explain the data structure used to track priority donation.
 >> Give a diagram that illustrates a nested donation in your structure.
 
 ---- ALGORITHMS ----
 
->> A3: (5 marks) 
+>> A3: (5 marks)
 >> How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
 
@@ -72,43 +72,6 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-fixed_point.h:
-
-typedef int fixed_point;
-This is a typedef int which represents the type fixed_point. The use
-of the typedef is to help with readablity of code.
-
-(src/lib/kernel/fixed_point.h):
-
-typedef int fixed_point;
-This typedef represents the type of fixed_point. The use is to help 
-with readablity of code.
-
-
-(src/threads/thread.h):
-Added to struct thread: 
-
-    int priority;                       /* Priority. */
-    int nice;                           /* Niceness. */
-    fixed_point recent_cpu;             /* CPU time this received 'recently' */
-    struct list_elem allelem;           /* List element for all threads list. */
-
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element. */
-
-    struct list_elem mlfqs_elem;        /* Used by the MLFQS */
-
-
-int priority: Represents the position it is in for receiving CPU time.
-
-int nice: Represents a factor which determines how much CPU time it takes
-		  or gives out to other threads.
-
-fixed_point recent_cpu: The amount of CPU time this thread has received recently.
-
-struct list_elem allelem: The element which is placed in the all threads list.
-
-struct list_elem mlfqs_elem:
 ---- ALGORITHMS ----
 
 >> B2: (5 marks)
@@ -131,7 +94,7 @@ ticks   A   B   C   A   B   C   to run
 32
 36
 
->> B3: (5 marks) 
+>> B3: (5 marks)
 >> Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behaviour of your scheduler?
@@ -155,5 +118,3 @@ ticks   A   B   C   A   B   C   to run
 >> abstraction layer for fixed-point mathematics, that is, an abstract
 >> data type and/or a set of functions or macros to manipulate
 >> fixed-point numbers, why did you do so?  If not, why not?S
-
-
