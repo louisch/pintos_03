@@ -3,13 +3,13 @@
 \paragraph{A1: (5 marks)}
 Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
 
-synch.h:
+synch.h:\\
 Added to struct lock :
 \begin{verbatim}
     int priority;               /* Caches priority of threaads in lock. */
     struct list_elem elem;      /* Used in thread.c */
 \end{verbatim}
-Locks now cache the priority of the most important thread in their waiting list (this number is PRI\_MIN for empty waiting lists).
+Locks now cache the priority of the most important thread in their waiting list (this number is PRI\_MIN for empty waiting lists).\\ \\
 
 thread.h:
 \begin{verbatim}
@@ -52,13 +52,13 @@ In the case of locks, the waiting list is reordered like it is for semaphores, a
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
 
-In our implementation, we guarantee that the lists of waiting threads contained within semaphores (and by extension, locks) and condition structs are ordered by their effective priority.
+Our implementation guarantees that the lists of waiting threads inside semaphores (by extension, locks) and condition variables are sorter in order of decreasing effective priority.
 
-We maintain this order firstly by calling list\_insert\_ordered() whenever a thread is inserted into the list, passing in a pointer to the function thread\_priority\_lt() which compares thread priority. Secondly, whenever we cause a change to a thread's effective priority (either by changing its base or donated priority), we also check if this thread is waiting in a list, and resort this list if so (by removing and reinserting).
+We maintain this guarantee by inserting threads into the waiting list with list\_insert\_ordered(), which uses an auxiliary method to compare thread priorities.
+When a thread's effective priority changes through priority donation, if this thread is waiting in a list, we reinsert the thread into the list, If it waiting on a lock, if the overall priority of the lock's waiting list is changed, this change is propagated to the holder of the lock.
 
-Hence when a thread is released from the waiters list, it is guaranteed to be (one of) the thread(s) with highest priority.
+When a semaphore, lock or condition variable wakes up a thread, it simply pops the front of the waiting queue, which we know is ordered. Hence when a thread is released from the waiters list, it is guaranteed to be (one of) the thread(s) with highest priority.
 
-TODO: generalise for cond vars
 
 \paragraph{A4: (5 marks)}
 Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
