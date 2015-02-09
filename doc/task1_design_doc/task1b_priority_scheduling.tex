@@ -55,7 +55,7 @@ How do you ensure that the highest priority thread waiting for a lock, semaphore
 
 In our implementation, we guarantee that the lists of waiting threads contained within semaphores (and by extension, locks) and condition structs are ordered by their effective priority.
 
-We maintain this order firstly by calling list_insert_ordered() whenever a thread is inserted into the list, passing in a pointer to the function thread_priority_lt() which compares thread priority. Secondly, whenever we cause a change to a thread's effective priority (either by changing its base or donated priority), we also check if this thread is waiting in a list, and resort this list if so (by removing and reinserting).
+We maintain this order firstly by calling list\_insert\_ordered() whenever a thread is inserted into the list, passing in a pointer to the function thread\_priority\_lt() which compares thread priority. Secondly, whenever we cause a change to a thread's effective priority (either by changing its base or donated priority), we also check if this thread is waiting in a list, and resort this list if so (by removing and reinserting).
 
 Hence when a thread is released from the waiters list, it is guaranteed to be (one of) the thread(s) with highest priority.
 
@@ -65,33 +65,30 @@ TODO: generalise for cond vars
 Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
 
   Firstly, thread A acquires lock 1.
-    this sets the lock's holder to A and adds the lock into thread A's list of acquired locks.
+    this sets the lock's holder to A and adds the lock into thread A\'s list of acquired locks.
 
-  Then, thread B calls lock_acquire() on lock 1
+  Then, thread B calls lock\_acquire() on lock 1
   Lock 1 has already been acquired, so
     update what thread B is blocking on (record the type of blocker and a pointer to it)
     check whether priority donation is needed (in this case it is)
       this updates the lock's cached priority, which is used by 
     now we take the lock's holding thread (i.e. thread A) and reorder its list of locks to place the lock donating the highest priority at the head. This thus indirectly causes thread B to donate its priority to thread A, assuming the highest donated priority thread A is receiving is from lock 1.
-    ### TODO: make sure thread_get_priiority is explained in A2.
+    \#\#\# TODO: make sure thread\_get\_priiority is explained in A2.
 
     Then, we check if we need to recurse. TODO: finish this part
 
 \paragraph{A5: (5 marks)}
 Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
-  
-Assuming:
-  Thread A - low priority thread holding the lock
-  Thread B - high priority thread waiting for the lock
 
-  Disable interrupts (synchronise access to Thread A's list of acquired locks)
-  Reset lock's holder to NULL
-  Remove lock from Thread A's list of acquired locks
-  Update the lock's cached priority (i.e. the priority it donates to any thread holding it)
-  sema_up(), which:
-    this calls thread_unblock on Thread B, which:
-      unsets Thread B's blocker enum and pointer
-      TODO: finish answer
+We shall assume that the higher priority priority thread (say thread B) is the thread at the head of the lock\'s waiters list, and is donating its priority to the thread holding the lock (say thread A).
+
+Firstly, thread A calls lock\_release(). This resets the lock's holder to NULL and removes the lock from thread A\'s list of acquired locks (interrupts are also disabled here to synchronise access to this list as it may be accessed in an interrupt handler).
+
+The lock's cached priority is then recalculated (by getting the priority of the 2nd waiting thread, or returning PRI\_MIN if it doesn't exist) before sema\_up() removes the 1st waiting thread (say thread B) from the waiters list and calls thread\_unblock() on it.
+
+This function resets thread B\'s blocker pointer and enum, sets its status to THREAD\_READY and inserts it into the ready list.
+
+In this case, thread B\'s effective priority is now higher than the currently running thread A (as removing the lock from thread A\'s list of locks also removes any priority which it donated), so it gets must get placed at the head of the ready\_list (since thread A previously held the highest priority in ready\_list before it lost its donated priority and awakened thread B). A call to thread\_yield() is also triggered, causing thread B to pre-empt thread A and begin running.
 
 \subsection{Synchronisation}
 \paragraph{A6: (5 marks)}
