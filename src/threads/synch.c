@@ -186,7 +186,7 @@ sema_test_helper (void *sema_)
 }
 
 
-static void lock_evaluate_priority (struct lock *lock);
+static bool lock_evaluate_priority (struct lock *lock);
 static bool lock_try_increase_priority (struct lock *lock, int p);
 static void lock_try_decrease_priority (struct lock *lock);
 /* Initializes LOCK.  A lock can be held by at most a single
@@ -288,11 +288,14 @@ lock_get_priority_of (struct lock *lock)
   return lock->priority;
 }
 
-/* Gets the priority of the most important thread waiting on the lock. */
-static void
+/* Caches the priority of the most important thread waiting on the lock.
+   Returns true if the priority changes. */
+static bool
 lock_evaluate_priority (struct lock *lock)
 {
+  int oldp = lock->priority;
   lock->priority = sema_get_priority (&lock->semaphore);
+  return oldp != lock->priority;
 }
 
 /* Set lock's priority to p if it is higher than its current priority. */
@@ -332,8 +335,10 @@ lock_reinsert_thread (struct lock *lock, struct thread *t)
   list_remove (&t->elem);
   list_insert_ordered (waiters, &t->elem, &thread_priority_lt, NULL);
 
-  lock_evaluate_priority (lock);
-  thread_reinsert_lock (lock->holder, lock);
+  if (lock_evaluate_priority (lock))
+  {
+    thread_reinsert_lock (lock->holder, lock);
+  }
 }
 
 /* Releases LOCK, which must be owned by the current thread.
