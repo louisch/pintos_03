@@ -3,52 +3,51 @@
 \paragraph{A1: (5 marks)}
 Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
 
-\begin{verbatim}
 synch.h:
-
-  struct lock
-    {
-      struct thread *holder;      /* Thread holding lock (for debugging). */
-      struct semaphore semaphore; /* Binary semaphore controlling access. */
-+     /* Caches the highest priority of the threads waiting on the lock. */
-+     int priority;
-+     /* Used by thread.c to keep track of acquired locks. */
-+     struct list_elem elem;
-    };
+Added to struct lock :
+\begin{verbatim}
+    int priority;               /* Caches priority of threaads in lock. */
+    struct list_elem elem;      /* Used in thread.c */
+\end{verbatim}
+Locks now cache the priority of the most important thread in their waiting list (this number is PRI_MIN for empty waiting lists).
 
 thread.h:
-  
-  struct thread
-    {
-      ...
-
-      char name[16];                      /* Name (for debugging purposes). */
-      uint8_t *stack;                     /* Saved stack pointer. */
--     int priority;                       /* Priority. */
-+     int priority;                       /* Base priority of thread. */
-+     /* Ordered list of locks the thread has acquired.
-+        They are ordered by highest donated priority. */
-+     struct list locks;
-+     /* Pointer to lock currently holding this thread. */
-+     struct lock *blocker;
-      struct list_elem allelem;           /* List element for all threads list. */
-
-      ...
-    };
-TODO: make changes to struct thread and struct lock (the comment) and add new enum
+\begin{verbatim}
+/* Lists various structures that thread can be waiting on. */
+enum blocker_type
+  {
+    NONE,      /* Thread is running or in ready list. */
+    SEMA,      /* Thread is waiting on a semaphore. */
+    LOCK,      /* Thread is waiting on a lock. */
+    COND       /* Thread is waiting on a conditional. */
+  };
 \end{verbatim}
+
+Added to struct thread:
+\begin{verbatim}
+    /* Added for priority sorting and donations. */
+    struct list locks;                  /* Locks acquired by the thread. */
+    void *blocker;                      /* Struct that blocks this thread.*/
+    enum blocker_type type;             /* What is blocking the thread? */
+\end{verbatim}
+Threads now keep track of the locks they have acquired and the structure (if any) that they are waiting on.
+
 
 \subsection{Algorithms}
 \paragraph{A2: (10 marks)}
 Explain the data structure used to track priority donation. Give a diagram that illustrates a nested donation in your structure.
 \\
-Stuff stuff
 \includegraphics{roundrobin1}
 
-There is no distinct datastructure for tracking donations.
-Instead, locks are now able to determine the hihghest priority among the threads waiting to acquire them and cache it.
-In addition, threads keep a list of the locks they currently hold. Their effective priority is determined by picking the highest of 
-Both the waiting lists inside locks and inside threads are now ordered, 
+Our implementation of priority donation does not rely on a single data structure. Instead, it is divided between struct lock and struct thread. Threads keep track of the locks they acquire, as well as the type of and pointer to the synch struct that they are waiting on, if applicable.
+
+In addition, the waiting lists for semaphores (by extension, locks) and condition variables order threads by priority, which makes it possible to track priority passively: finding the highest priority in a list of threads is simply a matter of looking at the head.
+
+When a thread attempts to acquire a lock that is held by another thread, the lock checks if its priority is higher than the cached priority. If it is, the newly blocked thread\'s priority is \"donated\" to the holder thread.
+
+When a blocked thread's priority is updated through donation, it notifies the structure that it is waiting on in order to re-order the structure's waiting list to reflect the change of priority.
+In the case of semaphores (and the ready list) the thread whose priority was modified is simply reinserted into the list (condition variables reinsert the semaphore that blocks the thread in question).
+In the case of locks, the waiting list is reordered like it is for semaphores, and if the lock determines that the highest priority has changed, it notifies the thread that holds it.
 
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
