@@ -41,7 +41,7 @@ Explain the data structure used to track priority donation. Give a diagram that 
 
 Our implementation of priority donation does not rely on a single data structure. Instead, it is divided between struct lock and struct thread. Threads keep track of the locks they acquire, as well as the type of and pointer to the synch struct that they are waiting on, if applicable. Locks cache the priority of their most important waiting thread, avoiding unnecessary (and possibly recursive) calls into that thread to find out its priority.
 
-In addition, the waiting lists for semaphores (by extension, locks) and condition variables order threads by priority, which makes it possible to track priority passively: finding the highest priority in a list of threads is simply a matter of looking at the head.
+In addition, the waiting lists for semaphores (by extension, locks) and condition variables order threads by priority, which makes it possible to track priority passively: finding the highest priority in a list of threads is simply a matter of looking at the head. The same is true of ready_list: finding the next thread to run is done by popping its head.
 
 When a thread attempts to acquire a lock that is held by another thread, the lock checks if its priority is higher than the cached priority. If it is, the newly blocked thread\'s priority is \"donated\" to the holder thread. This is done by reinserting the lock into the holder thread's list of acquired locks, ordered by decending donated priority. Again, since these locks are listed in order, finding the lock donating the highest priority is a simple matter of looking at the head of this list (and the thead's effective priority can be easily calculated by comparing this with its base priority).
 
