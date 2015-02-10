@@ -52,13 +52,12 @@ In the case of a lock, the waiting list is reordered like it is for semaphores, 
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
 
-Our implementation guarantees that the lists of waiting threads inside semaphores (by extension, locks) and condition variables are sorter in order of decreasing effective priority.
+Our implementation guarantees that the lists of waiting threads inside semaphores (by extension, locks) and condition variables are sorted in order of decreasing effective priority.
 
-We maintain this guarantee by inserting threads into the waiting list with list\_insert\_ordered(), which uses an auxiliary method to compare thread priorities.
-When a thread's effective priority changes through priority donation, if this thread is waiting in a list, we reinsert the thread into the list, If it waiting on a lock, if the overall priority of the lock's waiting list is changed, this change is propagated to the holder of the lock.
+We maintain this guarantee by inserting threads into the waiting list with list\_insert\_ordered(), which uses an auxiliary function to compare thread priorities.
+When a thread's effective priority changes through priority donation, if this thread is waiting in a list, we reinsert the thread into the list, thus maintaining its order. If it waiting on a lock, if the highest priority of the lock's waiting list is changed, this change is propagated to the holder of the lock.
 
 When a semaphore, lock or condition variable wakes up a thread, it simply pops the front of the waiting queue, which we know is ordered. Hence when a thread is released from the waiters list, it is guaranteed to be (one of) the thread(s) with highest priority.
-
 
 \paragraph{A4: (5 marks)}
 Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
