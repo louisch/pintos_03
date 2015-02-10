@@ -154,10 +154,4 @@ We considered that list updates, which are more efficient for unordered lists, d
 
 We also considered different types of lists for tracking priority donations (such as keeping track of donating threads directly, or keeping track of the priority values, but not the structures that donate them), however, keeping a list of locks turned out to be the simplest to implement among them, as adding and removing priorities could simply be done through lock_acquire and lock_release.
 
-Another concern we had during development was synchronising list access 
-
-Talk about:
-	caching priorities in locks
-	using priority queues for the list of locks
-  removing/reinserting element vs calling resort() on list <-- more efficient?
-	disabling interrupts being necessary? (We didn't come up with a viable solution that could avoid these though, besides a lock for a list of locks which could block the scheduler)
+Another concern we had during development was synchronising access to the list of locks inside each thread across the threads and the interrupt handler. Given that locks cannot be acquired within the interrupt handler, the only way to accomplish this was via interrupt disabling.
