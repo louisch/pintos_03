@@ -45,9 +45,9 @@ In addition, the waiting lists for semaphores (by extension, locks) and conditio
 
 When a thread attempts to acquire a lock that is held by another thread, the lock checks if its priority is higher than the cached priority. If it is, the newly blocked thread\'s priority is \"donated\" to the holder thread. This is done by reinserting the lock into the holder thread's list of acquired locks, ordered by decending donated priority. Again, since these locks are listed in order, finding the lock donating the highest priority is a simple matter of looking at the head of this list (and the thead's effective priority can be easily calculated by comparing this with its base priority).
 
-When a blocked thread's priority is updated through donation, it notifies the structure that it is waiting on in order to re-order the structure's waiting list to reflect the change of priority.
-In the case of semaphores (and the ready list) the thread whose priority was modified is simply reinserted into the list (condition variables reinsert the semaphore that blocks the thread in question).
-In the case of locks, the waiting list is reordered like it is for semaphores, and if the lock determines that the highest priority has changed, it notifies the thread that holds it to reorder its list of acquired locks.
+If priority donation updates a blocked thread's priority, we may need to recursively propogate this new donated priority if the blocker is a lock. Firstly, the blocked thread notifies the structure it is waiting on to re-order its waiting list to reflect the change of priority.
+In the case of a semaphore, the blocked thread whose priority was modified is simply reinserted into the list (condition variables reinsert the semaphore that blocks the thread in question).
+In the case of a lock, the waiting list is reordered like it is for semaphores, and if the lock determines that the highest priority has changed, it notifies the thread that holds it to reorder its list of acquired locks. If this thread is also blocked, the recursion continues.
 
 \paragraph{A3: (5 marks)}
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
