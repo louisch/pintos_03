@@ -62,6 +62,10 @@ When a semaphore, lock or condition variable wakes up a thread, it simply pops t
 \paragraph{A4: (5 marks)}
 Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
 
+In order for priority donation to happen, a low priority thread (say thread A) has to first acquire the lock. This points the lock's holder to thread A, and inserts the lock into thread A's list of acquired locks.
+
+Then when thread B calls lock\_acquire on the same lock, it is blocked
+
   Firstly, thread A acquires lock 1.
     this sets the lock's holder to A and adds the lock into thread A\'s list of acquired locks.
 
