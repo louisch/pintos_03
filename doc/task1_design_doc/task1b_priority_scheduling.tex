@@ -43,9 +43,9 @@ Our implementation of priority donation does not rely on a single data structure
 
 In addition, the waiting lists for semaphores (by extension, locks) and condition variables order threads by priority, which makes it possible to track priority passively: finding the highest priority in a list of threads is simply a matter of looking at the head. The same is true of ready_list: finding the next thread to run is done by popping its head.
 
-When a thread attempts to acquire a lock that is held by another thread, the lock checks if its priority is higher than the cached priority. If it is, the newly blocked thread\'s priority is \"donated\" to the holder thread. This is done by reinserting the lock into the holder thread's list of acquired locks, ordered by decending donated priority. Again, since these locks are listed in order, finding the lock donating the highest priority is a simple matter of looking at the head of this list (and the thead's effective priority can be easily calculated by comparing this with its base priority).
+When a thread attempts to acquire a lock that is held by another thread, the lock checks if its priority is higher than the cached priority. If it is, the newly blocked thread\'s priority is \"donated\" to the holder thread. This is done by reinserting the lock into the holder thread's list of acquired locks, ordered by descending donated priority. Again, since these locks are listed in order, finding the lock donating the highest priority is a simple matter of looking at the head of this list (and the thread's effective priority can be easily calculated by comparing this with its base priority).
 
-If priority donation updates a blocked thread's priority, we may need to recursively propogate this new donated priority if the blocker is a lock. Firstly, the blocked thread notifies the structure it is waiting on to re-order its waiting list to reflect the change of priority.
+If priority donation updates a blocked thread's priority, we may need to recursively propagate this new donated priority if the blocker is a lock. Firstly, the blocked thread notifies the structure it is waiting on to re-order its waiting list to reflect the change of priority.
 In the case of a semaphore, the blocked thread whose priority was modified is simply reinserted into the list (condition variables reinsert the semaphore that blocks the thread in question).
 In the case of a lock, the waiting list is reordered like it is for semaphores, and if the lock determines that the highest priority has changed, it notifies the thread that holds it to reorder its list of acquired locks. If this thread is also blocked, the recursion continues.
 
@@ -71,7 +71,7 @@ Describe the sequence of events when a call to lock\_acquire() causes a priority
     check whether priority donation is needed (in this case it is)
       this updates the lock's cached priority, which is used by 
     now we take the lock's holding thread (i.e. thread A) and reorder its list of locks to place the lock donating the highest priority at the head. This thus indirectly causes thread B to donate its priority to thread A, assuming the highest donated priority thread A is receiving is from lock 1.
-    \#\#\# TODO: make sure thread\_get\_priiority is explained in A2.
+    \#\#\# TODO: make sure thread\_get\_priority is explained in A2.
 
     Then, we check if we need to recurse. TODO: finish this part
 
