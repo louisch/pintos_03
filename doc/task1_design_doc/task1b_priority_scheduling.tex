@@ -64,20 +64,11 @@ Describe the sequence of events when a call to lock\_acquire() causes a priority
 
 In order for priority donation to happen, a low priority thread (say thread A) has to first acquire the lock. This points the lock's holder to thread A, and inserts the lock into thread A's list of acquired locks.
 
-Then when thread B calls lock\_acquire on the same lock, it is blocked
+Then when thread B calls lock\_acquire on the same lock, it is blocked. This first sets the blocker pointer at the lock and blocker_type to LOCK. It then updates the lock's cached priority through lock_try_increase_priority(), which also returns whether the priority increased or not.
 
-  Firstly, thread A acquires lock 1.
-    this sets the lock's holder to A and adds the lock into thread A\'s list of acquired locks.
+In this case, we shall assume that thread B has a higher priority than any thread in the lock's waiters list (or that the list is empty). Therefore, the lock's priority will increase and lock_try_increase_priority() will return true. We now need to inform the lock holder's thread (i.e. thread A) that the lock is now donating a higher priority, and thus it must reorder its list of locks (by calling thread_notify_blocker()). This reordering indirectly causes thread B to donate its priority to thread A, since A's list of locks are sorted in descending priority, and its donated priority is found by simply looking at this list's head.
 
-  Then, thread B calls lock\_acquire() on lock 1
-  Lock 1 has already been acquired, so
-    update what thread B is blocking on (record the type of blocker and a pointer to it)
-    check whether priority donation is needed (in this case it is)
-      this updates the lock's cached priority, which is used by 
-    now we take the lock's holding thread (i.e. thread A) and reorder its list of locks to place the lock donating the highest priority at the head. This thus indirectly causes thread B to donate its priority to thread A, assuming the highest donated priority thread A is receiving is from lock 1.
-    \#\#\# TODO: make sure thread\_get\_priority is explained in A2.
-
-    Then, we check if we need to recurse. TODO: finish this part
+If thread A itself is blocked, then we will need to inform its blocker. Since we are considering a nested donation scenario, this blocker will be another lock which we will need to recurse into. Because thread A has just had its priority changed and it is waiting for this lock, we will have to reorder the lock's waiters list by calling lock_reinsert_thread(). We then need to check if the overall priority of the lock has changed, and inform the lock's holder whether this is the case. If the holder is also blocked, the recursion will continue.
 
 \paragraph{A5: (5 marks)}
 Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
