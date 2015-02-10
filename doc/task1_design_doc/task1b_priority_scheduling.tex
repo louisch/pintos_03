@@ -100,6 +100,33 @@ Hence, access to the ready list need to be synchronised to prevent this sort of 
 \paragraph{A7: (5 marks)}
 Why did you choose this design?  In what ways is it superior to another design you considered?
 
+Throughout the development of the implementation of priority donations (and of the priority scheduling that underlies both this task and the mlfqs system) we have considered several systems, most of them building on our previous design decisions.
+
+In developing priority scheduling, we decided to use priority queues for the waiting lists in semaphores and condition variables, and the ready list, as this trivialised finding the thread with the highest priority.
+
+As priority donation is closely related to locks and lock ownership, we decided that it would be simplest to have threads to keep track of the locks that they are currently holding. This list is ordered by priority of the most important thread in each lock's waiting list.
+
+Keeping in line with these decisions, we had to ensure that priority donations kept these lists ordered, which lead to the creation of methods like thread_reinsert_lock, which is called when a lock's priority is changed, and lock_reinsert_thread(), which is called when a thread's priority is changed.
+
+In order to speed up the reinsertion operation, locks cache the highest priority of the threads in their waiting list, which is updated when a thread is added to or removed from it. This meant that thread_get_priority_of() was no longer a recursive call that walked down the chain of acquired locks and threads waiting on those locks.
+
+Finally, the reinsert operations were made mutually recursive by making threads keep track of the lock that they are waiting on, allowing priority donation to propagate up the lock ownership chain.
+
+The resulting system was fairly simple and flexible, which made it easy to integrate condition variables, as well as mesh with the mlfqs system.
+
+
+During development, we briefly considered using unordered lists and list_max to find the highest priority thread when it was needed, as this would largely simplify list updates (the lists would not need to be changed when the priority of their elements changes) and require less interrupt disabling.
+
+This idea cropped up multiple times, however it was rejected as it made it difficult to update lock priorities in large lock-list-lock chains and if caching was dropped completely, getting a thread's priority would have a worst case running time of O(n-1), where n is the number of threads, as the call would need to check the priority of every thread that is waiting on the thread whose priority we are evaluating.
+
+Moreover, the worst case running time of list_max is identical to its best case running time, which is O(n), where n is the number of elements in the list.
+Of course, the worst case of list_insert_ordered (used in both the reinsert methods and the methods that add threads to lists) is also O(n), however its best case is constant.
+We considered that list updates, which are more efficient for unordered lists, do not take place often enough to offset the cost of retrieving the most important element from a list every time an element needs to be removed or the inefficiency of thread_get_priority.
+
+We also considered different types of lists for tracking priority donations (such as keeping track of donating threads directly, or keeping track of the priority values, but not the structures that donate them), however, keeping a list of locks turned out to be the simplest to implement among them, as adding and removing priorities could simply be done through lock_acquire and lock_release.
+
+Another concern we had during development was synchronising list access 
+
 Talk about:
 	caching priorities in locks
 	using priority queues for the list of locks
