@@ -100,15 +100,16 @@ If thread A itself is blocked, then we will need to inform its blocker. Since we
 Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
 \\
 \\
-We shall assume that the higher priority priority thread (say thread B) is at the head of the lock\'s waiters list, and is donating its priority to the thread holding the lock (say thread A).
+Suppose that the higher priority thread B is at the head of the lock\'s waiters list, and is donating its priority to the thread A, which holds the lock.
 
-Firstly, thread A calls lock\_release(). This resets the lock's holder to NULL and removes the lock from thread A\'s list of acquired locks (interrupts are also disabled here to synchronise access to this list as it may be accessed in an interrupt handler).
+Firstly, thread A calls lock\_release(). This resets the lock's holder to NULL and removes the lock from thread A\'s list of acquired locks (interrupts are disabled here to synchronise access to this list as it may be accessed in an interrupt handler).
 
-The lock's cached priority is then recalculated (by getting the priority of the 2nd waiting thread, or returning PRI\_MIN if it doesn't exist) before sema\_up() removes the 1st waiting thread (say thread B) from the waiters list and calls thread\_unblock() on it.
+The lock's cached priority is then recalculated (by getting the priority of the 2nd thread in the waiting list, or returning PRI\_MIN if thread A is the last in the list) before sema\_up() removes thread B from the waiters list and calls thread\_unblock() on it.
 
 This function resets thread B\'s blocker pointer and enum, sets its status to THREAD\_READY and inserts it into the ready list.
+As thread A was running with thread B\'s priority, thread B must have higher priority than any other thread on the waiting list and is placed at its head by thread\_unblock.
 
-In this case, thread B\'s effective priority is now higher than the currently running thread A (as removing the lock from thread A\'s list of locks also removes any priority which it donated), so it gets must get placed at the head of the ready\_list (since thread A previously held the highest priority in ready\_list before it lost its donated priority and awakened thread B). A call to thread\_yield() is also triggered, causing thread B to pre-empt thread A and begin running.
+In this case, thread B\'s effective priority is now higher than the currently running thread A (as removing the lock from thread A\'s list of locks also removes any priority which it donated), so thread\_block also calls thread\_yield(), causing thread B to pre-empt thread A and begin running.
 
 \subsection{Synchronisation}
 \paragraph{A6: (5 marks)}
@@ -135,7 +136,7 @@ In developing priority scheduling, we decided to use priority queues for the wai
 
 As priority donation is closely related to locks and lock ownership, we decided that it would be simplest to have threads to keep track of the locks that they are currently holding. This list is ordered by priority of the most important thread in each lock's waiting list.
 
-Keeping in line with these decisions, we had to ensure that priority donations kept these lists ordered, which lead to the creation of methods like thread_reinsert_lock, which is called when a lock's priority is changed, and lock_reinsert_thread(), which is called when a thread's priority is changed.
+Keeping in line with these decisions, we had to ensure that priority donations kept these lists ordered, which lead to the creation of functions like thread_reinsert_lock, which is called when a lock's priority is changed, and lock_reinsert_thread(), which is called when a thread's priority is changed.
 
 In order to speed up the reinsertion operation, locks cache the highest priority of the threads in their waiting list, which is updated when a thread is added to or removed from it. This meant that thread_get_priority_of() was no longer a recursive call that walked down the chain of acquired locks and threads waiting on those locks.
 
@@ -149,7 +150,7 @@ During development, we briefly considered using unordered lists and list_max to 
 This idea cropped up multiple times, however it was rejected as it made it difficult to update lock priorities in large lock-list-lock chains and if caching was dropped completely, getting a thread's priority would have a worst case running time of O(n-1), where n is the number of threads, as the call would need to check the priority of every thread that is waiting on the thread whose priority we are evaluating.
 
 Moreover, the worst case running time of list_max is identical to its best case running time, which is O(n), where n is the number of elements in the list.
-Of course, the worst case of list_insert_ordered (used in both the reinsert methods and the methods that add threads to lists) is also O(n), however its best case is constant.
+Of course, the worst case of list_insert_ordered (used in both the reinsert functions and the functions that add threads to lists) is also O(n), however its best case is constant.
 We considered that list updates, which are more efficient for unordered lists, do not take place often enough to offset the cost of retrieving the most important element from a list every time an element needs to be removed or the inefficiency of thread_get_priority.
 
 We also considered different types of lists for tracking priority donations (such as keeping track of donating threads directly, or keeping track of the priority values, but not the structures that donate them), however, keeping a list of locks turned out to be the simplest to implement among them, as adding and removing priorities could simply be done through lock_acquire and lock_release.
