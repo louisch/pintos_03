@@ -150,14 +150,13 @@ unacceptable in larger OSs.
 % your design choices.  If you were to have extra time to work on this part of
 % the task, how might you choose to refine or improve your design?
 
-We chose to place all ready threads into the array of queues, ready\_array, which forms a lookup table of sorts for the threads by priority. The advantage of using the ready\_array 
-was that it allowed for constant time insertion of threads and n time sorting. However this comes with the disadvantage that it takes a constant space of 64*mlfqs\_elem as opposed to a
-varying size ready\_list. 
-
-%Adam - I think this should be removed as this covers what has been answered in B6.
-For the sake of performance, we chose to make the fixed point operations macros,
-with no type checking. This means one could potentially convert an integer to a
-fixed point twice, as a fixed\_point is simply an alias for int.
+We chose to place all ready threads into the array of queues, ready\_array,
+which forms a lookup table of sorts for the threads by priority. The advantage
+of using the ready\_array was that it allowed for constant time insertion of
+threads and n time updating of priorities in the number of ready
+threads. However this comes with the disadvantage that it takes more
+memory. There are 64 lists to store now, instead of 1, and an extra list\_elem
+field needs to be added to struct thread.
 
 We factored out many functions for interacting with ready\_array, as well as
 ready\_array itself, into a separate file, mlfqs.c. This has many advantages,
@@ -181,6 +180,24 @@ desired.
 % the way you did?  If you created an abstraction layer for fixed-point
 % mathematics, that is, an abstract data type and/or a set of functions or
 % macros to manipulate fixed-point numbers, why did you do so?  If not, why not?
-We decided to implement fixed point operations using macros. It was initially implemented using functions however this was replaced for the sake of performance which macros offered.
-The fixed\_point was created as a typedef int which purely increased the readability of the code allowing us to identify when a fixed_\point was being used. However because it was simply an alias for an int allowed for the possibility of an integer be converted to a fixed\_point more than once.
-A struct encapsulating an int could of been used but 
+We decided to implement fixed point operations using macros. It was initially
+implemented using functions however this was replaced for the sake of
+performance which macros offered.
+
+We decided to create operations for abstracting away the operations, because it
+would have been difficult to constantly think of whether a given number should
+be bit shifted or not. By abstracting away the details, we can simply think of
+integers and fixed points as separate entities, and if we wanted to switch
+between them, then we merely had to use our operations to do so.
+
+The fixed\_point was created as a typedef int which purely increased the
+readability of the code allowing us to identify when a fixed\_point was being
+used. However because it was simply an alias for an int allowed for the
+possibility of an integer be converted to a fixed\_point more than once.
+
+A struct encapsulating an int could have been used to represent a fixed
+point. However, for the sake of simplicity we wanted to use the macros as
+expressions, rather than using them as sets of statements. Since there is no way
+of casting an int directly into a struct containing an int, and again, because
+we didn't want to use statements to initialize some local struct, or update an
+existing struct, we decided to just use an int.
