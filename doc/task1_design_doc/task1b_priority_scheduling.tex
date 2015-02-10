@@ -96,6 +96,13 @@ In this case, thread B\'s effective priority is now higher than the currently ru
 \paragraph{A6: (5 marks)}
 Describe a potential race in thread\_set\_priority() and explain how your implementation avoids it.  Can you use a lock to avoid this race?
 
+In priority donation, thread\_set\_priority() is only used by the current thread to alter its own base priority (that is, its variant, thread\_set\_priority\_of() is never called).
+
+As in priority scheduling, the thread with the highest priority must be running at all times, the purpose of thread\_set\_priority() is two-fold: it sets the base priority of the thread and if the effective priority of the thread is now lower than the priority of a thread on the ready list, it calls thread\_yield().
+
+The race condition may occur during this access to the ready list: for instance, another thread of the same priority as the current thread may be scheduled at the head of the ready list (for instance, after being woken from sleep by timer\_interrupt), but the current thread already fetched the head of the list, it would not yield, even though it should.
+
+Hence, access to the ready list need to be synchronised to prevent this sort of error. As the ready list is shared between the threads and the interrupt handler, the only way to do so is to disable interrupts, as locks cannot be acquired in the context of an interrupt handler.
 
 
 \subsection{Rationale}
