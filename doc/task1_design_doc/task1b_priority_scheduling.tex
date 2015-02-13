@@ -1,6 +1,6 @@
 \section{Priority Scheduling}
 \subsection{Data Structures}
-\paragraph{A1: (5 marks)}
+\paragraph{A1:} % (5 marks)
 Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
 
 synch.h:\\
@@ -34,7 +34,7 @@ Threads now keep track of the locks they have acquired and the structure (if any
 
 
 \subsection{Algorithms}
-\paragraph{A2: (10 marks)}
+\paragraph{A2:} % (10 marks)
 Explain the data structure used to track priority donation. Give a diagram that illustrates a nested donation in your structure.
 \\
 \\
@@ -42,9 +42,9 @@ Our implementation of priority donation does not rely on a single data structure
 
 In addition, the waiting lists for semaphores (by extension, locks) and condition variables order threads by priority, which makes it possible to track priority passively: finding the highest priority in a list of threads is simply a matter of looking at the head. The same is true of ready\_list: finding the next thread to run is done by popping its head.
 
-When a thread attempts to acquire a lock that is held by another thread, the lock checks if its priority is higher than the cached priority. If it is, the newly blocked thread\'s priority is \"donated\" to the holder thread. This is done by reinserting the lock into the holder thread\'s list of acquired locks, ordered by descending donated priority. Again, since these locks are listed in order, finding the lock donating the highest priority is a simple matter of looking at the head of this list (and the thread\'s effective priority can be easily calculated by comparing this with its base priority).
+When a thread attempts to acquire a lock that is held by another thread, the lock checks if its priority is higher than the cached priority. If it is, the newly blocked thread's priority is ``donated'' to the holder thread. This is done by reinserting the lock into the holder thread's list of acquired locks, ordered by descending donated priority. Again, since these locks are listed in order, finding the lock donating the highest priority is a simple matter of looking at the head of this list (and the thread's effective priority can be easily calculated by comparing this with its base priority).
 
-If priority donation updates a blocked thread\'s priority, we may need to recursively propagate this new donated priority if the blocker is a lock. Firstly, the blocked thread notifies the structure it is waiting on to re-order its waiting list to reflect the change of priority.
+If priority donation updates a blocked thread's priority, we may need to recursively propagate this new donated priority if the blocker is a lock. Firstly, the blocked thread notifies the structure it is waiting on to re-order its waiting list to reflect the change of priority.
 In the case of a semaphore, the blocked thread whose priority was modified is simply reinserted into the list (condition variables reinsert the semaphore that blocks the thread in question).
 In the case of a lock, the waiting list is reordered like it is for semaphores, and if the lock determines that the highest priority has changed, it notifies the thread that holds it to reorder its list of acquired locks. If this thread is also blocked, the recursion continues.
 \\
@@ -64,55 +64,55 @@ A low priority thread has acquired L1.
 \includegraphics[scale=0.45]{A2}
 \\
 \\
-A medium priority thread then acquires L2 before attempting to acquire L1. Because L1 has already been acquired by TLow, TMed is inserted into L1\'s waiters list, thus increasing the priority of L1 to its own. Because the L1\'s priority has changed, we must reorder TLow\'s locks list, thereby donating TMed\'s priority to TLow. TMed then checks whether TLow is being blocked, and since it is not, nothing further happens.
+A medium priority thread then acquires L2 before attempting to acquire L1. Because L1 has already been acquired by TLow, TMed is inserted into L1's waiters list, thus increasing the priority of L1 to its own. Because the L1's priority has changed, we must reorder TLow's locks list, thereby donating TMed's priority to TLow. TMed then checks whether TLow is being blocked, and since it is not, nothing further happens.
 \\
 \\
 \includegraphics[scale=0.45]{A3}
 \\
 \\
-A high priority thread now attempts to acquire L2. Because L2 is already held by TMed, THigh is inserted into L2\'s waiters list, L2\'s priority is increased and high priority is donated to TMed. Now, since TMed is being blocked by another lock, we must recurse. L1\'s list of waiters is reordered, and this causes its priority to also increase to high (since TMed now has high priority). This in turn triggers TLow\'s locks list to be reordered, finally donating high priority to TLow.
+A high priority thread now attempts to acquire L2. Because L2 is already held by TMed, THigh is inserted into L2's waiters list, L2's priority is increased and high priority is donated to TMed. Now, since TMed is being blocked by another lock, we must recurse. L1's list of waiters is reordered, and this causes its priority to also increase to high (since TMed now has high priority). This in turn triggers TLow's locks list to be reordered, finally donating high priority to TLow.
 \\
 \\
-\paragraph{A3: (5 marks)}
+\paragraph{A3:} % (5 marks)
 How do you ensure that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first?
 \\
 \\
 Our implementation guarantees that the lists of waiting threads inside semaphores (by extension, locks) and condition variables are sorted in order of decreasing effective priority.
 
 We maintain this guarantee by inserting threads into the waiting list with list\_insert\_ordered(), which uses an auxiliary function to compare thread priorities.
-When a thread\'s effective priority changes through priority donation, if this thread is waiting in a list, we reinsert the thread into the list, thus maintaining its order. If it waiting on a lock, if the highest priority of the lock\'s waiting list is changed, this change is propagated to the holder of the lock.
+When a thread's effective priority changes through priority donation, if this thread is waiting in a list, we reinsert the thread into the list, thus maintaining its order. If it waiting on a lock, if the highest priority of the lock's waiting list is changed, this change is propagated to the holder of the lock.
 
 When a semaphore, lock or condition variable wakes up a thread, it simply pops the front of the waiting queue, which we know is ordered. Hence when a thread is released from the waiters list, it is guaranteed to be (one of) the thread(s) with highest priority.
 
-\paragraph{A4: (5 marks)}
+\paragraph{A4:} % (5 marks)
 Describe the sequence of events when a call to lock\_acquire() causes a priority donation.  How is nested donation handled?
 \\
 \\
-In order for priority donation to happen, a low priority thread (say thread A) has to first acquire the lock. This points the lock\'s holder to thread A, and inserts the lock into thread A\'s list of acquired locks.
+In order for priority donation to happen, a low priority thread (say thread A) has to first acquire the lock. This points the lock's holder to thread A, and inserts the lock into thread A's list of acquired locks.
 
-Then when thread B calls lock\_acquire on the same lock, it is blocked. This first sets the blocker pointer at the lock and blocker\_type to LOCK. It then updates the lock\'s cached priority through lock\_try\_increase\_priority(), which also returns whether the priority increased or not.
+Then when thread B calls lock\_acquire on the same lock, it is blocked. This first sets the blocker pointer at the lock and blocker\_type to LOCK. It then updates the lock's cached priority through lock\_try\_increase\_priority(), which also returns whether the priority increased or not.
 
-In this case, we shall assume that thread B has a higher priority than any thread in the lock\'s waiters list (or that the list is empty). Therefore, the lock\'s priority will increase and lock\_try\_increase\_priority() will return true. We now need to inform the lock holder\'s thread (i.e. thread A) that the lock is now donating a higher priority, and thus it must reorder its list of locks (by calling thread\_notify\_blocker()). This reordering indirectly causes thread B to donate its priority to thread A, since A\'s list of locks are sorted in descending priority, and its donated priority is found by simply looking at this list\'s head.
+In this case, we shall assume that thread B has a higher priority than any thread in the lock's waiters list (or that the list is empty). Therefore, the lock's priority will increase and lock\_try\_increase\_priority() will return true. We now need to inform the lock holder's thread (i.e. thread A) that the lock is now donating a higher priority, and thus it must reorder its list of locks (by calling thread\_notify\_blocker()). This reordering indirectly causes thread B to donate its priority to thread A, since A's list of locks are sorted in descending priority, and its donated priority is found by simply looking at this list's head.
 
-If thread A itself is blocked, then we will need to inform its blocker. Since we are considering a nested donation scenario, this blocker will be another lock which we will need to recurse into. Because thread A has just had its priority changed and it is waiting for this lock, we will have to reorder the lock\'s waiters list by calling lock\_reinsert\_thread(). We then need to check if the overall priority of the lock has changed, and inform the lock\'s holder whether it needs to reorder its list of locks. If the holder is also blocked, the recursion will continue.
+If thread A itself is blocked, then we will need to inform its blocker. Since we are considering a nested donation scenario, this blocker will be another lock which we will need to recurse into. Because thread A has just had its priority changed and it is waiting for this lock, we will have to reorder the lock's waiters list by calling lock\_reinsert\_thread(). We then need to check if the overall priority of the lock has changed, and inform the lock's holder whether it needs to reorder its list of locks. If the holder is also blocked, the recursion will continue.
 
-\paragraph{A5: (5 marks)}
+\paragraph{A5:} % (5 marks)
 Describe the sequence of events when lock\_release() is called on a lock that a higher-priority thread is waiting for.
 \\
 \\
-Suppose that the higher priority thread B is at the head of the lock\'s waiters list, and is donating its priority to the thread A, which holds the lock.
+Suppose that the higher priority thread B is at the head of the lock's waiters list, and is donating its priority to the thread A, which holds the lock.
 
-Firstly, thread A calls lock\_release(). This resets the lock's holder to NULL and removes the lock from thread A\'s list of acquired locks (interrupts are disabled here to synchronise access to this list as it may be accessed in an interrupt handler).
+Firstly, thread A calls lock\_release(). This resets the lock's holder to NULL and removes the lock from thread A's list of acquired locks (interrupts are disabled here to synchronise access to this list as it may be accessed in an interrupt handler).
 
 The lock's cached priority is then recalculated (by getting the priority of the 2nd thread in the waiting list, or returning PRI\_MIN if thread A is the last in the list) before sema\_up() removes thread B from the waiters list and calls thread\_unblock() on it.
 
-This function resets thread B\'s blocker pointer and enum, sets its status to THREAD\_READY and inserts it into the ready list.
-As thread A was running with thread B\'s priority, thread B must have higher priority than any other thread on the waiting list and is placed at its head by thread\_unblock.
+This function resets thread B's blocker pointer and enum, sets its status to THREAD\_READY and inserts it into the ready list.
+As thread A was running with thread B's priority, thread B must have higher priority than any other thread on the waiting list and is placed at its head by thread\_unblock.
 
-In this case, thread B\'s effective priority is now higher than the currently running thread A (as removing the lock from thread A\'s list of locks also removes any priority which it donated), so thread\_block also calls thread\_yield(), causing thread B to pre-empt thread A and begin running.
+In this case, thread B's effective priority is now higher than the currently running thread A (as removing the lock from thread A's list of locks also removes any priority which it donated), so thread\_block also calls thread\_yield(), causing thread B to pre-empt thread A and begin running.
 
 \subsection{Synchronisation}
-\paragraph{A6: (5 marks)}
+\paragraph{A6:} % (5 marks)
 Describe a potential race in thread\_set\_priority() and explain how your implementation avoids it.  Can you use a lock to avoid this race?
 \\
 \\
@@ -126,7 +126,7 @@ Hence, access to the ready list need to be synchronised to prevent this sort of 
 
 
 \subsection{Rationale}
-\paragraph{A7: (5 marks)}
+\paragraph{A7:} % (5 marks)
 Why did you choose this design?  In what ways is it superior to another design you considered?
 \\
 \\
@@ -134,9 +134,9 @@ Throughout the development of the implementation of priority donations (and of t
 
 In developing priority scheduling, we decided to use priority queues for the waiting lists in semaphores and condition variables, and the ready list, as this trivialised finding the thread with the highest priority.
 
-As priority donation is closely related to locks and lock ownership, we decided that it would be simplest to have threads to keep track of the locks that they are currently holding. This list is ordered by priority of the most important thread in each lock\'s waiting list.
+As priority donation is closely related to locks and lock ownership, we decided that it would be simplest to have threads to keep track of the locks that they are currently holding. This list is ordered by priority of the most important thread in each lock's waiting list.
 
-Keeping in line with these decisions, we had to ensure that priority donations kept these lists ordered, which lead to the creation of methods like thread\_reinsert\_lock, which is called when a lock\'s priority is changed, and lock\_reinsert\_thread(), which is called when a thread\'s priority is changed.
+Keeping in line with these decisions, we had to ensure that priority donations kept these lists ordered, which lead to the creation of methods like thread\_reinsert\_lock, which is called when a lock's priority is changed, and lock\_reinsert\_thread(), which is called when a thread's priority is changed.
 
 In order to speed up the reinsertion operation, locks cache the highest priority of the threads in their waiting list, which is updated when a thread is added to or removed from it. This meant that thread\_get\_priority\_of() was no longer a recursive call that walked down the chain of acquired locks and threads waiting on those locks.
 
@@ -147,7 +147,7 @@ The resulting system was fairly simple and flexible, which made it easy to integ
 
 During development, we briefly considered using unordered lists and list\_max to find the highest priority thread when it was needed, as this would largely simplify list updates (the lists would not need to be changed when the priority of their elements changes) and require less interrupt disabling.
 
-This idea cropped up multiple times, however it was rejected as it made it difficult to update lock priorities in large lock-list-lock chains and if caching was dropped completely, getting a thread\'s priority would have a worst case running time of O(n-1), where n is the number of threads, as the call would need to check the priority of every thread that is waiting on the thread whose priority we are evaluating.
+This idea cropped up multiple times, however it was rejected as it made it difficult to update lock priorities in large lock-list-lock chains and if caching was dropped completely, getting a thread's priority would have a worst case running time of O(n-1), where n is the number of threads, as the call would need to check the priority of every thread that is waiting on the thread whose priority we are evaluating.
 
 Moreover, the worst case running time of list\_max is identical to its best case running time, which is O(n), where n is the number of elements in the list.
 Of course, the worst case of list\_insert\_ordered (used in both the reinsert methods and the methods that add threads to lists) is also O(n), however its best case is constant.
