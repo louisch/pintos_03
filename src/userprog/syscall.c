@@ -63,18 +63,20 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 }
 
+/* Checks whether a given pointer is safe to deference, i.e. whether it lies
+   below PHYS_BASE and points to mapped user virtual memory. */
 static void *
 check_pointer (void *uaddr)
 {
   if (is_user_vaddr (uaddr)
       && pagedir_get_page (thread_current ()->pagedir, uaddr))
-    { /* uaddr is safe (points to allocated user memory) */
+    { /* uaddr is safe (points to mapped user virtual memory). */
       return uaddr;
     }
   else
-    { /* uaddr points to invalid memory */
+    { /* uaddr is unsafe. */
       thread_exit ();
-      /* Release other syscall-related resources here */
+      /* Release other syscall-related resources here. */
     }
 }
 
@@ -89,9 +91,10 @@ get_arg (struct intr_frame *f, int offset)
 
 
 
-/* write system call */
+/* write system call. */
 static int
 write (int fd, const void *buffer, unsigned size)
 {
+  /* TODO: implement */
   return 0;
 }
