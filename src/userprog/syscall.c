@@ -7,6 +7,7 @@
 #include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
+static void *syscall_check_pointer (void *);
 
 void
 syscall_init (void) 
@@ -17,8 +18,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  /* No pointer checking here! */
-  uint32_t call_no = *((uint32_t*) (12345));
+  uint32_t call_no = *(uint32_t*) syscall_check_pointer(f->esp);
 
   switch (call_no)
   {
@@ -41,6 +41,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     case (SYS_READ):
       break;
     case (SYS_WRITE):
+
       break;
     case (SYS_SEEK):
       break;
@@ -50,7 +51,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     default:
       /* Unknown system call encountered! */
-      ASSERT (0);
+      thread_exit ();
   }
 
   // uint32_t arg0 = *(((uint32_t*) (f->esp)) + 1);
@@ -58,10 +59,8 @@ syscall_handler (struct intr_frame *f UNUSED)
   // uint32_t arg2 = *(((uint32_t*) (f->esp)) + 3);
 
   // printf("Call no: %d, %d, %d, %d\n", call_no, arg0, arg1, arg2);
-
-  // printf ("asdfasdf??\n");
   printf ("system call!\n");
-  thread_exit ();
+  // thread_exit ();
 
 
 }
@@ -70,14 +69,22 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 static void *syscall_check_pointer (void *uaddr)
 {
-  if (is_user_vaddr (uaddr) && pagedir_get_page(thread_current()->pagedir, uaddr))
+  if (is_user_vaddr (uaddr)
+      && pagedir_get_page (thread_current ()->pagedir, uaddr))
     {
-      printf("yays\n");
+      /* uaddr points to valid user memory */
       return uaddr;
     }
   else
     {
-      printf("asdfasdfasdfrrrgh\n");
-      ASSERT(0);
+      /* uaddr points to invalid memory */
+      thread_exit ();
+      /* Release other syscall-related resources here */
     }
+}
+
+static int
+write (int fd, const void *buffer, unsigned size)
+{
+  return 0;
 }
