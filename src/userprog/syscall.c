@@ -7,7 +7,9 @@
 #include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
-static void *syscall_check_pointer (void *);
+static void *check_pointer (void *);
+static uint32_t get_arg (struct intr_frame *f, int offset);
+static int write (int fd, const void *buffer, unsigned size);
 
 void
 syscall_init (void) 
@@ -18,7 +20,9 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  uint32_t call_no = *(uint32_t*) syscall_check_pointer(f->esp);
+  printf ("system call!\n");
+
+  uint32_t call_no = *(uint32_t*) check_pointer(f->esp);
 
   switch (call_no)
   {
@@ -41,7 +45,9 @@ syscall_handler (struct intr_frame *f UNUSED)
     case (SYS_READ):
       break;
     case (SYS_WRITE):
-
+      f->eax = (uint32_t) write ((int) get_arg (f, 1),
+                                 (const void*) get_arg (f, 2),
+                                 (unsigned) get_arg (f, 3));
       break;
     case (SYS_SEEK):
       break;
@@ -51,38 +57,39 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     default:
       /* Unknown system call encountered! */
-      thread_exit ();
+      printf("System call is not of this world!\n");
+      /* TODO: remove above debug print before submission */
   }
-
-  // uint32_t arg0 = *(((uint32_t*) (f->esp)) + 1);
-  // uint32_t arg1 = *(((uint32_t*) (f->esp)) + 2);
-  // uint32_t arg2 = *(((uint32_t*) (f->esp)) + 3);
-
-  // printf("Call no: %d, %d, %d, %d\n", call_no, arg0, arg1, arg2);
-  printf ("system call!\n");
-  // thread_exit ();
-
 
 }
 
-// static function that gets args
-
-static void *syscall_check_pointer (void *uaddr)
+static void *
+check_pointer (void *uaddr)
 {
   if (is_user_vaddr (uaddr)
       && pagedir_get_page (thread_current ()->pagedir, uaddr))
-    {
-      /* uaddr points to valid user memory */
+    { /* uaddr is safe (points to allocated user memory) */
       return uaddr;
     }
   else
-    {
-      /* uaddr points to invalid memory */
+    { /* uaddr points to invalid memory */
       thread_exit ();
       /* Release other syscall-related resources here */
     }
 }
 
+/* Safely dereferences an interrupt frame's stack pointer,
+   given an offset. */
+static uint32_t
+get_arg (struct intr_frame *f, int offset)
+{
+  uint32_t *arg_pointer = (((uint32_t*) (f->esp)) + offset);
+  return *((uint32_t*) check_pointer((void*) arg_pointer));
+}
+
+
+
+/* write system call */
 static int
 write (int fd, const void *buffer, unsigned size)
 {
