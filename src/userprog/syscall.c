@@ -21,6 +21,7 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   printf ("system call!\n");
+  /* TODO: remove above debug print before submission */
 
   uint32_t call_no = *(uint32_t*) check_pointer(f->esp);
 
