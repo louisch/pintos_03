@@ -6,6 +6,11 @@
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 
+#define call_syscall_3(FUNC, FRAME, RETURN, ARG1, ARG2, ARG3) \
+  (RETURN) FUNC((ARG1) get_arg (FRAME, 1),                    \
+                (ARG2) get_arg (FRAME, 2),                    \
+                (ARG3) get_arg (FRAME, 3))
+
 static void syscall_handler (struct intr_frame *);
 static void *check_pointer (void *);
 static uint32_t get_arg (struct intr_frame *f, int offset);
