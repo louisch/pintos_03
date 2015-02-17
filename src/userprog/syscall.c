@@ -12,18 +12,18 @@ static uint32_t get_arg (struct intr_frame *f, int offset);
 static int write (int fd, const void *buffer, unsigned size);
 
 void
-syscall_init (void) 
+syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *frame UNUSED)
 {
   printf ("system call!\n");
   /* TODO: remove above debug print before submission */
 
-  uint32_t call_no = *(uint32_t*) check_pointer(f->esp);
+  uint32_t call_no = *(uint32_t*) check_pointer(frame->esp);
 
   switch (call_no)
   {
@@ -46,9 +46,9 @@ syscall_handler (struct intr_frame *f UNUSED)
     case (SYS_READ):
       break;
     case (SYS_WRITE):
-      f->eax = (uint32_t) write ((int) get_arg (f, 1),
-                                 (const void*) get_arg (f, 2),
-                                 (unsigned) get_arg (f, 3));
+      frame->eax = (uint32_t) write ((int) get_arg (frame, 1),
+                                     (const void*) get_arg (frame, 2),
+                                     (unsigned) get_arg (frame, 3));
       break;
     case (SYS_SEEK):
       break;
