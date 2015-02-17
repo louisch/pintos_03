@@ -6,10 +6,21 @@
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 
-#define call_syscall_3(FUNC, FRAME, RETURN, ARG1, ARG2, ARG3) \
-  (RETURN) FUNC((ARG1) get_arg (FRAME, 1),                    \
-                (ARG2) get_arg (FRAME, 2),                    \
-                (ARG3) get_arg (FRAME, 3))
+#define call_syscall_0(FUNC, RETURN)                          \
+  (RETURN) FUNC ()
+
+#define call_syscall_1(FUNC, RETURN, FRAME, ARG1)             \
+  (RETURN) FUNC ((ARG1) get_arg (FRAME, 1),                   \
+                 (ARG2) get_arg (FRAME, 2))
+
+#define call_syscall_2(FUNC, RETURN, FRAME, ARG1, ARG2)       \
+  (RETURN) FUNC ((ARG1) get_arg (FRAME, 1),                   \
+                 (ARG2) get_arg (FRAME, 2))
+
+#define call_syscall_3(FUNC, RETURN, FRAME, ARG1, ARG2, ARG3) \
+  (RETURN) FUNC ((ARG1) get_arg (FRAME, 1),                   \
+                 (ARG2) get_arg (FRAME, 2),                   \
+                 (ARG3) get_arg (FRAME, 3))
 
 static void syscall_handler (struct intr_frame *);
 static void *check_pointer (void *);
@@ -23,12 +34,12 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *frame UNUSED)
+syscall_handler (struct intr_frame *frame)
 {
   printf ("system call!\n");
   /* TODO: remove above debug print before submission */
 
-  uint32_t call_no = *(uint32_t*) check_pointer(frame->esp);
+  uint32_t call_no = *(uint32_t*) check_pointer (frame->esp);
 
   switch (call_no)
   {
@@ -51,9 +62,8 @@ syscall_handler (struct intr_frame *frame UNUSED)
     case (SYS_READ):
       break;
     case (SYS_WRITE):
-      frame->eax = (uint32_t) write ((int) get_arg (frame, 1),
-                                     (const void*) get_arg (frame, 2),
-                                     (unsigned) get_arg (frame, 3));
+      frame->eax = call_syscall_3 (write, uint32_t, frame,
+                                   int, const void*, unsigned);
       break;
     case (SYS_SEEK):
       break;
@@ -63,7 +73,7 @@ syscall_handler (struct intr_frame *frame UNUSED)
       break;
     default:
       /* Unknown system call encountered! */
-      printf("System call is not of this world!\n");
+      printf ("System call is not of this world!\n");
       /* TODO: remove above debug print before submission */
   }
 
