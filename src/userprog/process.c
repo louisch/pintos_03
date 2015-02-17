@@ -201,16 +201,16 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
-static void write_args_to_stack (void **esp, char *args);
+static void write_args_to_stack (void **esp, char *args, int arg_length);
 
-const char* delimiters = " \n\t";
+const char* delimiters = " \n\t\0";
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (char *command, void (**eip) (void), void **esp) 
+load (char *fn_args, void (**eip) (void), void **esp) 
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -220,8 +220,10 @@ load (char *command, void (**eip) (void), void **esp)
   int i;
 
   /* Separate file name from command-line arguments. */
-  char* args;
-  const char* file_name = strtok_r (command, delimiters, &args);
+  int arg_length = strlen (fn_args);
+  printf ("String name is: %s - len: %d\n", fn_args, arg_length);
+  const char* file_name = strtok_r (NULL, delimiters, &fn_args);
+  printf ("String name is now: %s\n", fn_args);
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -314,7 +316,7 @@ load (char *command, void (**eip) (void), void **esp)
     goto done;
 
   /* Set up command arguments on stack. */
-  write_args_to_stack (esp, args);
+  write_args_to_stack (esp, fn_args, arg_length);
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -335,9 +337,8 @@ struct pointer
 
 /* Writes arguments to stack according to the calling convention. */
 static void
-write_args_to_stack (void **esp, char *args)
+write_args_to_stack (void **esp, char *args, int arg_length)
 {
-  int arg_length = strlen (args);
   int read = arg_length ? arg_length - 1 : arg_length;
   struct list pointers;
   list_init (&pointers);
@@ -347,11 +348,12 @@ write_args_to_stack (void **esp, char *args)
   {
     /* Skip delimiter characters. */
     while (read >= 0 && strchr (delimiters, args[read]) != NULL)
-      --read;
+      {--read; printf ("2. At char: '%c'\n", args[read]);}
     /* Write characters from command onto stack. */
     *--esp_char = '\0';
     while (read >= 0 && strchr (delimiters, args[read]) == NULL)
-      *--esp_char = args[read--];
+      {*--esp_char = args[read--]; printf ("3. At char: '%c'\n", args[read]);}
+    printf ("Found word: %s\n", (char *) esp_char);
     /* Add esp pointer to first character of a command to list of pointers. */
     if (read >= 0)
       {
@@ -390,6 +392,9 @@ write_args_to_stack (void **esp, char *args)
 
   /* Return address. */
   *--esp_pointer = 0;
+
+  /* Set esp pointer to bottom of stack. */
+  *esp = esp_pointer;
 }
 
 /* load() helpers. */
@@ -513,7 +518,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12; /* DIRTY HAXX */
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
