@@ -84,9 +84,9 @@ check_pointer (void *uaddr)
 /* Safely dereferences an interrupt frame's stack pointer,
    given an offset. */
 static uint32_t
-get_arg (struct intr_frame *f, int offset)
+get_arg (struct intr_frame *frame, int offset)
 {
-  uint32_t *arg_pointer = (((uint32_t*) (f->esp)) + offset);
+  uint32_t *arg_pointer = (((uint32_t*) (frame->esp)) + offset);
   return *((uint32_t*) check_pointer((void*) arg_pointer));
 }
 
