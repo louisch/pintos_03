@@ -19,7 +19,7 @@
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (char *cmdline, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -201,13 +201,16 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+static void write_args_to_stack (void **esp, char *args);
+
+const char* delimiters = " \n\t";
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (char *command, void (**eip) (void), void **esp) 
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -215,6 +218,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   off_t file_ofs;
   bool success = false;
   int i;
+
+  /* Separate file name from command-line arguments. */
+  char* args;
+  const char* file_name = strtok_r (command, delimiters, &args);
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -306,6 +313,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!setup_stack (esp))
     goto done;
 
+  /* Set up command arguments on stack. */
+  write_args_to_stack (esp, args);
+
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
@@ -315,6 +325,71 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   file_close (file);
   return success;
+}
+
+struct pointer
+  {
+    uint32_t pointer;
+    struct list_elem elem;
+  };
+
+/* Writes arguments to stack according to the calling convention. */
+static void
+write_args_to_stack (void **esp, char *args)
+{
+  int arg_length = strlen (args);
+  int read = arg_length ? arg_length - 1 : arg_length;
+  struct list pointers;
+  list_init (&pointers);
+  char *esp_char = *esp;
+
+  while (read >= 0)
+  {
+    /* Skip delimiter characters. */
+    while (read >= 0 && strchr (delimiters, args[read]) != NULL)
+      --read;
+    /* Write characters from command onto stack. */
+    *--esp_char = '\0';
+    while (read >= 0 && strchr (delimiters, args[read]) == NULL)
+      *--esp_char = args[read--];
+    /* Add esp pointer to first character of a command to list of pointers. */
+    if (read >= 0)
+      {
+        struct pointer pointer;
+        pointer.pointer = (uint32_t) esp_char;
+        list_push_back (&pointers, &pointer.elem);
+      }
+  }
+
+  /* Word-align esp address. */
+  uint8_t *esp_fill = (uint8_t *) esp_char;
+  while ((uint32_t) esp_fill % (uint32_t) 8 != 0)
+    *--esp_fill = 0;
+
+  /* Add pointer addresses to arguments. */
+  uint32_t *esp_pointer = (uint32_t *) esp_fill;
+  /* argv[argc] = nullptr */
+  *--esp_pointer = 0;
+
+  uint32_t argc = 0;
+  struct list_elem *elem = list_head (&pointers);
+  while (elem->next != list_end (&pointers))
+    {
+      elem = elem->next;
+      /* argv[n] = pointer_to_nth_argument_in_stack */
+      *--esp_pointer = list_entry (elem, struct pointer, elem)->pointer;
+      ++argc;
+    }
+
+  /* Pointer to argv. */
+  --esp_pointer;
+  *esp_pointer = (uint32_t) (esp_pointer + 1);
+
+  /* argc value. */
+  *--esp_pointer = argc;
+
+  /* Return address. */
+  *--esp_pointer = 0;
 }
 
 /* load() helpers. */
