@@ -221,9 +221,7 @@ load (char *fn_args, void (**eip) (void), void **esp)
 
   /* Separate file name from command-line arguments. */
   int arg_length = strlen (fn_args);
-  printf ("String name is: %s - len: %d\n", fn_args, arg_length);
   const char* file_name = strtok_r (NULL, delimiters, &fn_args);
-  printf ("String name is now: %s\n", fn_args);
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -329,40 +327,32 @@ load (char *fn_args, void (**eip) (void), void **esp)
   return success;
 }
 
-struct pointer
-  {
-    uint32_t pointer;
-    struct list_elem elem;
-  };
-
-/* Writes arguments to stack according to the calling convention. */
+/* Writes arguments to stack according to the calling convention.
+   Note that the caller already guarantees that the argv_string
+   actually contains arguments. */
 static void
-write_args_to_stack (void **esp, const char *args, int arg_length)
+write_args_to_stack (void **esp, const char *argv_string, int arg_length)
 {
+  ASSERT (argv_string != NULL && arg_length > 0);
+
   int read = arg_length ? arg_length - 1 : arg_length;
-  struct list pointers;
-  list_init (&pointers);
   char *esp_char = *esp;
+  /* arg_length/2+1 is the maximum possible number of distincts args in string.*/
+  uint32_t argv[arg_length/2 + 1];
+  uint32_t argc = 0;
 
   while (read >= 0)
-  {
-    /* Skip delimiter characters. */
-    while (read >= 0 && strchr (delimiters, args[read]) != NULL)
-      {--read; printf ("2. At char: '%c'\n", args[read]);}
-    /* Write characters from command onto stack. */
-    *--esp_char = '\0';
-    while (read >= 0 && strchr (delimiters, args[read]) == NULL)
-      {*--esp_char = args[read--]; printf ("3. At char: '%c'\n", args[read]);}
-    printf ("Found word: %s\n", (char *) esp_char);
-    /* Add esp pointer to first character of a command to list of pointers. */
-    if (read >= 0)
-      {
-        struct pointer pointer;
-        pointer.pointer = (uint32_t) esp_char;
-        printf ("Dropping pointer '%u' for %s\n", (uint32_t) esp_char, esp_char);
-        list_push_back (&pointers, &pointer.elem);
-      }
-  }
+    {
+      /* Skip delimiter characters. */
+      while (read >= 0 && strchr (delimiters, argv_string[read]) != NULL)
+          --read;
+      /* Write characters from argv_string onto stack. */
+      *--esp_char = '\0';
+      while (read >= 0 && strchr (delimiters, argv_string[read]) == NULL)
+          *--esp_char = argv_string[read--];
+      /* Remember position of first character of the argument. */
+      argv[argc++] = (uint32_t) esp_char;
+    }
 
   /* Word-align esp address. */
   uint8_t *esp_fill = (uint8_t *) esp_char;
@@ -373,19 +363,9 @@ write_args_to_stack (void **esp, const char *args, int arg_length)
   uint32_t *esp_pointer = (uint32_t *) esp_fill;
   /* argv[argc] = nullptr */
   *--esp_pointer = 0;
-
-  uint32_t argc = 0;
-  struct list_elem *elem = list_head (&pointers);
-  while (elem->next != list_end (&pointers))
-    {
-      elem = elem->next;
-      /* argv[n] = pointer_to_nth_argument_in_stack */
-      uint32_t p =  list_entry (elem, struct pointer, elem)->pointer;
-      --esp_pointer;
-      printf ("pointer is %d\n", p);
-      *esp_pointer = 2;
-      ++argc;
-    }
+  uint32_t i;
+  for (i = 0; i < argc; ++i)
+      *--esp_pointer = argv[i];
 
   /* Pointer to argv. */
   --esp_pointer;
@@ -399,6 +379,13 @@ write_args_to_stack (void **esp, const char *args, int arg_length)
 
   /* Set esp pointer to bottom of stack. */
   *esp = esp_pointer;
+
+  /* Test things */
+/*
+  uint32_t *test = (uint32_t *) *esp;
+  char **arr = (char **) *(test+2);
+  printf("%d, %d, %d, %s, %s, %s, %s\n", *test, *(test+1), arr[4] == NULL, arr[0], arr[1], arr[2], arr[3]);
+*/
 }
 
 /* load() helpers. */
