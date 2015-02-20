@@ -201,7 +201,7 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
-static void write_args_to_stack (void **esp, char *args, int arg_length);
+static void write_args_to_stack (void **esp, const char *args, int arg_length);
 
 const char* delimiters = " \n\t\0";
 
@@ -316,7 +316,7 @@ load (char *fn_args, void (**eip) (void), void **esp)
     goto done;
 
   /* Set up command arguments on stack. */
-  write_args_to_stack (esp, fn_args, arg_length);
+  write_args_to_stack (esp, file_name, arg_length);
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -337,7 +337,7 @@ struct pointer
 
 /* Writes arguments to stack according to the calling convention. */
 static void
-write_args_to_stack (void **esp, char *args, int arg_length)
+write_args_to_stack (void **esp, const char *args, int arg_length)
 {
   int read = arg_length ? arg_length - 1 : arg_length;
   struct list pointers;
@@ -359,6 +359,7 @@ write_args_to_stack (void **esp, char *args, int arg_length)
       {
         struct pointer pointer;
         pointer.pointer = (uint32_t) esp_char;
+        printf ("Dropping pointer '%u' for %s\n", (uint32_t) esp_char, esp_char);
         list_push_back (&pointers, &pointer.elem);
       }
   }
@@ -379,7 +380,10 @@ write_args_to_stack (void **esp, char *args, int arg_length)
     {
       elem = elem->next;
       /* argv[n] = pointer_to_nth_argument_in_stack */
-      *--esp_pointer = list_entry (elem, struct pointer, elem)->pointer;
+      uint32_t p =  list_entry (elem, struct pointer, elem)->pointer;
+      --esp_pointer;
+      printf ("pointer is %d\n", p);
+      *esp_pointer = 2;
       ++argc;
     }
 
