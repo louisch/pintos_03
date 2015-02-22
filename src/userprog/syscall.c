@@ -36,10 +36,10 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *frame)
 {
-  printf ("system call!\n");
-  /* TODO: remove above debug print before submission */
-
   uint32_t call_no = *(uint32_t*) check_pointer (frame->esp);
+
+  printf ("system call %d!\n", call_no);
+  /* TODO: remove above debug print before submission */
 
   switch (call_no)
   {
@@ -73,7 +73,7 @@ syscall_handler (struct intr_frame *frame)
       break;
     default:
       /* Unknown system call encountered! */
-      printf ("System call is not of this world!\n");
+      printf ("That system call is not of this world!\n");
       /* TODO: remove above debug print before submission */
   }
 
