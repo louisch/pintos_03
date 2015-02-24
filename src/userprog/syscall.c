@@ -1,11 +1,14 @@
-#include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <user/syscall.h>
+
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
-#include <user/syscall.h>
+#include "devices/shutdown.h"
+
+#include "userprog/syscall.h"
 
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
@@ -142,10 +145,11 @@ get_arg (struct intr_frame *frame, int offset)
 /* System call functions below */
 /* TODO: Add documentation about what the system call does */
 
+/* Terminates the operating system immediately, without discussion. */
 static void
 syscall_halt (void) 
 {
-  /* Code here */
+  shutdown_power_off ();
   NOT_REACHED ();
 }
 
