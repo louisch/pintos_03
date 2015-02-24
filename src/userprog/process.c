@@ -205,6 +205,10 @@ static void write_args_to_stack (void **esp, const char *args, int arg_length);
 
 const char* delimiters = " \n\t\0";
 
+/* Size limit in bytes for command line arguments.
+  Equals about half page size. */
+static int arg_size_limit = 2048;
+
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
@@ -222,6 +226,13 @@ load (char *fn_args, void (**eip) (void), void **esp)
   /* Separate file name from command-line arguments. */
   int arg_length = strlen (fn_args);
   const char* file_name = strtok_r (NULL, delimiters, &fn_args);
+
+  if (arg_length > arg_size_limit)
+  {
+    printf("Warning: command line arguments exceed 
+            argument size limit. Errors will occur.\n");
+    arg_length = arg_size_limit;
+  }
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
