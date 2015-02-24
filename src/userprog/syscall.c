@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include <user/syscall.h>
 
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
@@ -32,19 +33,19 @@ static void syscall_handler (struct intr_frame *);
 static void *check_pointer (void *);
 static uint32_t get_arg (struct intr_frame *f, int offset);
 
-static void halt (void) NO_RETURN;
-static void exit (int status) NO_RETURN;
-static pid_t exec (const char *file);
-static int wait (pid_t);
-static bool create (const char *file, unsigned initial_size);
-static bool remove (const char *file);
-static int open (const char *file);
-static int filesize (int fd);
-static int read (int fd, void *buffer, unsigned length);
-static int write (int fd, const void *buffer, unsigned length);
-static void seek (int fd, unsigned position);
-static unsigned tell (int fd);
-static void close (int fd);
+static void syscall_halt (void) NO_RETURN;
+static void syscall_exit (int status) NO_RETURN;
+static pid_t syscall_exec (const char *file);
+static int syscall_wait (pid_t);
+static bool syscall_create (const char *file, unsigned initial_size);
+static bool syscall_remove (const char *file);
+static int syscall_open (const char *file);
+static int syscall_filesize (int fd);
+static int syscall_read (int fd, void *buffer, unsigned length);
+static int syscall_write (int fd, const void *buffer, unsigned length);
+static void syscall_seek (int fd, unsigned position);
+static unsigned syscall_tell (int fd);
+static void syscall_close (int fd);
 
 void
 syscall_init (void)
@@ -63,44 +64,44 @@ syscall_handler (struct intr_frame *frame)
   switch (call_no)
   {
     case (SYS_HALT):
-      call_syscall_0_void(halt);
+      call_syscall_0_void(syscall_halt);
       break;
     case (SYS_EXIT):
-      call_syscall_1_void(exit, frame, int);
+      call_syscall_1_void(syscall_exit, frame, int);
       break;
     case (SYS_EXEC):
-      frame->eax = call_syscall_1(exec, pid_t, frame, const char*);
+      frame->eax = call_syscall_1(syscall_exec, pid_t, frame, const char*);
       break;
     case (SYS_WAIT):
-      frame->eax = call_syscall_1(wait, int, frame, pid_t);
+      frame->eax = call_syscall_1(syscall_wait, int, frame, pid_t);
       break;
     case (SYS_CREATE):
-      frame->eax = call_syscall_2(create, bool, frame, const char*, unsigned);
+      frame->eax = call_syscall_2(syscall_create, bool, frame, const char*, unsigned);
       break;
     case (SYS_REMOVE):
-      frame->eax = call_syscall_1(remove, bool, frame, const char*);
+      frame->eax = call_syscall_1(syscall_remove, bool, frame, const char*);
       break;
     case (SYS_OPEN):
-      frame->eax = call_syscall_1(open, int, frame, const char*);
+      frame->eax = call_syscall_1(syscall_open, int, frame, const char*);
       break;
     case (SYS_FILESIZE):
-      frame->eax = call_syscall_1(filesize, int, frame, int);
+      frame->eax = call_syscall_1(syscall_filesize, int, frame, int);
       break;
     case (SYS_READ):
-      frame->eax = call_syscall_3(read, int, frame, int, void*, unsigned);
+      frame->eax = call_syscall_3(syscall_read, int, frame, int, void*, unsigned);
       break;
     case (SYS_WRITE):
-      frame->eax = call_syscall_3 (write, uint32_t, frame,
+      frame->eax = call_syscall_3 (syscall_write, uint32_t, frame,
                                    int, const void*, unsigned);
       break;
     case (SYS_SEEK):
-      call_syscall_2_void(seek, frame, int, unsigned);
+      call_syscall_2_void(syscall_seek, frame, int, unsigned);
       break;
     case (SYS_TELL):
-      frame->eax = call_syscall_1(tell, unsigned, frame, int);
+      frame->eax = call_syscall_1(syscall_tell, unsigned, frame, int);
       break;
     case (SYS_CLOSE):
-      call_syscall_1_void(close, frame, int);
+      call_syscall_1_void(syscall_close, frame, int);
       break;
     default:
       /* Unknown system call encountered! */
@@ -142,81 +143,81 @@ get_arg (struct intr_frame *frame, int offset)
 /* TODO: Add documentation about what the system call does */
 
 static void
-halt (void) 
+syscall_halt (void) 
 {
   /* Code here */
   NOT_REACHED ();
 }
 
 static void
-exit (int status)
+syscall_exit (int status)
 {
   /* Code here */
   NOT_REACHED ();
 }
 
 static pid_t
-exec (const char *file)
+syscall_exec (const char *file)
 {
   return -1;
 }
 
 static int
-wait (pid_t pid)
+syscall_wait (pid_t pid)
 {
   return 0;
 }
 
 static bool
-create (const char *file, unsigned initial_size)
+syscall_create (const char *file, unsigned initial_size)
 {
   return false;
 }
 
 static bool
-remove (const char *file)
+syscall_remove (const char *file)
 {
   return false;
 }
 
 static int
-open (const char *file)
+syscall_open (const char *file)
 {
   return 0;
 }
 
 static int
-filesize (int fd) 
+syscall_filesize (int fd) 
 {
   return 0;
 }
 
 static int
-read (int fd, void *buffer, unsigned size)
+syscall_read (int fd, void *buffer, unsigned size)
 {
   return 0;
 }
 
 static int
-write (int fd, const void *buffer, unsigned size)
+syscall_write (int fd, const void *buffer, unsigned size)
 {
   return 0;
 }
 
 static void
-seek (int fd, unsigned position) 
+syscall_seek (int fd, unsigned position) 
 {
   
 }
 
 static unsigned
-tell (int fd) 
+syscall_tell (int fd) 
 {
   return 0;
 }
 
 static void
-close (int fd)
+syscall_close (int fd)
 {
   
 }
