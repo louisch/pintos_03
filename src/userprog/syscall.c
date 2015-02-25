@@ -147,7 +147,7 @@ get_arg (struct intr_frame *frame, int offset)
 
 /* Terminates the operating system immediately, without discussion. */
 static void
-syscall_halt (void) 
+syscall_halt (void)
 {
   shutdown_power_off ();
   NOT_REACHED ();
@@ -191,7 +191,7 @@ syscall_open (const char *file)
 }
 
 static int
-syscall_filesize (int fd) 
+syscall_filesize (int fd)
 {
   return 0;
 }
@@ -209,13 +209,13 @@ syscall_write (int fd, const void *buffer, unsigned size)
 }
 
 static void
-syscall_seek (int fd, unsigned position) 
+syscall_seek (int fd, unsigned position)
 {
-  
+
 }
 
 static unsigned
-syscall_tell (int fd) 
+syscall_tell (int fd)
 {
   return 0;
 }
@@ -223,5 +223,5 @@ syscall_tell (int fd)
 static void
 syscall_close (int fd)
 {
-  
+
 }
