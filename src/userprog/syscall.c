@@ -197,10 +197,16 @@ syscall_create (const char *file, unsigned initial_size)
   return success;
 }
 
+/* Removes a file from the file system.
+   Returns true upon success, false on failure. */
 static bool
 syscall_remove (const char *file UNUSED)
 {
-  return false;
+  bool success = false;
+  lock_acquire (&filesys_access);
+  success = filesys_remove (file);
+  lock_release (&filesys_access);
+  return success;
 }
 
 /* Opens file with given name.
