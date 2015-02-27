@@ -712,7 +712,7 @@ process_find_file_fd (int fd)
   file_fd.fd = fd;
   struct hash_elem *elem = hash_find (open_files, &file_fd.elem);
   if (elem == NULL) /* File not Found. */
-    return elem;
+    return NULL;
   return hash_entry (elem, struct file_fd, elem);
 }
 

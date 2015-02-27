@@ -17,6 +17,7 @@
 /* write */
 #include "kernel/stdio.h"
 #include "filesys/file.h"
+#include "filesys/filesys.h"
 #include "userprog/process.h"
 
 #define call_syscall_0_void(FUNC)                             \
@@ -201,12 +202,12 @@ syscall_remove (const char *file UNUSED)
 static int
 syscall_open (const char *file)
 {
-  lock_acquire (filesys_access);
-  struct file* file = filesys_open (file);
-  if (file == NULL) /* file not found. */
+  lock_acquire (&filesys_access);
+  struct file *open_file = filesys_open (file);
+  if (open_file == NULL) /* file not found. */
     return -1;
-  lock_release (filesys_access);
-  return process_add_file (file);
+  lock_release (&filesys_access);
+  return process_add_file (open_file);
 }
 
 static int
@@ -239,23 +240,24 @@ syscall_write (int fd, const void *buffer, unsigned size)
 
   if (fd == 1)
     {
+      char *buff = (char *) buffer;
       while (size > 0)
         { /* Writes to console buffer in chunks of console_write_size bytes. */
           unsigned write = size >= console_write_size ? console_write_size : size;
-          putbuf ((char *) buffer, write);
-          (char *) buffer += write;
+          putbuf (buff, write);
+          buff += write;
           size -= write;
         }
       written = (int) size;
     }
   else
     {
-      lock_acquire (filesys_access);
+      lock_acquire (&filesys_access);
       struct file *file = process_fetch_file (fd);
       if (file == NULL) /* File not found. */
         return 0;
       written = file_write_at (file, buffer, size, file_tell (file));
-      lock_release (filesys_access);
+      lock_release (&filesys_access);
     }
 
   return written;
