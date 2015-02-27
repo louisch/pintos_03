@@ -6,6 +6,7 @@
 #include <user/syscall.h>
 #include "threads/thread.h"
 #include "filesys/file.h"
+#include "threads/synch.h"
 
 /* Data for a process used for syscalls. */
 typedef struct process_info
