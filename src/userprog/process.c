@@ -162,6 +162,7 @@ create_process_info (struct thread *inner_thread)
     {
       info->pid = inner_thread->tid == TID_ERROR ? PID_ERROR : inner_thread->tid;
       info->tid = inner_thread->tid;
+      inner_thread->info = info;
     }
 
   lock_init (&info->children_lock);
