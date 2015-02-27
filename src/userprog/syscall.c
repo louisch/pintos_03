@@ -204,7 +204,7 @@ syscall_open (const char *file)
 {
   lock_acquire (&filesys_access);
   struct file *open_file = filesys_open (file);
-  if (open_file == NULL) /* file not found. */
+  if (open_file == NULL) /* File not found. */
     return -1;
   lock_release (&filesys_access);
   return process_add_file (open_file);
@@ -216,10 +216,17 @@ syscall_filesize (int fd UNUSED)
   return 0;
 }
 
+/* Opens file at fd and reads from position.
+   Returns the number of bytes read, 0 if no file is found. */
 static int
-syscall_read (int fd UNUSED, void *buffer UNUSED, unsigned size UNUSED)
+syscall_read (int fd, void *buffer, unsigned size)
 {
-  return 0;
+  lock_acquire (&filesys_access);
+  struct file *file = process_fetch_file (fd);
+  if (file == NULL) /* File not found. */
+    return -1;
+  lock_release (&filesys_access);
+  return file_read_at (file, buffer, size, file_tell (file));
 }
 
 /* Max buffer size for reasonable console writes. */
