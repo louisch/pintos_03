@@ -175,16 +175,27 @@ thread_print_stats (void)
 
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
-   Priority scheduling is the goal of Problem 1-3. */
+   Priority scheduling is the goal of Problem 1-3.
+
+   This will initialize the thread's owning_pid to PID_ERROR. */
 tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
+{
+  struct thread *t = thread_create_return_t (name, priority, function, aux);
+  return t == NULL ? TID_ERROR : t->tid;
+}
+
+/* Create a thread and return a pointer to it. This is NULL if the thread
+   could not be created. */
+struct thread *
+thread_create_return_t (const char *name, int priority,
+                        thread_func *function, void *aux)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
-  tid_t tid;
   enum intr_level old_level;
 
   ASSERT (function != NULL);
@@ -192,11 +203,11 @@ thread_create (const char *name, int priority,
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL)
-    return TID_ERROR;
+    return NULL;
 
   /* Initialize thread. */
   init_thread (t, name, priority);
-  tid = t->tid = allocate_tid ();
+  t->tid = allocate_tid ();
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
@@ -223,7 +234,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  return tid;
+  return t;
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -345,10 +356,10 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  
+
   ASSERT (!intr_context ());
 
-  old_level = intr_disable ();  
+  old_level = intr_disable ();
   cur->status = THREAD_READY;
   if (!is_idle (cur))
     {
@@ -419,7 +430,7 @@ thread_silent_reorder (struct thread *t)
   struct list *containing_list = list_containing (&t->elem);
   list_remove (&t->elem);
   list_insert_ordered (containing_list, &t->elem,
-                        &thread_priority_lt, NULL);   
+                        &thread_priority_lt, NULL);
 }
 
 /* If a thread is not blocked by anything, it could either be running or
@@ -438,7 +449,7 @@ thread_update (struct thread *t)
       }
     else
       {
-        thread_silent_reorder (t);      
+        thread_silent_reorder (t);
       }
     }
 
@@ -487,14 +498,14 @@ thread_notify_blocker (struct thread *t)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
-thread_set_priority (int new_priority) 
+thread_set_priority (int new_priority)
 {
   thread_set_priority_of (thread_current (), new_priority);
 }
 
 /* Sets priority of the given thread to new_priority. */
 void
-thread_set_priority_of (struct thread *t, int new_priority) 
+thread_set_priority_of (struct thread *t, int new_priority)
 {
   if (t->priority == new_priority)
     return;
@@ -502,7 +513,7 @@ thread_set_priority_of (struct thread *t, int new_priority)
   ASSERT (new_priority <= PRI_MAX);
   ASSERT (new_priority >= PRI_MIN);
   enum intr_level old_level = intr_disable ();
-  
+
   t->priority = new_priority;
   thread_notify_blocker (t);
 
@@ -657,7 +668,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->locks);
   t->blocker = NULL; /* Threads are born with limitless possibilities. */
   t->type = NONE;
-  
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
