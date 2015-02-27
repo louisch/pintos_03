@@ -28,7 +28,7 @@ static struct lock process_info_lock;
    processes that exist. */
 static struct hash process_info_table;
 
-static process_info *process_exec (const char *file_name);
+static process_info *process_execute_aux (const char *file_name);
 static process_info *create_process_info (tid_t tid);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
@@ -56,7 +56,7 @@ process_info_init (void)
 tid_t
 process_execute (const char *file_name)
 {
-  return process_exec (file_name)->tid;
+  return process_execute_aux (file_name)->tid;
 }
 
 /* Same as process_execute, but returns a pid_t instead.
@@ -66,13 +66,13 @@ process_execute (const char *file_name)
 pid_t
 process_execute_pid (const char *file_name)
 {
-  return process_exec (file_name)->pid;
+  return process_execute_aux (file_name)->pid;
 }
 
 /* Performs the work of the process_execute functions, returning
    the process_info created. */
 static process_info *
-process_exec (const char *file_name)
+process_execute_aux (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
