@@ -185,10 +185,16 @@ syscall_wait (pid_t pid UNUSED)
   return 0;
 }
 
+/* Creates files with given name. Returns true upon success,
+   false otherwise. */
 static bool
-syscall_create (const char *file UNUSED, unsigned initial_size UNUSED)
+syscall_create (const char *file, unsigned initial_size)
 {
-  return false;
+  bool success = false;
+  lock_acquire (&filesys_access);
+  success = filesys_create (file, initial_size);
+  lock_release (&filesys_access);
+  return success;
 }
 
 static bool
