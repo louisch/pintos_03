@@ -5,6 +5,7 @@
 #include <kernel/hash.h>
 #include <user/syscall.h>
 #include "threads/thread.h"
+#include "filesys/file.h"
 
 /* Data for a process used for syscalls. */
 typedef struct
@@ -22,7 +23,14 @@ typedef struct
   /* Allows the process_info to be placed in the static hash table
      processes. */
   struct hash_elem process_elem;
+
+  unsigned fd_counter;
+  struct hash open_files;
 } process_info;
+
+int process_add_file (struct file *);
+struct file* process_fetch_file (int fd);
+struct file* process_remove_file (int fd);
 
 void process_info_init (void);
 tid_t process_execute (const char *file_name);
