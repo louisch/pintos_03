@@ -29,7 +29,7 @@ static struct lock process_info_lock;
 static struct hash process_info_table;
 
 static process_info *process_execute_aux (const char *file_name);
-static process_info *create_process_info (tid_t tid);
+static process_info *create_process_info (struct thread *inner_thread);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
@@ -90,21 +90,21 @@ static process_info *
 process_execute_aux (const char *file_name)
 {
   char *fn_copy;
-  tid_t tid;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
-    return create_process_info (TID_ERROR);
+    return create_process_info (NULL);
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  struct thread *thread =
+    thread_create_return_t (file_name, PRI_DEFAULT, start_process, fn_copy);
+  if (thread->tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
-  return create_process_info (tid);
+  return create_process_info (thread);
 }
 
 /* A thread function that loads a user process and starts it
@@ -144,26 +144,25 @@ start_process (void *file_name_)
    initialized. The process_info will also not be added to the hash
    table. */
 static process_info *
-create_process_info (tid_t tid)
+create_process_info (struct thread *inner_thread)
 {
   process_info *info = calloc(1, sizeof *info);
   ASSERT(info != NULL);
 
-  if (tid == TID_ERROR)
+  /* For now, the pid is the same as the tid.
+     The following assignments are a bit unnecessary right now, but will allow
+     for easier changing later on if pid and tid need to be different in the
+     future (for example, for multiple threaded processes). */
+  if (inner_thread == NULL)
     {
       info->pid = PID_ERROR;
       info->tid = TID_ERROR;
-      return info;
     }
-
-  /* For now, the pid is the same as the tid.
-     Please do not rely on this behaviour though, the two fields
-     are kept separate as they are semantically different things
-     and not necessarily the same thing.
-     Consider if the system is modified such that process could
-     have multiple threads. */
-  info->pid = tid;
-  info->tid = tid;
+  else
+    {
+      info->pid = inner_thread->tid == TID_ERROR ? PID_ERROR : inner_thread->tid;
+      info->tid = inner_thread->tid;
+    }
 
   lock_init (&info->children_lock);
   lock_acquire (&info->children_lock);
