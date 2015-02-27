@@ -21,8 +21,7 @@ typedef struct process_info
   /* Allows this to be placed in another process' children list */
   struct list_elem child_elem;
 
-  /* Allows the process_info to be placed in the static hash table
-     processes. */
+  /* For placing process_info in hash table mapping pids to process_info. */
   struct hash_elem process_elem;
 
   unsigned fd_counter;
