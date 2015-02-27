@@ -8,7 +8,7 @@
 #include "filesys/file.h"
 
 /* Data for a process used for syscalls. */
-typedef struct
+typedef struct process_info
 {
   pid_t pid;
   /* The thread owned by the process */
