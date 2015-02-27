@@ -9,6 +9,15 @@
 #include "devices/shutdown.h"
 
 #include "userprog/syscall.h"
+#include "lib/hash_f.h"
+
+/* Syscall required imports. */
+/* halt */
+#include "devices/shutdown.h"
+/* write */
+#include "kernel/stdio.h"
+#include "filesys/file.h"
+#include "userprog/process.h"
 
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
@@ -50,10 +59,13 @@ static void syscall_seek (int fd, unsigned position);
 static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
 
+struct lock filesys_access;
+
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&filesys_access);
 }
 
 static void
@@ -154,74 +166,115 @@ syscall_halt (void)
 }
 
 static void
-syscall_exit (int status)
+syscall_exit (int status UNUSED)
 {
   /* Code here */
   NOT_REACHED ();
 }
 
 static pid_t
-syscall_exec (const char *file)
+syscall_exec (const char *file UNUSED)
 {
   return -1;
 }
 
 static int
-syscall_wait (pid_t pid)
+syscall_wait (pid_t pid UNUSED)
 {
   return 0;
 }
 
 static bool
-syscall_create (const char *file, unsigned initial_size)
+syscall_create (const char *file UNUSED, unsigned initial_size UNUSED)
 {
   return false;
 }
 
 static bool
-syscall_remove (const char *file)
+syscall_remove (const char *file UNUSED)
 {
   return false;
 }
 
+/* Opens file with given name.
+   Returns -1 if file is not found. */
 static int
 syscall_open (const char *file)
 {
-  return 0;
+  lock_acquire (filesys_access);
+  struct file* file = filesys_open (file);
+  if (file == NULL) /* file not found. */
+    return -1;
+  lock_release (filesys_access);
+  return process_add_file (file);
 }
 
 static int
-syscall_filesize (int fd)
+syscall_filesize (int fd UNUSED)
 {
   return 0;
 }
 
 static int
-syscall_read (int fd, void *buffer, unsigned size)
+syscall_read (int fd UNUSED, void *buffer UNUSED, unsigned size UNUSED)
 {
   return 0;
 }
 
+/* Max buffer size for reasonable console writes. */
+static unsigned console_write_size = 256;
+
+/*
+  Writes size bytes from buffer to open file fd.
+  Returns number of bytes writen.
+
+  Does not extend files past their size.
+  If fd = 1, writes to console with putbuf.
+*/
 static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
-  return 0;
+  if (fd < 1) return 0; /* Quit if fd cannot be written to. */
+  int written;
+
+  if (fd == 1)
+    {
+      while (size > 0)
+        { /* Writes to console buffer in chunks of console_write_size bytes. */
+          unsigned write = size >= console_write_size ? console_write_size : size;
+          putbuf ((char *) buffer, write);
+          (char *) buffer += write;
+          size -= write;
+        }
+      written = (int) size;
+    }
+  else
+    {
+      lock_acquire (filesys_access);
+      struct file *file = process_fetch_file (fd);
+      if (file == NULL) /* File not found. */
+        return 0;
+      written = file_write_at (file, buffer, size, file_tell (file));
+      lock_release (filesys_access);
+    }
+
+  return written;
 }
 
 static void
-syscall_seek (int fd, unsigned position)
+syscall_seek (int fd UNUSED, unsigned position UNUSED)
 {
 
 }
 
 static unsigned
-syscall_tell (int fd)
+syscall_tell (int fd UNUSED)
 {
   return 0;
 }
 
 static void
-syscall_close (int fd)
+syscall_close (int fd UNUSED)
 {
 
 }
