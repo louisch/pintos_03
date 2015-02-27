@@ -376,6 +376,10 @@ load (char *fn_args, void (**eip) (void), void **esp)
         case PT_LOAD:
           if (validate_segment (&phdr, file))
             {
+              if ((phdr.p_flags & PF_X) != 0)
+                { /* Deny write to newly opened executables. */
+                  file_deny_write (file);
+                }
               bool writable = (phdr.p_flags & PF_W) != 0;
               uint32_t file_page = phdr.p_offset & ~PGMASK;
               uint32_t mem_page = phdr.p_vaddr & ~PGMASK;
@@ -419,8 +423,10 @@ load (char *fn_args, void (**eip) (void), void **esp)
   success = true;
 
  done:
-  /* We arrive here whether the load is successful or not. */
+  /* We arrive here whether the load is successful or not.
+     We also reallow writes to the files again. */
   file_close (file);
+  file_allow_write (file);
   return success;
 }
 
