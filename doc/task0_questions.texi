@@ -2,7 +2,7 @@
 
 @item Which Git command should you run to retrieve a copy of your group's shared Pintos repository in your local directory?
 
-git clone git@gitlab.doc.ic.ac.uk:lab1415_spring/pintos_03.git
+git clone git@@gitlab.doc.ic.ac.uk:lab1415_spring/pintos_03.git
 
 or
 
