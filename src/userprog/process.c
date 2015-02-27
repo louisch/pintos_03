@@ -38,6 +38,12 @@ static bool process_info_less_func (const struct hash_elem *a,
                                     const struct hash_elem *b,
                                     void *aux);
 
+/* fd_file hash related funcitons */
+static unsigned fd_hash_func (const struct hash_elem*, void*);
+static bool fd_less_func (const struct hash_elem *a,
+                          const struct hash_elem *b,
+                          void *aux UNUSED);
+
 /* Initializes the process_info system. */
 void
 process_info_init (void)
@@ -48,6 +54,15 @@ process_info_init (void)
              process_info_less_func, NULL);
   lock_release (&process_info_lock);
 }
+
+/* Struct for linking files to fds. */
+struct file_fd
+  {
+    int fd;
+    struct file *file;
+    struct hash_elem elem;
+  };
+
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -157,6 +172,8 @@ create_process_info (tid_t tid)
 
   lock_acquire (&process_info_lock);
   hash_insert (&process_info_table, &info->process_elem);
+  info->fd_counter = 2; /* 0 and 1 are reserved for stdin and stdout. */
+  hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
   lock_release (&process_info_lock);
 
   return info;
@@ -666,4 +683,75 @@ process_info_less_func (const struct hash_elem *a,
 {
   return process_info_hash_func (a, NULL) <
     process_info_hash_func (b, NULL);
+}
+
+/* Adds file to open_files hash. Returns the fd it generates. */
+int
+process_add_file (struct file *file)
+{
+  ASSERT (false); // UNIMPLEMENTED!
+  int fd = 0; // current_process ()->fd_counter++;
+  struct file_fd *file_fd = malloc (sizeof(struct file_fd));
+  if (file_fd == NULL) /* File not found. */
+    return -1;
+
+  file_fd->fd = fd;
+  file_fd->file = file;
+  struct hash *open_files = NULL; // current->process ()->open_files;
+  hash_insert (open_files, &file_fd->elem);
+  return fd;
+}
+
+/* Finds file_fd in open_files hash. */
+static struct file_fd*
+process_find_file_fd (int fd)
+{
+  ASSERT (false); // UNIMPLEMENTED!
+  struct hash *open_files = NULL; // current->process ()->open_files;
+  struct file_fd file_fd;
+  file_fd.fd = fd;
+  struct hash_elem *elem = hash_find (open_files, &file_fd.elem);
+  if (elem == NULL) /* File not Found. */
+    return elem;
+  return hash_entry (elem, struct file_fd, elem);
+}
+
+/* Gets file from open_files hash. */
+struct file*
+process_fetch_file (int fd)
+{
+  return process_find_file_fd (fd)->file;
+}
+
+/* Removes and returns file from open_file hash. */
+struct file*
+process_remove_file (int fd)
+{
+  ASSERT (false); // UNIMPLEMENTED
+  struct hash *open_files = NULL; // current->process ()->open_files;
+  struct file_fd *file_fd = process_find_file_fd (fd);
+  if (file_fd == NULL) /* File was not found. */
+    return NULL;
+  hash_delete (open_files, &file_fd->elem);
+
+  struct file *file = file_fd->file;
+  free (file_fd);
+  return file;
+}
+
+/* Hashes open files by fd. */
+static unsigned
+fd_hash_func (const struct hash_elem *e, void *aux UNUSED)
+{
+  return (unsigned) hash_entry (e, struct file_fd, elem)->fd;
+}
+
+/* Compares two files by fd. */
+static bool
+fd_less_func (const struct hash_elem *a,
+              const struct hash_elem *b,
+              void *aux UNUSED)
+{
+  return hash_entry (a, struct file_fd, elem)->fd
+         < hash_entry (b, struct file_fd, elem)->fd;
 }
