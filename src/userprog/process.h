@@ -39,6 +39,7 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
 
+process_info *process_current (void);
 process_info *process_get_info (pid_t pid);
 
 #endif /* userprog/process.h */

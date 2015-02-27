@@ -84,6 +84,13 @@ process_execute_pid (const char *file_name)
   return process_execute_aux (file_name)->pid;
 }
 
+/* Return info on the currently running process. */
+process_info *
+process_current (void)
+{
+  return thread_current ()->info;
+}
+
 /* Performs the work of the process_execute functions, returning
    the process_info created. */
 static process_info *
