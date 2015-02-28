@@ -224,10 +224,19 @@ syscall_open (const char *file)
   return process_add_file (open_file);
 }
 
+/* Returns the size of the file in bytes,
+   -1 if file is not open in the process. */
 static int
-syscall_filesize (int fd UNUSED)
+syscall_filesize (int fd)
 {
-  return 0;
+  int size = -1; /* File not found default value. */
+  lock_acquire (&filesys_access);
+  struct file *file = process_fetch_file (fd);
+  if (file != NULL) /* File found. */
+    size = file_length (file);
+
+  lock_release (&filesys_access);
+  return size;
 }
 
 /* Opens file at fd and reads from position.
@@ -284,20 +293,40 @@ syscall_write (int fd, const void *buffer, unsigned size)
   return written;
 }
 
+/* Changes the next byte to be read or written in open file fd to position,
+   expressed in bytes from the beginning of the file. */
 static void
-syscall_seek (int fd UNUSED, unsigned position UNUSED)
+syscall_seek (int fd, unsigned position)
 {
-
+  lock_acquire (&filesys_access);
+  struct file *file = process_fetch_file (fd);
+  if (file != NULL) /* File found. */
+    file_seek (file, position);
+  lock_release (&filesys_access);
 }
 
+/* Returns the position of the next byte to be read or written in open file fd,
+   expressed in bytes from the beginning of the file.
+   Returns -1 if no fd is not a valid file descriptor. */
 static unsigned
-syscall_tell (int fd UNUSED)
+syscall_tell (int fd)
 {
-  return 0;
+  unsigned pos = -1; /* Default file-not-found position. */
+  lock_acquire (&filesys_access);
+  struct file *file = process_fetch_file (fd);
+  if (file != NULL) /* File found. */
+    pos = file_tell (file);
+  lock_release (&filesys_access);
+  return pos;
 }
 
+/* Closes file descriptor fd. */
 static void
 syscall_close (int fd UNUSED)
 {
-
+  lock_acquire (&filesys_access);
+  struct file *file = process_remove_file (fd);
+  if (file != NULL) /* File found. */
+    file_close (file);
+  lock_release (&filesys_access);
 }
