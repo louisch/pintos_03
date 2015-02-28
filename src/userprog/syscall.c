@@ -319,3 +319,14 @@ syscall_tell (int fd)
   lock_release (&filesys_access);
   return pos;
 }
+
+/* Closes file descriptor fd. */
+static void
+syscall_close (int fd UNUSED)
+{
+  lock_acquire (&filesys_access);
+  struct file *file = process_remove_file (fd);
+  if (file != NULL) /* File found. */
+    file_close (file);
+  lock_release (&filesys_access);
+}
