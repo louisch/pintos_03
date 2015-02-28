@@ -167,9 +167,11 @@ syscall_halt (void)
 }
 
 static void
-syscall_exit (int status UNUSED)
+syscall_exit (int status)
 {
-  /* Code here */
+  process_current ()->exit_status = status;
+  process_exit ();
+  thread_exit ();
   NOT_REACHED ();
 }
 

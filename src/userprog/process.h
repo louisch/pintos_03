@@ -26,6 +26,8 @@ typedef struct process_info
 
   unsigned fd_counter;
   struct hash open_files;
+
+  int exit_status;
 } process_info;
 
 int process_add_file (struct file *);
