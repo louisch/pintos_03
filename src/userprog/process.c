@@ -696,15 +696,15 @@ process_info_less_func (const struct hash_elem *a,
 int
 process_add_file (struct file *file)
 {
-  ASSERT (false); // UNIMPLEMENTED!
-  int fd = 0; // current_process ()->fd_counter++;
+  process_info *process = process_current ();
+  int fd = process->fd_counter++;
   struct file_fd *file_fd = malloc (sizeof(struct file_fd));
   if (file_fd == NULL) /* File not found. */
     return -1;
 
   file_fd->fd = fd;
   file_fd->file = file;
-  struct hash *open_files = NULL; // current->process ()->open_files;
+  struct hash *open_files = &process->open_files;
   hash_insert (open_files, &file_fd->elem);
   return fd;
 }
@@ -713,8 +713,7 @@ process_add_file (struct file *file)
 static struct file_fd*
 process_find_file_fd (int fd)
 {
-  ASSERT (false); // UNIMPLEMENTED!
-  struct hash *open_files = NULL; // current->process ()->open_files;
+  struct hash *open_files = &process_current ()->open_files;
   struct file_fd file_fd;
   file_fd.fd = fd;
   struct hash_elem *elem = hash_find (open_files, &file_fd.elem);
@@ -734,8 +733,7 @@ process_fetch_file (int fd)
 struct file*
 process_remove_file (int fd)
 {
-  ASSERT (false); // UNIMPLEMENTED
-  struct hash *open_files = NULL; // current->process ()->open_files;
+  struct hash *open_files = &process_current ()->open_files;
   struct file_fd *file_fd = process_find_file_fd (fd);
   if (file_fd == NULL) /* File was not found. */
     return NULL;
