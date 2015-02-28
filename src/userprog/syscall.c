@@ -293,10 +293,16 @@ syscall_write (int fd, const void *buffer, unsigned size)
   return written;
 }
 
+/* Changes the next byte to be read or written in open file fd to position,
+   expressed in bytes from the beginning of the file. */
 static void
-syscall_seek (int fd UNUSED, unsigned position UNUSED)
+syscall_seek (int fd, unsigned position)
 {
-
+  lock_acquire (&filesys_access);
+  struct file *file = process_fetch_file (fd);
+  if (file != NULL) /* File found. */
+    file_seek (file, position);
+  lock_release (&filesys_access);
 }
 
 static unsigned
