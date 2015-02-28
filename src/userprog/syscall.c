@@ -224,10 +224,19 @@ syscall_open (const char *file)
   return process_add_file (open_file);
 }
 
+/* Returns the size of the file in bytes,
+   -1 if file is not open in the process. */
 static int
-syscall_filesize (int fd UNUSED)
+syscall_filesize (int fd)
 {
-  return 0;
+  int size = -1; /* File not found default value. */
+  lock_acquire (&filesys_access);
+  struct file *file = process_fetch_file (fd);
+  if (file != NULL) /* File found. */
+    size = file_length (file);
+
+  lock_release (&filesys_access);
+  return size;
 }
 
 /* Opens file at fd and reads from position.
