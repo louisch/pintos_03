@@ -305,14 +305,17 @@ syscall_seek (int fd, unsigned position)
   lock_release (&filesys_access);
 }
 
+/* Returns the position of the next byte to be read or written in open file fd,
+   expressed in bytes from the beginning of the file.
+   Returns -1 if no fd is not a valid file descriptor. */
 static unsigned
-syscall_tell (int fd UNUSED)
+syscall_tell (int fd)
 {
-  return 0;
-}
-
-static void
-syscall_close (int fd UNUSED)
-{
-
+  unsigned pos = -1; /* Default file-not-found position. */
+  lock_acquire (&filesys_access);
+  struct file *file = process_fetch_file (fd);
+  if (file != NULL) /* File found. */
+    pos = file_tell (file);
+  lock_release (&filesys_access);
+  return pos;
 }
