@@ -153,8 +153,8 @@ start_process (void *file_name_)
 static process_info *
 create_process_info (struct thread *inner_thread)
 {
-  process_info *info = calloc(1, sizeof *info);
-  ASSERT(info != NULL);
+  process_info *info = calloc (1, sizeof *info);
+  ASSERT (info != NULL);
 
   /* For now, the pid is the same as the tid.
      The following assignments are a bit unnecessary right now, but will allow
