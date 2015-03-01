@@ -28,6 +28,7 @@ static struct lock process_info_lock;
    processes that exist. */
 static struct hash process_info_table;
 
+/* Lock used for filesystem operations in process.c and syscall.c. */
 static bool filesys_access_lock_init = false;
 static struct lock filesys_access;
 
