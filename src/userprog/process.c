@@ -22,18 +22,16 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-/* The lock for the below hash table */
-static bool process_info_lock_init = false;
+  /* The lock for the below hash table */
 static struct lock process_info_lock;
 /* Maps pids to process_infos. Also serves to keep track of all
    processes that exist. */
 static struct hash process_info_table;
 
 /* Maximum number of allowed open files per process. */
-static int OPEN_FILE_LIMIT = 128;
+static unsigned OPEN_FILE_LIMIT = 128;
 
 /* Lock used for filesystem operations in process.c and syscall.c. */
-static bool filesys_access_lock_init = false;
 static struct lock filesys_access;
 
 static process_info *process_execute_aux (const char *file_name);
@@ -62,6 +60,7 @@ static bool children_less_func (const struct hash_elem *a,
 void
 process_info_init (void)
 {
+  static bool process_info_lock_init = false;
   if (!process_info_lock_init)
     {
       lock_init (&process_info_lock);
@@ -704,6 +703,7 @@ process_get_info (pid_t pid)
 void
 process_acquire_filesys_lock (void)
 {
+  static bool filesys_access_lock_init = false;
   if (!filesys_access_lock_init)
     { /* Init lock if it has not yet been inited yet. */
       lock_init (&filesys_access);
@@ -804,6 +804,19 @@ fd_less_func (const struct hash_elem *a,
 {
   return hash_entry (a, struct file_fd, elem)->fd
          < hash_entry (b, struct file_fd, elem)->fd;
+}
+
+/* Destroy function for the open_files hash. Frees file_fd struct
+   and closes associated file. */
+static void
+fd_destroy_hash_entry (struct hash_elem *e, void *aux UNUSED)
+{
+  struct hash *open_files = &process_current ()->open_files;
+  struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
+  hash_delete (open_files, e);
+
+  file_close (file_fd->file);
+  free (file_fd);
 }
 
 /* Hashes child_info by tid. */

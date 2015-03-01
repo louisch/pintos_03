@@ -149,7 +149,7 @@ static uint32_t
 get_arg (struct intr_frame *frame, int offset)
 {
   uint32_t *arg_pointer = (((uint32_t*) (frame->esp)) + offset);
-  return *((uint32_t*) check_pointer((void*) arg_pointer));
+  return *((uint32_t*) check_pointer ((void*) arg_pointer));
 }
 
 /* System call functions below */
