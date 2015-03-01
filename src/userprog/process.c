@@ -48,6 +48,7 @@ static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
+static process_info *process_get_process_info (pid_t lookup_pid);
 static unsigned process_info_hash_func (const struct hash_elem *e, void *aux);
 static bool process_info_less_func (const struct hash_elem *a,
                                     const struct hash_elem *b,
@@ -118,7 +119,22 @@ process_execute_pid (const char *file_name)
 process_info *
 process_current (void)
 {
-  return thread_current ()->info;
+  return process_get_process_info (thread_current ()->owning_pid);
+}
+
+static process_info *
+process_get_process_info (pid_t lookup_pid)
+{
+  process_info lookup;
+  lookup.pid = lookup_pid;
+
+  lock_acquire (&process_info_lock);
+  struct hash_elem *current_process_elem =
+    hash_find (&process_info_table, &lookup.process_elem);
+  lock_release (&process_info_lock);
+
+  return current_process_elem != NULL ?
+    hash_entry (current_process_elem, process_info, process_elem) : NULL;
 }
 
 /* Performs the work of the process_execute functions, returning
