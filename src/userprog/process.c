@@ -29,6 +29,9 @@ static struct lock process_info_lock;
    processes that exist. */
 static struct hash process_info_table;
 
+/* Maximum number of allowed open files per process. */
+static int OPEN_FILE_LIMIT = 128;
+
 /* Lock used for filesystem operations in process.c and syscall.c. */
 static bool filesys_access_lock_init = false;
 static struct lock filesys_access;
@@ -740,13 +743,13 @@ process_add_file (struct file *file)
 {
   process_info *process = process_current ();
   int fd = process->fd_counter++;
+  struct hash *open_files = &process->open_files;
   struct file_fd *file_fd = malloc (sizeof(struct file_fd));
-  if (file_fd == NULL) /* File not found. */
-    return -1;
+  if (file_fd == NULL || hash_size (open_files) > OPEN_FILE_LIMIT)
+    return -1; /* File not found or too many files open. */
 
   file_fd->fd = fd;
   file_fd->file = file;
-  struct hash *open_files = &process->open_files;
   hash_insert (open_files, &file_fd->elem);
   return fd;
 }
