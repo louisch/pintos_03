@@ -22,11 +22,17 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-/* The lock for the below hash table */
+  /* The lock for the below hash table */
 static struct lock process_info_lock;
 /* Maps pids to process_infos. Also serves to keep track of all
    processes that exist. */
 static struct hash process_info_table;
+
+/* Maximum number of allowed open files per process. */
+static unsigned OPEN_FILE_LIMIT = 128;
+
+/* Lock used for filesystem operations in process.c and syscall.c. */
+static struct lock filesys_access;
 
 static process_info *process_execute_aux (const char *file_name);
 static process_info *create_process_info (struct thread *inner_thread);
@@ -56,7 +62,12 @@ static void print_exit_message (const char *file_name, int status);
 void
 process_info_init (void)
 {
-  lock_init (&process_info_lock);
+  static bool process_info_lock_init = false;
+  if (!process_info_lock_init)
+    {
+      lock_init (&process_info_lock);
+      process_info_lock_init = true;
+    }
   lock_acquire (&process_info_lock);
   hash_init (&process_info_table, process_info_hash_func,
              process_info_less_func, NULL);
@@ -169,6 +180,8 @@ create_process_info (struct thread *inner_thread)
 {
   process_info *info = calloc (1, sizeof *info);
   ASSERT (info != NULL);
+
+  info->exit_status = -1;
 
   /* For now, the pid is the same as the tid.
      The following assignments are a bit unnecessary right now, but will allow
@@ -365,13 +378,19 @@ load (char *fn_args, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  /* Lock filesystem to deny write to file that is being read. */
+  process_acquire_filesys_lock ();
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL)
     {
+      process_release_filesys_lock ();
       printf ("load: %s: open failed\n", file_name);
       goto done;
     }
+  /* Deny write to opened executables. */
+  file_deny_write (file);
+  process_release_filesys_lock ();
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -415,10 +434,6 @@ load (char *fn_args, void (**eip) (void), void **esp)
         case PT_LOAD:
           if (validate_segment (&phdr, file))
             {
-              if ((phdr.p_flags & PF_X) != 0)
-                { /* Deny write to newly opened executables. */
-                  // file_deny_write (file);
-                }
               bool writable = (phdr.p_flags & PF_W) != 0;
               uint32_t file_page = phdr.p_offset & ~PGMASK;
               uint32_t mem_page = phdr.p_vaddr & ~PGMASK;
@@ -464,7 +479,7 @@ load (char *fn_args, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not.
      We also reallow writes to the files again. */
-  // file_allow_write (file);
+  file_allow_write (file);
   file_close (file);
   return success;
 }
@@ -689,6 +704,26 @@ process_get_info (pid_t pid)
   return e != NULL ? hash_entry (e, process_info, process_elem) : NULL;
 }
 
+/* Acquires lock over filesystem. */
+void
+process_acquire_filesys_lock (void)
+{
+  static bool filesys_access_lock_init = false;
+  if (!filesys_access_lock_init)
+    { /* Init lock if it has not yet been inited yet. */
+      lock_init (&filesys_access);
+      filesys_access_lock_init = true;
+    }
+  lock_acquire (&filesys_access);
+}
+
+/* Releases lock over filesystem. */
+void
+process_release_filesys_lock (void)
+{
+  lock_release (&filesys_access);
+}
+
 /* This hash_func simply returns the process_info's pid */
 static unsigned
 process_info_hash_func (const struct hash_elem *e, void *aux UNUSED)
@@ -713,13 +748,13 @@ process_add_file (struct file *file)
 {
   process_info *process = process_current ();
   int fd = process->fd_counter++;
+  struct hash *open_files = &process->open_files;
   struct file_fd *file_fd = malloc (sizeof(struct file_fd));
-  if (file_fd == NULL) /* File not found. */
-    return -1;
+  if (file_fd == NULL || hash_size (open_files) > OPEN_FILE_LIMIT)
+    return -1; /* File not found or too many files open. */
 
   file_fd->fd = fd;
   file_fd->file = file;
-  struct hash *open_files = &process->open_files;
   hash_insert (open_files, &file_fd->elem);
   return fd;
 }
@@ -774,6 +809,19 @@ fd_less_func (const struct hash_elem *a,
 {
   return hash_entry (a, struct file_fd, elem)->fd
          < hash_entry (b, struct file_fd, elem)->fd;
+}
+
+/* Destroy function for the open_files hash. Frees file_fd struct
+   and closes associated file. */
+static void
+fd_destroy_hash_entry (struct hash_elem *e, void *aux UNUSED)
+{
+  struct hash *open_files = &process_current ()->open_files;
+  struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
+  hash_delete (open_files, e);
+
+  file_close (file_fd->file);
+  free (file_fd);
 }
 
 /* Hashes child_info by tid. */
