@@ -44,6 +44,12 @@ static bool fd_less_func (const struct hash_elem *a,
                           const struct hash_elem *b,
                           void *aux UNUSED);
 
+/* children hash related funcitons */
+static unsigned children_hash_func (const struct hash_elem*, void*);
+static bool children_less_func (const struct hash_elem *a,
+                          const struct hash_elem *b,
+                          void *aux UNUSED);
+
 /* Initializes the process_info system. */
 void
 process_info_init (void)
@@ -180,7 +186,7 @@ create_process_info (struct thread *inner_thread)
 
   lock_init (&info->children_lock);
   lock_acquire (&info->children_lock);
-  // hash_init (&info->children);
+  hash_init (&info->children, children_hash_func, children_less_func, NULL);
   lock_release (&info->children_lock);
 
   lock_acquire (&process_info_lock);
@@ -765,4 +771,21 @@ fd_less_func (const struct hash_elem *a,
 {
   return hash_entry (a, struct file_fd, elem)->fd
          < hash_entry (b, struct file_fd, elem)->fd;
+}
+
+/* Hashes child_info by tid. */
+static unsigned
+children_hash_func (const struct hash_elem *e, void *aux UNUSED)
+{
+  return (unsigned) hash_entry (e, child_info, child_elem)->tid;
+}
+
+/* Compares two child_info structs by tid. */
+static bool
+children_less_func (const struct hash_elem *a,
+              const struct hash_elem *b,
+              void *aux UNUSED)
+{
+  return hash_entry (a, child_info, child_elem)->tid
+         < hash_entry (b, child_info, child_elem)->tid;
 }
