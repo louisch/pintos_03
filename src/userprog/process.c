@@ -42,7 +42,7 @@ static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 
 static process_info *process_execute_aux (const char *file_name);
-static child_info *create_child_info (tid_t tid);
+static child_info *create_child_info (void);
 static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
@@ -152,20 +152,19 @@ process_execute_aux (const char *file_name)
     return NULL;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  process_info *p_info = create_process_info ();
-
-  /* Create a new thread to execute FILE_NAME. */
-  tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
-                                               fn_copy, p_info, NULL);
-  if (thread_tid == TID_ERROR)
-    palloc_free_page (fn_copy);
-
+  process_info *p_info = process_create_process_info ();
   /* Add information for process waiting. */
   /* Create child_info struct and add it to the parent's chidren hash */
-  child_info *c_info = create_child_info (thread->tid);
+  child_info *c_info = create_child_info ();
   hash_insert (&process_current ()->children, &c_info->child_elem);
   /* Set child's process_info to point to its parent's child info */
   p_info->parent_c_info = c_info;
+
+  /* Create a new thread to execute FILE_NAME. */
+  tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
+                                               fn_copy, p_info, c_info);
+  if (thread_tid == TID_ERROR)
+    palloc_free_page (fn_copy);
 
   return p_info;
 }
@@ -215,6 +214,7 @@ process_create_process_info (void)
   info->exit_status = -1;
 
   info->pid = allocate_pid ();
+  /* Set by thread_create */
   info->tid = TID_ERROR;
 
   lock_init (&info->children_lock);
@@ -232,12 +232,13 @@ process_create_process_info (void)
 }
 
 static child_info *
-create_child_info (tid_t tid)
+create_child_info (void)
 {
   child_info *c_info = calloc (1, sizeof *c_info);
   ASSERT (c_info != NULL);
 
-  c_info->tid = tid;
+  /* Set by thread_create */
+  c_info->tid = TID_ERROR;
   c_info->running = true;
   c_info->parent_wait_sema = NULL;
 

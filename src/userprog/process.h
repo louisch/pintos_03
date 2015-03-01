@@ -55,7 +55,7 @@ struct file* process_fetch_file (int fd);
 struct file* process_remove_file (int fd);
 
 void process_info_init (void);
-process_info *process_create_process_info (struct thread *inner_thread);
+process_info *process_create_process_info (void);
 tid_t process_execute (const char *file_name);
 pid_t process_execute_pid (const char *file_name);
 int process_wait (tid_t);
