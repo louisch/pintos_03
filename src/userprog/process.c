@@ -40,6 +40,7 @@ static struct lock filesys_access;
 static void process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
+static void process_info_kill (process_info *info);
 
 static process_info *process_execute_aux (const char *file_name);
 static child_info *create_child_info (process_info *p_info);
@@ -76,13 +77,11 @@ process_info_init (void)
     {
       lock_init (&process_info_lock);
       process_info_lock_init = true;
+      lock_acquire (&process_info_lock);
+      hash_init (&process_info_table, process_info_hash_func,
+                 process_info_less_func, NULL);
+      lock_release (&process_info_lock);
     }
-  lock_acquire (&process_info_lock);
-  hash_init (&process_info_table, process_info_hash_func,
-             process_info_less_func, NULL);
-  lock_release (&process_info_lock);
-
-  lock_init (&next_pid_lock);
 }
 
 /* Struct for linking files to fds. */
@@ -314,10 +313,13 @@ process_wait (tid_t child_tid UNUSED)
 void
 process_exit (void)
 {
+  process_info *proc = process_current ();
+  int exit_status = proc->exit_status;
   /* Orphan all children, free all child_infos and destroy the hashtable. */
-  struct lock *c_lock = &process_current ()->children_lock;
+  struct lock *c_lock = &proc->children_lock;
+
   lock_acquire (c_lock);
-  hash_destroy(&process_current ()->children, children_hash_destroy);
+  process_info_kill (proc);
   lock_release (c_lock);
 
   /* If process_current still has a parent, send it status information and
@@ -334,8 +336,9 @@ process_exit (void)
           sema_up (p_sema);
         }
     }
-  /* TODO: Free all elems in the fd hashtable (i.e. destroy it),
-           remove itself from process_info_table */
+
+  /* Remove process from hash. */
+  hash_delete (&process_info_table, &proc->process_elem);
 
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -356,7 +359,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  print_exit_message (cur->name, process_current ()->exit_status);
+  print_exit_message (cur->name, exit_status);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -846,13 +849,29 @@ process_info_less_func (const struct hash_elem *a,
     process_info_hash_func (b, NULL);
 }
 
+/* Clears the entire process info hashtable. */
+void
+process_info_kill_all (void)
+{
+  lock_acquire (&process_info_lock);
+  hash_destroy (&process_info_table, process_info_hash_destroy);
+  lock_release (&process_info_lock);
+}
 
 /* Destroy an info_hash element by removing it from the hash,
    destroying its children and fds. */
-void
+static void
 process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
+  lock_acquire (&process_info_lock);
   process_info *info = hash_entry (e, process_info, process_elem);
+  process_info_kill (info);
+  lock_release (&process_info_lock);
+}
+
+static void
+process_info_kill (process_info *info)
+{
   hash_destroy (&info->open_files, fd_hash_destroy);
   hash_destroy (&info->children, children_hash_destroy);
   free (info);

@@ -157,6 +157,7 @@ get_arg (struct intr_frame *frame, int offset)
 static void
 syscall_halt (void)
 {
+  process_info_kill_all ();
   shutdown_power_off ();
   NOT_REACHED ();
 }
@@ -165,7 +166,6 @@ static void
 syscall_exit (int status)
 {
   process_current ()->exit_status = status;
-  process_exit ();
   thread_exit ();
   NOT_REACHED ();
 }

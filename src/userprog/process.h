@@ -52,6 +52,8 @@ typedef struct child_info
 
 } child_info;
 
+void process_info_kill_all (void);
+
 void process_acquire_filesys_lock (void);
 void process_release_filesys_lock (void);
 int process_add_file (struct file *);
