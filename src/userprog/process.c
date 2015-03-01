@@ -35,6 +35,7 @@ static unsigned OPEN_FILE_LIMIT = 128;
 static struct lock filesys_access;
 
 static void process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED);
+static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 
 static process_info *process_execute_aux (const char *file_name);
@@ -768,10 +769,8 @@ void
 process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
   process_info *info = hash_entry (e, process_info, process_elem);
-  hash_delete (&info->open_files, e);
-
   hash_destroy (&info->open_files, fd_hash_destroy);
-  hash_destroy (&info->children, NULL); // TODO implement destroyer of children
+  hash_destroy (&info->children, children_hash_destroy);
   free (info);
 }
 
@@ -849,9 +848,8 @@ fd_less_func (const struct hash_elem *a,
 static void
 fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
-  struct hash *open_files = &process_current ()->open_files;
   struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
-  hash_delete (open_files, e);
+  hash_delete (NULL, e);
 
   file_close (file_fd->file);
   free (file_fd);
@@ -872,6 +870,13 @@ children_less_func (const struct hash_elem *a,
 {
   return hash_entry (a, child_info, child_elem)->tid
          < hash_entry (b, child_info, child_elem)->tid;
+}
+
+/* Destroys children hash elements by setting them free. */
+static void
+children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
+{
+  free (hash_entry (e, child_info, child_elem));
 }
 
 static void
