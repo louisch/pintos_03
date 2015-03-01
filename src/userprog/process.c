@@ -43,7 +43,6 @@ static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 
 static process_info *process_execute_aux (const char *file_name);
 static child_info *create_child_info (tid_t tid);
-static process_info *create_process_info (struct thread *inner_thread);
 static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
@@ -102,7 +101,8 @@ struct file_fd
 tid_t
 process_execute (const char *file_name)
 {
-  return process_execute_aux (file_name)->tid;
+  process_info *p_info = process_execute_aux (file_name);
+  return p_info == NULL ? TID_ERROR : p_info->tid;
 }
 
 /* Same as process_execute, but returns a pid_t instead.
@@ -112,7 +112,8 @@ process_execute (const char *file_name)
 pid_t
 process_execute_pid (const char *file_name)
 {
-  return process_execute_aux (file_name)->pid;
+  process_info *p_info = process_execute_aux (file_name);
+  return p_info == NULL ? PID_ERROR : p_info->pid;
 }
 
 /* Return info on the currently running process. */
@@ -148,16 +149,16 @@ process_execute_aux (const char *file_name)
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
-    return process_create_process_info (NULL);
+    return NULL;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Create a new thread to execute FILE_NAME. */
-  struct thread *thread =
-    thread_create_return_t (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (thread->tid == TID_ERROR)
-    palloc_free_page (fn_copy);
+  process_info *p_info = create_process_info ();
 
-  process_info *p_info = process_create_process_info (thread);
+  /* Create a new thread to execute FILE_NAME. */
+  tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
+                                               fn_copy, p_info, NULL);
+  if (thread_tid == TID_ERROR)
+    palloc_free_page (fn_copy);
 
   /* Add information for process waiting. */
   /* Create child_info struct and add it to the parent's chidren hash */
@@ -206,7 +207,7 @@ start_process (void *file_name_)
    initialized. The process_info will also not be added to the hash
    table. */
 process_info *
-process_create_process_info (struct thread *inner_thread)
+process_create_process_info (void)
 {
   process_info *info = calloc (1, sizeof *info);
   ASSERT (info != NULL);
