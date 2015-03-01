@@ -230,12 +230,11 @@ thread_create_with_infos (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  intr_set_level (old_level);
-
   /* Add to run queue. */
   thread_unblock (t);
   thread_give_way (t);
 
+  intr_set_level (old_level);
   return t->tid;
 }
 
