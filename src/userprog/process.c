@@ -23,6 +23,7 @@
 #include "threads/vaddr.h"
 
 /* The lock for the below hash table */
+static bool process_info_lock_init = false;
 static struct lock process_info_lock;
 /* Maps pids to process_infos. Also serves to keep track of all
    processes that exist. */
@@ -58,7 +59,11 @@ static bool children_less_func (const struct hash_elem *a,
 void
 process_info_init (void)
 {
-  lock_init (&process_info_lock);
+  if (!process_info_lock_init)
+    {
+      lock_init (&process_info_lock);
+      process_info_lock_init = true;
+    }
   lock_acquire (&process_info_lock);
   hash_init (&process_info_table, process_info_hash_func,
              process_info_less_func, NULL);
