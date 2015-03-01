@@ -6,6 +6,9 @@
 #include <list.h>
 #include <stdint.h>
 #include "synch.h"
+#ifdef USERPROG
+#include <user/syscall.h>
+#endif
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -92,11 +95,12 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-#ifdef USERPROG
-#include <userprog/process.h>
-#endif
-struct process_info;
 
+/* This include must be placed here because tid_t must be declared before
+   including process.h */
+#ifdef USERPROG
+#include "userprog/process.h"
+#endif
 struct thread
   {
     /* Owned by thread.c. */
@@ -122,8 +126,8 @@ struct thread
     struct list_elem mlfqs_elem;        /* Used by the MLFQS */
 
 #ifdef USERPROG
-    /* Initialized in userprog/process.c. */
-    struct process_info *info;
+    /* The pid of the process owning this thread. */
+    pid_t owning_pid;
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
