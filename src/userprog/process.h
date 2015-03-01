@@ -39,6 +39,8 @@ typedef struct child_info
 {
   /* Child thread's ID, used when checking if a child belongs to a parent. */
   tid_t tid;
+  /* Exit status of thread. */
+  int exit_status;
   /* Indicates whether the child process is still running. */
   bool running;
   /* Pointer to parent wait semaphore. Is NULL if the parent is not waiting. */

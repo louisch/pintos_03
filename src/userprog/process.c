@@ -269,8 +269,28 @@ allocate_pid (void)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  /* return -1; */
-  for(;;); /* Infinite loop DIRTY HAXX */
+  child_info c_info_temp;
+  struct hash_elem *child_hash_elem;
+
+  c_info_temp.tid = child_tid;
+  child_hash_elem = hash_find (&process_current ()->children,
+                               &c_info_temp.child_elem);
+  if (child_hash_elem != NULL) {
+    child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
+
+    if (c_info->running) {
+      struct semaphore blocker;
+      // TODO: complete
+    }
+
+    int status = c_info->exit_status;
+    // free (hash_delete (&process_current ()->children, child_hash_elem));
+    return status;
+
+  } else {
+    /* Child not found, meaning it never existed/has already been waited on */
+    return -1;
+  }
 }
 
 /* Free the current process's resources. */
