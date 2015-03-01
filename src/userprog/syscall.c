@@ -60,13 +60,10 @@ static void syscall_seek (int fd, unsigned position);
 static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
 
-struct lock filesys_access;
-
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init (&filesys_access);
 }
 
 static void
@@ -152,7 +149,7 @@ static uint32_t
 get_arg (struct intr_frame *frame, int offset)
 {
   uint32_t *arg_pointer = (((uint32_t*) (frame->esp)) + offset);
-  return *((uint32_t*) check_pointer((void*) arg_pointer));
+  return *((uint32_t*) check_pointer ((void*) arg_pointer));
 }
 
 /* System call functions below */
@@ -193,9 +190,9 @@ static bool
 syscall_create (const char *file, unsigned initial_size)
 {
   bool success = false;
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   success = filesys_create (file, initial_size);
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
   return success;
 }
 
@@ -205,9 +202,9 @@ static bool
 syscall_remove (const char *file UNUSED)
 {
   bool success = false;
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   success = filesys_remove (file);
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
   return success;
 }
 
@@ -216,11 +213,11 @@ syscall_remove (const char *file UNUSED)
 static int
 syscall_open (const char *file)
 {
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
   if (open_file == NULL) /* File not found. */
     return -1;
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
   return process_add_file (open_file);
 }
 
@@ -230,12 +227,12 @@ static int
 syscall_filesize (int fd)
 {
   int size = -1; /* File not found default value. */
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     size = file_length (file);
 
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
   return size;
 }
 
@@ -244,11 +241,11 @@ syscall_filesize (int fd)
 static int
 syscall_read (int fd, void *buffer, unsigned size)
 {
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file == NULL) /* File not found. */
     return -1;
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
   return file_read_at (file, buffer, size, file_tell (file));
 }
 
@@ -282,12 +279,12 @@ syscall_write (int fd, const void *buffer, unsigned size)
     }
   else
     {
-      lock_acquire (&filesys_access);
+      process_acquire_filesys_lock ();
       struct file *file = process_fetch_file (fd);
       if (file == NULL) /* File not found. */
         return 0;
       written = file_write_at (file, buffer, size, file_tell (file));
-      lock_release (&filesys_access);
+      process_release_filesys_lock ();
     }
 
   return written;
@@ -298,11 +295,11 @@ syscall_write (int fd, const void *buffer, unsigned size)
 static void
 syscall_seek (int fd, unsigned position)
 {
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     file_seek (file, position);
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
 }
 
 /* Returns the position of the next byte to be read or written in open file fd,
@@ -312,11 +309,11 @@ static unsigned
 syscall_tell (int fd)
 {
   unsigned pos = -1; /* Default file-not-found position. */
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     pos = file_tell (file);
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
   return pos;
 }
 
@@ -324,9 +321,9 @@ syscall_tell (int fd)
 static void
 syscall_close (int fd UNUSED)
 {
-  lock_acquire (&filesys_access);
+  process_acquire_filesys_lock ();
   struct file *file = process_remove_file (fd);
   if (file != NULL) /* File found. */
     file_close (file);
-  lock_release (&filesys_access);
+  process_release_filesys_lock ();
 }
