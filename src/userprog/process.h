@@ -48,6 +48,8 @@ typedef struct child_info
 
 } child_info;
 
+void process_acquire_filesys_lock (void);
+void process_release_filesys_lock (void);
 int process_add_file (struct file *);
 struct file* process_fetch_file (int fd);
 struct file* process_remove_file (int fd);
