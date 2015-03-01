@@ -130,14 +130,12 @@ static void *
 check_pointer (void *uaddr)
 { /* TODO: May need modification to check a range of addresses*/
   if (is_user_vaddr (uaddr)
-      && pagedir_get_page (thread_current ()->pagedir, uaddr))
+      && (pagedir_get_page (thread_current ()->pagedir, uaddr) != NULL))
     { /* uaddr is safe (points to mapped user virtual memory). */
       return uaddr;
     }
   else
     { /* uaddr is unsafe. */
-      printf ("check_pointer() detected an unsafe address!\n");
-      /* TODO: remove above debug print before submission */
       thread_exit ();
       /* Release other syscall-related resources here. */
     }
