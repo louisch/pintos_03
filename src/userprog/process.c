@@ -50,6 +50,8 @@ static bool children_less_func (const struct hash_elem *a,
                           const struct hash_elem *b,
                           void *aux UNUSED);
 
+static void print_exit_message (const char *file_name, int status);
+
 /* Initializes the process_info system. */
 void
 process_info_init (void)
@@ -237,6 +239,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  print_exit_message (cur->name, process_current ()->exit_status);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -788,4 +791,10 @@ children_less_func (const struct hash_elem *a,
 {
   return hash_entry (a, child_info, child_elem)->tid
          < hash_entry (b, child_info, child_elem)->tid;
+}
+
+static void
+print_exit_message (const char *file_name, int status)
+{
+  printf ("%s: exit(%d)\n", file_name, status);
 }
