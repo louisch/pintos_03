@@ -179,6 +179,8 @@ create_process_info (struct thread *inner_thread)
   process_info *info = calloc (1, sizeof *info);
   ASSERT (info != NULL);
 
+  info->exit_status = -1;
+
   /* For now, the pid is the same as the tid.
      The following assignments are a bit unnecessary right now, but will allow
      for easier changing later on if pid and tid need to be different in the
