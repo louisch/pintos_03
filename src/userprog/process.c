@@ -29,7 +29,7 @@ static struct lock process_info_lock;
 static struct hash process_info_table;
 
 static process_info *process_execute_aux (const char *file_name);
-static process_info *create_process_info (struct thread *inner_thread);
+static child_info *create_child_info (tid_t tid);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
@@ -108,7 +108,7 @@ process_execute_aux (const char *file_name)
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
-    return create_process_info (NULL);
+    return process_create_process_info (NULL);
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
@@ -117,11 +117,14 @@ process_execute_aux (const char *file_name)
   if (thread->tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
-  process_info* p_info = create_process_info (thread);
+  process_info *p_info = process_create_process_info (thread);
 
-  /* TODO: Add information for process waiting. */
-  // process_current ()->children->
-  // p_info->
+  /* Add information for process waiting. */
+  /* Create child_info struct and add it to the parent's chidren hash */
+  child_info *c_info = create_child_info (thread->tid);
+  hash_insert (&process_current ()->children, &c_info->child_elem);
+  /* Set child's process_info to point to its parent's child info */
+  p_info->parent_c_info = c_info;
 
   return p_info;
 }
@@ -162,8 +165,8 @@ start_process (void *file_name_)
    and the tid set to TID_ERROR. Also, other fields will not be
    initialized. The process_info will also not be added to the hash
    table. */
-static process_info *
-create_process_info (struct thread *inner_thread)
+process_info *
+process_create_process_info (struct thread *inner_thread)
 {
   process_info *info = calloc (1, sizeof *info);
   ASSERT (info != NULL);
@@ -196,6 +199,19 @@ create_process_info (struct thread *inner_thread)
   lock_release (&process_info_lock);
 
   return info;
+}
+
+static child_info *
+create_child_info (tid_t tid)
+{
+  child_info *c_info = calloc (1, sizeof *c_info);
+  ASSERT (c_info != NULL);
+
+  c_info->tid = tid;
+  c_info->running = true;
+  c_info->parent_wait_sema = NULL;
+
+  return c_info;
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
