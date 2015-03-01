@@ -34,6 +34,9 @@ static unsigned OPEN_FILE_LIMIT = 128;
 /* Lock used for filesystem operations in process.c and syscall.c. */
 static struct lock filesys_access;
 
+static void process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED);
+static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
+
 static process_info *process_execute_aux (const char *file_name);
 static process_info *create_process_info (struct thread *inner_thread);
 static thread_func start_process NO_RETURN;
@@ -742,6 +745,20 @@ process_info_less_func (const struct hash_elem *a,
     process_info_hash_func (b, NULL);
 }
 
+
+/* Destroy an info_hash element by removing it from the hash,
+   destroying its children and fds. */
+void
+process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
+{
+  process_info *info = hash_entry (e, process_info, process_elem);
+  hash_delete (&info->open_files, e);
+
+  hash_destroy (&info->open_files, fd_hash_destroy);
+  hash_destroy (&info->children, NULL); // TODO implement destroyer of children
+  free (info);
+}
+
 /* Adds file to open_files hash. Returns the fd it generates. */
 int
 process_add_file (struct file *file)
@@ -814,7 +831,7 @@ fd_less_func (const struct hash_elem *a,
 /* Destroy function for the open_files hash. Frees file_fd struct
    and closes associated file. */
 static void
-fd_destroy_hash_entry (struct hash_elem *e, void *aux UNUSED)
+fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
   struct hash *open_files = &process_current ()->open_files;
   struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
