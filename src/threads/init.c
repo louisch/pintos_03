@@ -286,6 +286,13 @@ run_task (char **argv)
 
   printf ("Executing '%s':\n", task);
 #ifdef USERPROG
+  process_info *p_info = process_create_process_info ();
+  /* Set these manually. Normally, this is done from process_execute, but as
+     this root process is not started by process_execute, it must be done
+     manually.*/
+  p_info->tid = thread_current ()->tid;
+  thread_current ()->owning_pid = p_info->pid;
+
   process_wait (process_execute (task));
 #else
   run_test (task);

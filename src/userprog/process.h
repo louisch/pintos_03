@@ -23,6 +23,8 @@ typedef struct process_info
   /* Tracks the process's children, running or terminated,
      which have not been waited on. */
   struct hash children;
+  /* Pointer to parent's child_info struct. */
+  struct child_info *parent_c_info;
 
   /* For placing process_info in hash table mapping pids to process_info. */
   struct hash_elem process_elem;
@@ -40,9 +42,7 @@ typedef struct child_info
   /* Indicates whether the child process is still running. */
   bool running;
   /* Pointer to parent wait semaphore. Is NULL if the parent is not waiting. */
-  struct semaphore parent_wait_sema;
-  /* Pointer to parent process_info. */
-  process_info* parent;
+  struct semaphore *parent_wait_sema;
   /* Hash elem to be placed into process_info's children hash. */
   struct hash_elem child_elem;
 
@@ -55,6 +55,7 @@ struct file* process_fetch_file (int fd);
 struct file* process_remove_file (int fd);
 
 void process_info_init (void);
+process_info *process_create_process_info (void);
 tid_t process_execute (const char *file_name);
 pid_t process_execute_pid (const char *file_name);
 int process_wait (tid_t);

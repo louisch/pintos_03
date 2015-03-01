@@ -15,6 +15,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
+#include <user/syscall.h>
 #include "userprog/process.h"
 #endif
 
@@ -69,7 +70,8 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority);
+static void init_thread (struct thread *t, const char *name, int priority,
+                         process_info *p_info, child_info *c_info);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -101,9 +103,8 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT);
+  init_thread (initial_thread, "main", PRI_DEFAULT, NULL, NULL);
   initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid = allocate_tid ();
   if (thread_mlfqs)
     {
       mlfqs_init ();
@@ -182,15 +183,15 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
-  struct thread *t = thread_create_return_t (name, priority, function, aux);
-  return t == NULL ? TID_ERROR : t->tid;
+  return thread_create_with_infos (name, priority, function, aux, NULL, NULL);
 }
 
 /* Create a thread and return a pointer to it. This is NULL if the thread
    could not be created. */
-struct thread *
-thread_create_return_t (const char *name, int priority,
-                        thread_func *function, void *aux)
+tid_t
+thread_create_with_infos (const char *name, int priority,
+                          thread_func *function, void *aux,
+                          process_info *p_info, child_info *c_info)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -203,11 +204,10 @@ thread_create_return_t (const char *name, int priority,
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL)
-    return NULL;
+    return TID_ERROR;
 
   /* Initialize thread. */
-  init_thread (t, name, priority);
-  t->tid = allocate_tid ();
+  init_thread (t, name, priority, p_info, c_info);
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
@@ -235,7 +235,7 @@ thread_create_return_t (const char *name, int priority,
   thread_unblock (t);
   thread_give_way (t);
 
-  return t;
+  return t->tid;
 }
 
 /* Yields if thread t has higher priority than the current thread. */
@@ -651,7 +651,8 @@ is_thread (struct thread *t)
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
-init_thread (struct thread *t, const char *name, int priority)
+init_thread (struct thread *t, const char *name, int priority,
+             process_info *p_info, child_info *c_info)
 {
   enum intr_level old_level;
 
@@ -660,6 +661,7 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (name != NULL);
 
   memset (t, 0, sizeof *t);
+  t->tid = allocate_tid ();
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
@@ -672,6 +674,22 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->locks);
   t->blocker = NULL; /* Threads are born with limitless possibilities. */
   t->type = NONE;
+
+#ifdef USERPROG
+  if (p_info == NULL)
+    {
+      t->owning_pid = PID_ERROR;
+    }
+  else
+    {
+      t->owning_pid = p_info->pid;
+      p_info->tid = t->tid;
+    }
+  if (c_info != NULL)
+    {
+      c_info->tid = t->tid;
+    }
+#endif
 
   t->magic = THREAD_MAGIC;
 
