@@ -147,10 +147,16 @@ void thread_start (void);
 void thread_tick (void);
 void thread_print_stats (void);
 
+/* Predeclarations of structs from process.h, which needs to include this
+   file, but will not then recursively include process.h again. */
+typedef struct process_info process_info;
+typedef struct child_info child_info;
+
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
-struct thread *thread_create_return_t (const char *name, int priority,
-                                       thread_func *function, void *aux);
+tid_t thread_create_with_infos (const char *name, int priority,
+                                thread_func *function, void *aux,
+                                process_info *p_info, child_info *c_info);
 
 void thread_give_way (struct thread *t);
 void thread_block (void);
