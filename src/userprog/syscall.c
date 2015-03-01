@@ -171,9 +171,11 @@ syscall_exit (int status)
 }
 
 static pid_t
-syscall_exec (const char *file UNUSED)
+syscall_exec (const char *cmd_line UNUSED)
 {
-  return -1;
+  process_info *info = process_execute_aux (cmd_line);
+
+  return info->pid;
 }
 
 static int

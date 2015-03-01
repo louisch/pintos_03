@@ -42,7 +42,6 @@ static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void process_info_kill (process_info *info);
 
-static process_info *process_execute_aux (const char *file_name);
 static child_info *create_child_info (process_info *p_info);
 static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
@@ -139,7 +138,7 @@ process_get_process_info (pid_t lookup_pid)
 
 /* Performs the work of the process_execute functions, returning
    the process_info created. */
-static process_info *
+process_info *
 process_execute_aux (const char *file_name)
 {
   char *fn_copy;
@@ -199,7 +198,7 @@ start_process (void *file_name_)
   NOT_REACHED ();
 }
 
-/* Creates a process_info from a thread and add to the hash table.
+/* Creates a process_info from a thread and adds it to the hash table.
    If a TID_ERROR is passed in, then the pid will be set to PID_ERROR,
    and the tid set to TID_ERROR. Also, other fields will not be
    initialized. The process_info will also not be added to the hash
