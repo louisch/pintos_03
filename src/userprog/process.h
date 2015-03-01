@@ -11,24 +11,42 @@
 /* Data for a process used for syscalls. */
 typedef struct process_info
 {
+  /* Process ID. */
   pid_t pid;
-  /* The thread owned by the process */
+  /* ID of the thread owned by the process. */
   tid_t tid;
 
+  /* Exit status of thread. */
+  int exit_status;
+  /* Lock to synchronise access to children hashtable. */
   struct lock children_lock;
-  /* Tracks the children of the process */
-  struct list children;
-  /* Allows this to be placed in another process' children list */
-  struct list_elem child_elem;
+  /* Tracks the process's children, running or terminated,
+     which have not been waited on. */
+  struct hash children;
 
   /* For placing process_info in hash table mapping pids to process_info. */
   struct hash_elem process_elem;
 
+  /* TODO: Add comments */
   unsigned fd_counter;
   struct hash open_files;
 
-  int exit_status;
 } process_info;
+
+typedef struct child_info
+{
+  /* Child thread's ID, used when checking if a child belongs to a parent. */
+  tid_t tid;
+  /* Indicates whether the child process is still running. */
+  bool running;
+  /* Pointer to parent wait semaphore. Is NULL if the parent is not waiting. */
+  struct semaphore parent_wait_sema;
+  /* Pointer to parent process_info. */
+  process_info* parent;
+  /* Hash elem to be placed into process_info's children hash. */
+  struct hash_elem child_elem;
+
+} child_info;
 
 int process_add_file (struct file *);
 struct file* process_fetch_file (int fd);

@@ -111,7 +111,13 @@ process_execute_aux (const char *file_name)
   if (thread->tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
-  return create_process_info (thread);
+  process_info* p_info = create_process_info (thread);
+
+  /* TODO: Add information for process waiting. */
+  // process_current ()->children->
+  // p_info->
+
+  return p_info;
 }
 
 /* A thread function that loads a user process and starts it
@@ -174,7 +180,7 @@ create_process_info (struct thread *inner_thread)
 
   lock_init (&info->children_lock);
   lock_acquire (&info->children_lock);
-  list_init (&info->children);
+  // hash_init (&info->children);
   lock_release (&info->children_lock);
 
   lock_acquire (&process_info_lock);
