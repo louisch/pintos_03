@@ -22,7 +22,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-  /* The lock for the below hash table */
+/* The lock for the below hash table */
 static struct lock process_info_lock;
 /* Maps pids to process_infos. Also serves to keep track of all
    processes that exist. */
