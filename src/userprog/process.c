@@ -28,6 +28,9 @@ static struct lock process_info_lock;
    processes that exist. */
 static struct hash process_info_table;
 
+/* Used for allocating pids. */
+static struct lock next_pid_lock;
+
 /* Maximum number of allowed open files per process. */
 static unsigned OPEN_FILE_LIMIT = 128;
 
@@ -40,6 +43,8 @@ static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 
 static process_info *process_execute_aux (const char *file_name);
 static child_info *create_child_info (tid_t tid);
+static process_info *create_process_info (struct thread *inner_thread);
+static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
@@ -76,6 +81,8 @@ process_info_init (void)
   hash_init (&process_info_table, process_info_hash_func,
              process_info_less_func, NULL);
   lock_release (&process_info_lock);
+
+  lock_init (&next_pid_lock);
 }
 
 /* Struct for linking files to fds. */
@@ -190,21 +197,8 @@ process_create_process_info (struct thread *inner_thread)
 
   info->exit_status = -1;
 
-  /* For now, the pid is the same as the tid.
-     The following assignments are a bit unnecessary right now, but will allow
-     for easier changing later on if pid and tid need to be different in the
-     future (for example, for multiple threaded processes). */
-  if (inner_thread == NULL)
-    {
-      info->pid = PID_ERROR;
-      info->tid = TID_ERROR;
-    }
-  else
-    {
-      info->pid = inner_thread->tid == TID_ERROR ? PID_ERROR : inner_thread->tid;
-      info->tid = inner_thread->tid;
-      inner_thread->info = info;
-    }
+  info->pid = allocate_pid ();
+  info->tid = TID_ERROR;
 
   lock_init (&info->children_lock);
   lock_acquire (&info->children_lock);
@@ -231,6 +225,18 @@ create_child_info (tid_t tid)
   c_info->parent_wait_sema = NULL;
 
   return c_info;
+}
+
+static pid_t
+allocate_pid (void)
+{
+  static pid_t next_pid = 0;
+
+  lock_acquire (&next_pid_lock);
+  pid_t allocated = next_pid;
+  next_pid++;
+  lock_release (&next_pid_lock);
+  return allocated;
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -290,7 +296,7 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
