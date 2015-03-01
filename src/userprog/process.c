@@ -22,11 +22,14 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-  /* The lock for the below hash table */
+/* The lock for the below hash table */
 static struct lock process_info_lock;
 /* Maps pids to process_infos. Also serves to keep track of all
    processes that exist. */
 static struct hash process_info_table;
+
+/* Used for allocating pids. */
+static struct lock next_pid_lock;
 
 /* Maximum number of allowed open files per process. */
 static unsigned OPEN_FILE_LIMIT = 128;
@@ -39,10 +42,12 @@ static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 
 static process_info *process_execute_aux (const char *file_name);
-static child_info *create_child_info (tid_t tid);
+static child_info *create_child_info (void);
+static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
+static process_info *process_get_process_info (pid_t lookup_pid);
 static unsigned process_info_hash_func (const struct hash_elem *e, void *aux);
 static bool process_info_less_func (const struct hash_elem *a,
                                     const struct hash_elem *b,
@@ -76,6 +81,8 @@ process_info_init (void)
   hash_init (&process_info_table, process_info_hash_func,
              process_info_less_func, NULL);
   lock_release (&process_info_lock);
+
+  lock_init (&next_pid_lock);
 }
 
 /* Struct for linking files to fds. */
@@ -94,7 +101,8 @@ struct file_fd
 tid_t
 process_execute (const char *file_name)
 {
-  return process_execute_aux (file_name)->tid;
+  process_info *p_info = process_execute_aux (file_name);
+  return p_info == NULL ? TID_ERROR : p_info->tid;
 }
 
 /* Same as process_execute, but returns a pid_t instead.
@@ -104,14 +112,30 @@ process_execute (const char *file_name)
 pid_t
 process_execute_pid (const char *file_name)
 {
-  return process_execute_aux (file_name)->pid;
+  process_info *p_info = process_execute_aux (file_name);
+  return p_info == NULL ? PID_ERROR : p_info->pid;
 }
 
 /* Return info on the currently running process. */
 process_info *
 process_current (void)
 {
-  return thread_current ()->info;
+  return process_get_process_info (thread_current ()->owning_pid);
+}
+
+static process_info *
+process_get_process_info (pid_t lookup_pid)
+{
+  process_info lookup;
+  lookup.pid = lookup_pid;
+
+  lock_acquire (&process_info_lock);
+  struct hash_elem *current_process_elem =
+    hash_find (&process_info_table, &lookup.process_elem);
+  lock_release (&process_info_lock);
+
+  return current_process_elem != NULL ?
+    hash_entry (current_process_elem, process_info, process_elem) : NULL;
 }
 
 /* Performs the work of the process_execute functions, returning
@@ -125,23 +149,22 @@ process_execute_aux (const char *file_name)
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
-    return process_create_process_info (NULL);
+    return NULL;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Create a new thread to execute FILE_NAME. */
-  struct thread *thread =
-    thread_create_return_t (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (thread->tid == TID_ERROR)
-    palloc_free_page (fn_copy);
-
-  process_info *p_info = process_create_process_info (thread);
-
+  process_info *p_info = process_create_process_info ();
   /* Add information for process waiting. */
   /* Create child_info struct and add it to the parent's chidren hash */
-  child_info *c_info = create_child_info (thread->tid);
+  child_info *c_info = create_child_info ();
   hash_insert (&process_current ()->children, &c_info->child_elem);
   /* Set child's process_info to point to its parent's child info */
   p_info->parent_c_info = c_info;
+
+  /* Create a new thread to execute FILE_NAME. */
+  tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
+                                               fn_copy, p_info, c_info);
+  if (thread_tid == TID_ERROR)
+    palloc_free_page (fn_copy);
 
   return p_info;
 }
@@ -183,28 +206,16 @@ start_process (void *file_name_)
    initialized. The process_info will also not be added to the hash
    table. */
 process_info *
-process_create_process_info (struct thread *inner_thread)
+process_create_process_info (void)
 {
   process_info *info = calloc (1, sizeof *info);
   ASSERT (info != NULL);
 
   info->exit_status = -1;
 
-  /* For now, the pid is the same as the tid.
-     The following assignments are a bit unnecessary right now, but will allow
-     for easier changing later on if pid and tid need to be different in the
-     future (for example, for multiple threaded processes). */
-  if (inner_thread == NULL)
-    {
-      info->pid = PID_ERROR;
-      info->tid = TID_ERROR;
-    }
-  else
-    {
-      info->pid = inner_thread->tid == TID_ERROR ? PID_ERROR : inner_thread->tid;
-      info->tid = inner_thread->tid;
-      inner_thread->info = info;
-    }
+  info->pid = allocate_pid ();
+  /* Set by thread_create */
+  info->tid = TID_ERROR;
 
   lock_init (&info->children_lock);
   lock_acquire (&info->children_lock);
@@ -221,16 +232,29 @@ process_create_process_info (struct thread *inner_thread)
 }
 
 static child_info *
-create_child_info (tid_t tid)
+create_child_info (void)
 {
   child_info *c_info = calloc (1, sizeof *c_info);
   ASSERT (c_info != NULL);
 
-  c_info->tid = tid;
+  /* Set by thread_create */
+  c_info->tid = TID_ERROR;
   c_info->running = true;
   c_info->parent_wait_sema = NULL;
 
   return c_info;
+}
+
+static pid_t
+allocate_pid (void)
+{
+  static pid_t next_pid = 0;
+
+  lock_acquire (&next_pid_lock);
+  pid_t allocated = next_pid;
+  next_pid++;
+  lock_release (&next_pid_lock);
+  return allocated;
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -290,7 +314,7 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
