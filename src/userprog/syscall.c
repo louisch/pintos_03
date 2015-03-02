@@ -206,11 +206,6 @@ syscall_exec (const char *cmd_line)
 static int
 syscall_wait (pid_t pid)
 {
-  // process_info p_info_temp;
-  // p_info_temp.pid = pid;
-  // struct hash_elem p_hash_elem;
-
-  // p_hash_elem = hash_find (&process_info_table, &p_info_temp->process_elem);
   process_info *p_info = process_get_info (pid);
 
   if (p_info != NULL)
