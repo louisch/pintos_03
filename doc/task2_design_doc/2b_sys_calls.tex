@@ -135,6 +135,11 @@ Suppose a system call causes a full page (4,096 bytes) of data to be copied from
 \paragraph{B5:} % (5 marks)
 Briefly describe your implementation of the ``wait'' system call and how it interacts with process termination.
 
+Describe structures and their relations to each other - provide justification
+	Possibly insert diagram here
+3 points where code is inserted
+	process_exit - up the semaphore if there is one
+
 \paragraph{B6:} % (5 marks)
 Any access to user program memory at a user-specified address can fail due to a bad pointer value.  Such accesses must cause the process to be terminated.  System calls are fraught with such accesses, e.g. a ``write'' system call requires reading the system call number from the user stack, then each of the call's three arguments, then an arbitrary amount of user memory, and any of these can fail at any point.  This poses a design and error-handling problem: how do you best avoid obscuring the primary function of code in a morass of error-handling?  Furthermore, when an error is detected, how do you ensure that all temporarily allocated resources (locks, buffers, etc.) are freed?  In a few paragraphs, describe the strategy or strategies you adopted for managing these issues.  Give an example.
 
