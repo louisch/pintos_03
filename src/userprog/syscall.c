@@ -227,6 +227,8 @@ syscall_wait (pid_t pid)
 static bool
 syscall_create (const char *file, unsigned initial_size)
 {
+  if (file == NULL)
+    thread_exit ();
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_create (file, initial_size);
@@ -287,13 +289,19 @@ syscall_filesize (int fd)
 static int
 syscall_read (int fd, void *buffer, unsigned size)
 {
-  if (fd < 1) return -1; /* Bad fd. */
+  int ret = -1;
+  printf ("Reading\n");
+  if (fd < 2)
+    return ret; /* Bad fd. */
+
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
-  if (file == NULL) /* File not found. */
-      return -1;
+  printf ("Got file struct ref %d\n", file == NULL);
+  if (file != NULL) /* File not found. */
+      ret = file_read_at (file, buffer, size, file_tell (file));
   process_release_filesys_lock ();
-  return file_read_at (file, buffer, size, file_tell (file));
+  printf ("Done reading\n");
+  return ret;
 }
 
 /* Max buffer size for reasonable console writes. */

@@ -926,6 +926,7 @@ process_add_file (struct file *file)
 
   file_fd->fd = fd;
   file_fd->file = file;
+  printf ("inserting element %d\n", fd);
   hash_insert (open_files, &file_fd->elem);
   return fd;
 }
@@ -934,12 +935,16 @@ process_add_file (struct file *file)
 static struct file_fd*
 process_find_file_fd (int fd)
 {
+  printf ("fetching file %d\n", fd);
   struct hash *open_files = &process_current ()->open_files;
   struct file_fd file_fd;
   file_fd.fd = fd;
+    printf ("fetching file2\n");
   struct hash_elem *elem = hash_find (open_files, &file_fd.elem);
+    printf ("Hash yay: %d\n", elem == NULL);
   if (elem == NULL) /* File not Found. */
     return NULL;
+  printf ("done fetching file\n");
   return hash_entry (elem, struct file_fd, elem);
 }
 
