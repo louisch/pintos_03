@@ -71,7 +71,8 @@ static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *t, const char *name, int priority,
-                         process_info *p_info, child_info *c_info);
+                         process_info *p_info, child_info *c_info,
+                         bool set_tid);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -103,7 +104,7 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT, NULL, NULL);
+  init_thread (initial_thread, "main", PRI_DEFAULT, NULL, NULL, false);
   initial_thread->status = THREAD_RUNNING;
   if (thread_mlfqs)
     {
@@ -207,7 +208,7 @@ thread_create_with_infos (const char *name, int priority,
     return TID_ERROR;
 
   /* Initialize thread. */
-  init_thread (t, name, priority, p_info, c_info);
+  init_thread (t, name, priority, p_info, c_info, true);
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
@@ -652,7 +653,7 @@ is_thread (struct thread *t)
    NAME. */
 static void
 init_thread (struct thread *t, const char *name, int priority,
-             process_info *p_info, child_info *c_info)
+             process_info *p_info, child_info *c_info, bool set_tid)
 {
   enum intr_level old_level;
 
@@ -661,7 +662,10 @@ init_thread (struct thread *t, const char *name, int priority,
   ASSERT (name != NULL);
 
   memset (t, 0, sizeof *t);
-  t->tid = allocate_tid ();
+  if (set_tid)
+    {
+      t->tid = allocate_tid ();
+    }
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
