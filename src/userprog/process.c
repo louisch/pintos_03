@@ -353,7 +353,7 @@ process_exit (void)
     }
   lock_release (&p_c_info->child_lock);
 
-  /* Remove process from hash. */
+  /* Remove process from process_info_table hashtable. */
   hash_delete (&process_info_table, &proc->process_elem);
 
   /* Orphan all children, free all child_infos and destroy the children and fd
