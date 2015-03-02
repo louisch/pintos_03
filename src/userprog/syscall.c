@@ -130,14 +130,12 @@ syscall_handler (struct intr_frame *frame)
 static const void *
 check_pointer (const void *uaddr, size_t size)
 {
-  const void *start = uaddr;
-  const void *pos;
-  for (pos = uaddr; (unsigned)(pos - start) < size; pos++)
+  if (uaddr == NULL)
+    thread_exit ();
+  const uint8_t *start = (uint8_t *) uaddr;
+  const uint8_t *pos;
+  for (pos = uaddr; pos >= start && pos < size + start; pos++)
     {
-      if (pos - start < 0) /* Check for overflow */
-        {
-          return uaddr;
-        }
       if (!(is_user_vaddr (pos)
           && (pagedir_get_page (thread_current ()->pagedir, pos) != NULL)))
         {
@@ -151,12 +149,12 @@ check_pointer (const void *uaddr, size_t size)
 }
 
 /* Safely dereferences an interrupt frame's stack pointer,
-   given an offset. */
+   given an offset and a size of bytes. */
 static uint32_t
 get_arg (struct intr_frame *frame, int offset)
 {
   uint32_t *arg_pointer = (((uint32_t*) (frame->esp)) + offset);
-  return *((uint32_t*) check_pointer ((void*) arg_pointer, 1));
+  return *((uint32_t*) check_pointer ((void*) arg_pointer, 4));
 }
 
 /* System call functions below */
@@ -193,15 +191,12 @@ syscall_wait (pid_t pid UNUSED)
   return 0;
 }
 
-/* Creates files with given name. Returns true upon success,
-   false otherwise. */
+/* Creates file of size initial_size bytes with given name.
+   Returns true upon success, false otherwise. */
 static bool
 syscall_create (const char *file, unsigned initial_size)
 {
-  if (!check_pointer (file, initial_size))
-    {
-      return false;
-    }
+  check_pointer (file, initial_size);
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_create (file, initial_size);
@@ -214,10 +209,6 @@ syscall_create (const char *file, unsigned initial_size)
 static bool
 syscall_remove (const char *file UNUSED)
 {
-  if (!check_pointer (file, 1))
-    {
-      return false;
-    }
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_remove (file);
@@ -230,10 +221,6 @@ syscall_remove (const char *file UNUSED)
 static int
 syscall_open (const char *file)
 {
-  if (!check_pointer (file, 1))
-    {
-      return -1;
-    }
   process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
   if (open_file == NULL) /* File not found. */
@@ -266,10 +253,6 @@ syscall_filesize (int fd)
 static int
 syscall_read (int fd, void *buffer, unsigned size)
 {
-  if (!check_pointer (buffer, size))
-    {
-      return 0;
-    }
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file == NULL) /* File not found. */
@@ -294,10 +277,6 @@ static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
   if (fd < 1) return 0; /* Quit if fd cannot be written to. */
-  if (!check_pointer (buffer, size))
-    {
-      return 0;
-    }
   int written;
 
   if (fd == 1)

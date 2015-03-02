@@ -334,7 +334,6 @@ process_exit (void)
 {
   process_info *proc = process_current ();
   int exit_status = proc->exit_status;
-
   /* If process_current still has a parent, send it status information and
      unblock it if necessary. */
   child_info *p_c_info = process_current ()->parent_child_info;
