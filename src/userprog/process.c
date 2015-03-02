@@ -150,18 +150,19 @@ process_execute_aux (const char *file_name)
     return NULL;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  /* Add information for process waiting: Create child_info struct. */
   process_info *p_info = process_create_process_info ();
-  /* Add information for process waiting. */
-  /* Create child_info struct and add it to the parent's chidren hash */
   child_info *c_info = create_child_info (p_info);
-  /* Set child's process_info to point to its parent's child info */
+  /* Point the child's process_info at its parent's child_info. */
   p_info->parent_child_info = c_info;
-
   /* Create a new thread to execute FILE_NAME. */
   tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
                                                fn_copy, p_info, c_info);
-  // TODO: fix concurrency issues here
+  /* Add child_info to the parent's chidren hash. Surprisingly there are no
+     concurrency issues here; if the child terminates before its child_info is
+     added to the parent's hash, the correct information will still be added. */
   hash_insert (&process_current ()->children, &c_info->child_elem);
+
   if (thread_tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -293,7 +294,8 @@ process_wait (tid_t child_tid)
           struct semaphore wait_for_child;
           sema_init (&wait_for_child, 0);
           /* Inform child that parent is waiting. N.B. There is no need to unset
-             this, since the child will only check this once i.e. at termination. */
+             this, since the child will only check this once i.e. at
+             termination. */
           c_info->parent_wait_sema = &wait_for_child;
           sema_down(&wait_for_child);
         }
