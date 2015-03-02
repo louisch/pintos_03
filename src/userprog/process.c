@@ -272,12 +272,15 @@ allocate_pid (void)
 int
 process_wait (tid_t child_tid)
 {
+  /* Hashtable retrieval related things. */
   child_info c_info_temp;
   c_info_temp.tid = child_tid;
   struct hash_elem *child_hash_elem;
 
   struct lock *c_lock = &process_current ()->children_lock;
 
+  /* Search children hashtable for a child_info with child_tid, storing the
+     result in child_hash_elem. */
   lock_acquire (c_lock);
   child_hash_elem = hash_find (&process_current ()->children,
                                &c_info_temp.child_elem);
@@ -288,28 +291,30 @@ process_wait (tid_t child_tid)
       child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
 
       /* Wait for the process if it is still running. */
+      // TODO: solve concurrency problems here
       if (c_info->running)
         {
           // printf("Waiting for child.\n");
           struct semaphore wait_for_child;
           sema_init (&wait_for_child, 0);
-          /* Inform child that parent is waiting. N.B. There is no need to unset
-             this, since the child will only check this once i.e. at
-             termination. */
+          /* Indirectly inform child that parent is waiting. N.B. There is no
+             need to unset this, since the child will only check this once i.e.
+             at termination. */
           c_info->parent_wait_sema = &wait_for_child;
           sema_down(&wait_for_child);
         }
 
       int status = c_info->exit_status;
+
       /* Remove child_info from hash so it cannot be waited on again. */
       lock_acquire (c_lock);
       hash_delete (&process_current ()->children, child_hash_elem);
       lock_release (c_lock);
+      
       /* Free its memory. */
       free(c_info);
       // printf("Child found, exiting.\n");
       return status;
-
     }
   else
     {
