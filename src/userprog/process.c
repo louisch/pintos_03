@@ -293,7 +293,8 @@ process_wait (tid_t child_tid)
           struct semaphore wait_for_child;
           sema_init (&wait_for_child, 0);
           /* Inform child that parent is waiting. N.B. There is no need to unset
-             this, since the child will only check this once i.e. at termination. */
+             this, since the child will only check this once i.e. at
+             termination. */
           c_info->parent_wait_sema = &wait_for_child;
           sema_down(&wait_for_child);
         }
