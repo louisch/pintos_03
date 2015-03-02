@@ -341,7 +341,7 @@ process_exit (void)
   lock_acquire (&p_c_info->child_lock);
   if (p_c_info != NULL)
     {
-      p_c_info->exit_status = process_current ()->exit_status;
+      p_c_info->exit_status = exit_status;
       p_c_info->running = false;
 
       struct semaphore *p_sema = p_c_info->parent_wait_sema;
@@ -352,7 +352,7 @@ process_exit (void)
     }
   lock_release (&p_c_info->child_lock);
 
-  /* Remove process from hash. */
+  /* Remove process from process_info_table hashtable. */
   hash_delete (&process_info_table, &proc->process_elem);
 
   /* Orphan all children, free all child_infos and destroy the children and fd
@@ -1003,13 +1003,21 @@ children_less_func (const struct hash_elem *a,
          < hash_entry (b, child_info, child_elem)->tid;
 }
 
-/* Destroys children hash elements by setting them free.
-   Also tells child's process_info that it's child_info no longer exists. */
+/* Destroys children hash elements by setting them free. */
 static void
 children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
   child_info *c_info = hash_entry (e, child_info, child_elem);
-  c_info->child_process_info->parent_child_info = NULL;
+  
+  /* If the child is still running, tell it that its child_info no longer exists
+     as its parent no longer exists. We acquire child_lock to ensure the child
+     cannot interrupt and exit before we set its process_info. */
+  lock_acquire (&c_info->child_lock);
+  if (c_info->running)
+    {
+      c_info->child_process_info->parent_child_info = NULL;
+    }
+  lock_release (&c_info->child_lock);
   free (c_info);
 }
 
