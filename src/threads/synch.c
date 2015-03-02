@@ -443,7 +443,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   lock_acquire (lock);
 }
 
-/* Resorts waiting list in cond according to new priorities. */
+/* Re-sorts waiting list in cond according to new priorities. */
 void
 cond_update (struct condition *cond)
 {

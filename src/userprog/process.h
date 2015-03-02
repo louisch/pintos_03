@@ -29,8 +29,13 @@ typedef struct process_info
   /* For placing process_info in hash table mapping pids to process_info. */
   struct hash_elem process_elem;
 
-  /* TODO: Add comments */
+  /* Cond to notify parent process that child process is finished loading. */
+  struct condition finish_load;
+  struct lock *reply_lock; /* Lock used for above condition. */
+
+  /* Provides unique files descriptors for process. */
   unsigned fd_counter;
+  /* Hash used to remember files open by process by their fd. */
   struct hash open_files;
 
 } process_info;
@@ -55,7 +60,7 @@ typedef struct child_info
 } child_info;
 
 void process_info_kill_all (void);
-process_info *process_execute_aux (const char *file_name);
+process_info *process_execute_aux (const char *file_name, struct lock *lock);
 
 void process_acquire_filesys_lock (void);
 void process_release_filesys_lock (void);

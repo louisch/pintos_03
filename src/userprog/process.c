@@ -47,6 +47,7 @@ static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
+static process_info *process_create_process_info_reply (struct lock *lock);
 static process_info *process_get_process_info (pid_t lookup_pid);
 static unsigned process_info_hash_func (const struct hash_elem *e, void *aux);
 static bool process_info_less_func (const struct hash_elem *a,
@@ -71,17 +72,12 @@ static void print_exit_message (const char *file_name, int status);
 void
 process_info_init (void)
 {
-  static bool process_info_lock_init = false;
-  if (!process_info_lock_init)
-    {
-      lock_init (&process_info_lock);
-      process_info_lock_init = true;
-      lock_init (&next_pid_lock);
-      lock_acquire (&process_info_lock);
-      hash_init (&process_info_table, process_info_hash_func,
-                 process_info_less_func, NULL);
-      lock_release (&process_info_lock);
-    }
+  lock_init (&process_info_lock);
+  lock_init (&next_pid_lock);
+  lock_acquire (&process_info_lock);
+  hash_init (&process_info_table, process_info_hash_func,
+             process_info_less_func, NULL);
+  lock_release (&process_info_lock);
 }
 
 /* Struct for linking files to fds. */
@@ -100,7 +96,7 @@ struct file_fd
 tid_t
 process_execute (const char *file_name)
 {
-  process_info *p_info = process_execute_aux (file_name);
+  process_info *p_info = process_execute_aux (file_name, NULL);
   return p_info == NULL ? TID_ERROR : p_info->tid;
 }
 
@@ -111,7 +107,7 @@ process_execute (const char *file_name)
 pid_t
 process_execute_pid (const char *file_name)
 {
-  process_info *p_info = process_execute_aux (file_name);
+  process_info *p_info = process_execute_aux (file_name, NULL);
   return p_info == NULL ? PID_ERROR : p_info->pid;
 }
 
@@ -140,7 +136,7 @@ process_get_process_info (pid_t lookup_pid)
 /* Performs the work of the process_execute functions, returning
    the process_info created. */
 process_info *
-process_execute_aux (const char *file_name)
+process_execute_aux (const char *file_name, struct lock *lock)
 {
   char *fn_copy;
   /* Make a copy of FILE_NAME.
@@ -151,7 +147,7 @@ process_execute_aux (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Add information for process waiting: Create child_info struct. */
-  process_info *p_info = process_create_process_info ();
+  process_info *p_info = process_create_process_info_reply (lock);
   child_info *c_info = create_child_info (p_info);
   /* Point the child's process_info at its parent's child_info. */
   p_info->parent_child_info = c_info;
@@ -184,6 +180,14 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  struct lock *reply_lock = process_current()->reply_lock;
+  if (reply_lock != NULL)
+    {
+      lock_acquire (reply_lock);
+      cond_broadcast (&process_current ()->finish_load, reply_lock);
+      lock_release (reply_lock);
+    }
+
   struct thread *t = thread_current ();
   strlcpy (t->name, file_name, sizeof t->name);
   /* If load failed, quit. */
@@ -209,6 +213,12 @@ start_process (void *file_name_)
 process_info *
 process_create_process_info (void)
 {
+  return process_create_process_info_reply (NULL);
+}
+
+static process_info *
+process_create_process_info_reply (struct lock *lock)
+{
   process_info *info = calloc (1, sizeof *info);
   ASSERT (info != NULL);
 
@@ -217,6 +227,13 @@ process_create_process_info (void)
   info->pid = allocate_pid ();
   /* Set by thread_create. */
   info->tid = TID_ERROR;
+
+  /* Cond var to signal spawner thread that loading process finished. */
+  if (lock != NULL)
+    {  
+      cond_init (&info->finish_load);
+      info->reply_lock = lock;
+    }
 
   /* Init children hashtable. */
   lock_init (&info->children_lock);
@@ -296,7 +313,6 @@ process_wait (tid_t child_tid)
       lock_acquire (&c_info->child_lock);
       if (c_info->running)
         {
-          // printf("Waiting for child.\n");
           struct semaphore wait_for_child;
           sema_init (&wait_for_child, 0);
           /* Indirectly inform child that parent is waiting. N.B. There is no
@@ -316,14 +332,12 @@ process_wait (tid_t child_tid)
       
       /* Free its memory. */
       free(c_info);
-      // printf("Child found, exiting.\n");
       return status;
     }
   else
     {
       /* Child not found, meaning it is not a child of the current process
          or has already been waited on. */
-      // printf("Child not found/is non-existant.\n");
       return -1; /* See function comment. */
     }
 }
@@ -490,15 +504,11 @@ load (char *fn_args, void (**eip) (void), void **esp)
   int arg_length = strlen (fn_args);
   const char* file_name = strtok_r (NULL, delimiters, &fn_args);
 
-    // printf("Writing arguments for: %s.\n", file_name);
-
   if (arg_length > arg_size_limit)
-  {
-    printf("Warning: command line arguments exceed "
-           "argument size limit. Errors will occur.\n");
-    arg_length = arg_size_limit;
-  }
-
+    {
+      printf ("load: %s: argument lists exceeds size limit\n", file_name);
+      goto done;
+    }
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL)

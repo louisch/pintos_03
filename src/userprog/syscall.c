@@ -177,12 +177,28 @@ syscall_exit (int status)
   NOT_REACHED ();
 }
 
+/* Spawns a process from the given cmd input.
+   Waits for the new process to load and returns pid. */
 static pid_t
-syscall_exec (const char *cmd_line UNUSED)
+syscall_exec (const char *cmd_line)
 {
-  process_info *info = process_execute_aux (cmd_line);
+  pid_t ret = -1;
+  if (cmd_line == NULL)
+    return -1;
 
-  return info->pid;
+  struct lock reply_lock;
+  lock_init (&reply_lock);
+  lock_acquire (&reply_lock);
+
+  process_info *info
+    = process_execute_aux (cmd_line, &reply_lock);
+  if (info != NULL)
+  {
+    cond_wait (&info->finish_load, &reply_lock);
+    ret = info->pid;
+  }
+  lock_release (&reply_lock);
+  return ret;
 }
 
 static int
