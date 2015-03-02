@@ -71,7 +71,7 @@ syscall_handler (struct intr_frame *frame)
 {
   uint32_t call_no = *(uint32_t*) check_pointer (frame->esp);
 
-  printf ("system call %d!\n", call_no);
+  // printf ("system call %d!\n", call_no);
   /* TODO: remove above debug print before submission */
 
   switch (call_no)
@@ -189,6 +189,8 @@ syscall_wait (pid_t pid UNUSED)
 static bool
 syscall_create (const char *file, unsigned initial_size)
 {
+  if (file == NULL)
+    return false; /* File name is not real. */
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_create (file, initial_size);
@@ -213,6 +215,8 @@ syscall_remove (const char *file UNUSED)
 static int
 syscall_open (const char *file)
 {
+  if (file == NULL)
+    return -1; /* File name is not real. */
   process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
   if (open_file == NULL) /* File not found. */
