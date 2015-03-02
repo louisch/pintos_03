@@ -134,8 +134,11 @@ check_pointer (const void *uaddr, size_t size)
   const void *pos;
   for (pos = uaddr; (unsigned)(pos - start) < size; pos++)
     {
-      if (pos - start < 0 /* Check for overflow */
-          && !(is_user_vaddr (pos)
+      if (pos - start < 0) /* Check for overflow */
+        {
+          return uaddr;
+        }
+      if (!(is_user_vaddr (pos)
           && (pagedir_get_page (thread_current ()->pagedir, pos) != NULL)))
         {
           /* uaddr is unsafe. */
