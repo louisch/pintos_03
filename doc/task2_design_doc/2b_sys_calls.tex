@@ -3,6 +3,125 @@
 \paragraph{B1:} % (10 marks)
 Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
 
+\subparagraph{process.c global static variables}
+
+\begin{verbatim}
+/* The lock for the below hash table */
+static struct lock process_info_lock;
+/* Maps pids to process_infos. Also serves to keep track of all
+   processes that exist. */
+static struct hash process_info_table;
+\end{verbatim}
+
+The `process\_info\_table' keeps tracks of process information. Each process's
+information is stored in a `process\_info' struct (see below). Hashes by pid.
+
+\begin{verbatim}
+/* Used for allocating pids. */
+static struct lock next_pid_lock;
+\end{verbatim}
+
+This is only used for allocating pids. This is to lock a static variable that
+is local to the function that allocates the pids.
+
+\subparagraph{process\_info}
+
+\begin{verbatim}
+/* Data for a process used for syscalls. */
+typedef struct process_info
+{
+  /* Process ID. */
+  pid_t pid;
+  /* ID of the thread owned by the process. */
+  tid_t tid;
+
+  /* Exit status of process. */
+  int exit_status;
+  /* Lock to synchronise access to children hashtable. */
+  struct lock children_lock;
+  /* Tracks the process's children, running or terminated,
+     which have not been waited on. */
+  struct hash children;
+  /* Pointer to parent's child_info struct. */
+  struct child_info *parent_child_info;
+
+  /* For placing process_info in hash table mapping pids to process_info. */
+  struct hash_elem process_elem;
+
+  unsigned fd_counter;
+  struct hash open_files;
+
+} process_info;
+\end{verbatim}
+
+`process\_info' represents various pieces of information attached to a process
+that needs to be saved.
+
+\begin{verbatim}
+  /* Process ID. */
+  pid_t pid;
+  /* ID of the thread owned by the process. */
+  tid_t tid;
+\end{verbatim}
+
+The pid of a process unique identifies the process, and the tid identifies the
+thread owned by the process.
+
+\begin{verbatim}
+  /* Exit status of process. */
+  int exit_status;
+\end{verbatim}
+
+Used by `syscall\_exit', this is the exit status of the process, set by the exit
+system call. It is initialized to -1.
+
+\begin{verbatim}
+  /* Lock to synchronise access to children hashtable. */
+  struct lock children_lock;
+  /* Tracks the process's children, running or terminated,
+     which have not been waited on. */
+  struct hash children;
+\end{verbatim}
+
+The `children' hash tracks the children of a process, using the pid to hash
+them.
+
+\begin{verbatim}
+  /* Pointer to parent's child_info struct. */
+  struct child_info *parent_child_info;
+\end{verbatim}
+
+This is a pointer to this thread's parent's `child_info' struct (see below).
+
+\begin{verbatim}
+  /* For placing process_info in hash table mapping pids to process_info. */
+  struct hash_elem process_elem;
+\end{verbatim}
+
+This is used to place the process_info into the static hash table
+`process_info_table'.
+
+\subparagraph{child\_info}
+
+\begin{verbatim}
+typedef struct child_info
+{
+  /* Child thread's ID, used when checking if a child belongs to a parent. */
+  tid_t tid;
+  /* Exit status of thread. */
+  int exit_status;
+  /* Indicates whether the child process is still running. */
+  bool running;
+  /* Pointer to parent wait semaphore. Is NULL if the parent is not waiting. */
+  struct semaphore *parent_wait_sema;
+  /* Pointer to child process_info. */
+  process_info *child_process_info;
+  /* Hash elem to be placed into process_info's children hash. */
+  struct hash_elem child_elem;
+
+} child_info;
+\end{verbatim}
+
 \paragraph{B2:} % (5 marks)
 Describe how file descriptors are associated with open files. Are file descriptors unique within the entire OS or just within a single process?
 
