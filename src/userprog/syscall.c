@@ -43,7 +43,7 @@
                  (ARG3) get_arg (FRAME, 3))
 
 static void syscall_handler (struct intr_frame *);
-static const void *check_pointer (const void *uaddr, unsigned size);
+static const void *check_pointer (const uint32_t *uaddr, unsigned size);
 static uint32_t get_arg (struct intr_frame *f, int offset);
 
 static void syscall_halt (void) NO_RETURN;
@@ -128,13 +128,14 @@ syscall_handler (struct intr_frame *frame)
    is safe to deference, i.e. whether it lies below PHYS_BASE and points to
    mapped user virtual memory. */
 static const void *
-check_pointer (const void *uaddr, size_t size)
+check_pointer (const uint32_t *uaddr, size_t size)
 {
+  // printf ("checking pointer\n");
   if (uaddr == NULL)
     thread_exit ();
   const uint8_t *start = (uint8_t *) uaddr;
   const uint8_t *pos;
-  for (pos = uaddr; pos >= start && pos < size + start; pos++)
+  for (pos = start; pos >= start && pos < size + start; pos++)
     {
       if (!is_user_vaddr (pos)
           || (pagedir_get_page (thread_current ()->pagedir, pos) == NULL))
@@ -145,6 +146,7 @@ check_pointer (const void *uaddr, size_t size)
         }
     }
   /* uaddr is safe (points to mapped user virtual memory). */
+      // printf ("pointer good\n");
   return uaddr;
 }
 
@@ -154,7 +156,8 @@ static uint32_t
 get_arg (struct intr_frame *frame, int offset)
 {
   uint32_t *arg_pointer = (((uint32_t*) (frame->esp)) + offset);
-  return *((uint32_t*) check_pointer ((void*) arg_pointer, 4));
+  // printf ("Got pointer %08x\n", (int) arg_pointer);
+  return *((uint32_t*) check_pointer (arg_pointer, 4));
 }
 
 /* System call functions below */
@@ -201,10 +204,22 @@ syscall_exec (const char *cmd_line)
   return ret;
 }
 
+/* Waits on a process to exit and returns its thread's exit status. If it has
+   already exited, returns immediately. */
 static int
-syscall_wait (pid_t pid UNUSED)
+syscall_wait (pid_t pid)
 {
-  return 0;
+  process_info *p_info = process_get_info (pid);
+
+  if (p_info != NULL)
+    {
+      return process_wait (p_info->tid);
+    }
+  else
+    {
+      return -1;
+    }
+
 }
 
 /* Creates file of size initial_size bytes with given name.
@@ -212,7 +227,6 @@ syscall_wait (pid_t pid UNUSED)
 static bool
 syscall_create (const char *file, unsigned initial_size)
 {
-  check_pointer (file, initial_size);
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_create (file, initial_size);
@@ -223,8 +237,10 @@ syscall_create (const char *file, unsigned initial_size)
 /* Removes a file from the file system.
    Returns true upon success, false on failure. */
 static bool
-syscall_remove (const char *file UNUSED)
+syscall_remove (const char *file)
 {
+  if (file == NULL)
+    thread_exit ();
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_remove (file);
@@ -237,6 +253,8 @@ syscall_remove (const char *file UNUSED)
 static int
 syscall_open (const char *file)
 {
+  if (file == NULL)
+    thread_exit ();
   process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
   if (open_file == NULL) /* File not found. */
@@ -269,12 +287,11 @@ syscall_filesize (int fd)
 static int
 syscall_read (int fd, void *buffer, unsigned size)
 {
+  if (fd < 1) return -1; /* Bad fd. */
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file == NULL) /* File not found. */
-    {
       return -1;
-    }
   process_release_filesys_lock ();
   return file_read_at (file, buffer, size, file_tell (file));
 }
@@ -292,7 +309,7 @@ static unsigned console_write_size = 256;
 static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
-  if (fd < 1) return 0; /* Quit if fd cannot be written to. */
+  if (fd < 1) return -1; /* Bad fd. */
   int written;
 
   if (fd == 1)
@@ -353,7 +370,7 @@ syscall_tell (int fd)
 
 /* Closes file descriptor fd. */
 static void
-syscall_close (int fd UNUSED)
+syscall_close (int fd)
 {
   process_acquire_filesys_lock ();
   struct file *file = process_remove_file (fd);

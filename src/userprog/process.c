@@ -988,7 +988,6 @@ static void
 fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
   struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
-  hash_delete (NULL, e);
 
   file_close (file_fd->file);
   free (file_fd);
