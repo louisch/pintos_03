@@ -223,7 +223,7 @@ syscall_create (const char *file, unsigned initial_size)
 /* Removes a file from the file system.
    Returns true upon success, false on failure. */
 static bool
-syscall_remove (const char *file UNUSED)
+syscall_remove (const char *file)
 {
   bool success = false;
   process_acquire_filesys_lock ();
@@ -353,7 +353,7 @@ syscall_tell (int fd)
 
 /* Closes file descriptor fd. */
 static void
-syscall_close (int fd UNUSED)
+syscall_close (int fd)
 {
   process_acquire_filesys_lock ();
   struct file *file = process_remove_file (fd);
