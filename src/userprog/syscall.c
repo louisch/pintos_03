@@ -141,7 +141,6 @@ check_pointer (const void *uaddr, unsigned size)
           thread_exit ();
           /* Release other syscall-related resources here. */
         }
-      i++;
     }
   /* uaddr is safe (points to mapped user virtual memory). */
   return uaddr;
