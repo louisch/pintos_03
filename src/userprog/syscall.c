@@ -130,16 +130,18 @@ syscall_handler (struct intr_frame *frame)
 static const void *
 check_pointer (const void *uaddr, unsigned size)
 {
+  const void *start = uaddr;
   const void *pos;
-  for (pos = uaddr; pos != pos + (sizeof *uaddr) * size; pos++)
+  for (pos = uaddr; (pos - start) < size; pos++)
     {
-      if (!is_user_vaddr (pos)
-          || (pagedir_get_page (thread_current ()->pagedir, pos) == NULL))
+      if (!(is_user_vaddr (pos)
+            && (pagedir_get_page (thread_current ()->pagedir, pos) != NULL)))
         {
           /* uaddr is unsafe. */
           thread_exit ();
           /* Release other syscall-related resources here. */
         }
+      i++;
     }
   /* uaddr is safe (points to mapped user virtual memory). */
   return uaddr;
