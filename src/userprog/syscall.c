@@ -128,14 +128,15 @@ syscall_handler (struct intr_frame *frame)
    is safe to deference, i.e. whether it lies below PHYS_BASE and points to
    mapped user virtual memory. */
 static const void *
-check_pointer (const void *uaddr, unsigned size)
+check_pointer (const void *uaddr, size_t size)
 {
   const void *start = uaddr;
   const void *pos;
-  for (pos = uaddr; (pos - start) < size; pos++)
+  for (pos = uaddr; (unsigned)(pos - start) < size; pos++)
     {
-      if (!(is_user_vaddr (pos)
-            && (pagedir_get_page (thread_current ()->pagedir, pos) != NULL)))
+      if (pos - start < 0 /* Check for overflow */
+          && !(is_user_vaddr (pos)
+          && (pagedir_get_page (thread_current ()->pagedir, pos) != NULL)))
         {
           /* uaddr is unsafe. */
           thread_exit ();
