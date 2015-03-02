@@ -228,7 +228,9 @@ syscall_open (const char *file)
   process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
   if (open_file == NULL) /* File not found. */
-    return -1;
+    {
+      return -1;
+    }
   process_release_filesys_lock ();
   return process_add_file (open_file);
 }
@@ -242,7 +244,9 @@ syscall_filesize (int fd)
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
-    size = file_length (file);
+    {
+      size = file_length (file);
+    }
 
   process_release_filesys_lock ();
   return size;
@@ -260,7 +264,9 @@ syscall_read (int fd, void *buffer, unsigned size)
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file == NULL) /* File not found. */
-    return -1;
+    {
+      return -1;
+    }
   process_release_filesys_lock ();
   return file_read_at (file, buffer, size, file_tell (file));
 }
@@ -302,7 +308,9 @@ syscall_write (int fd, const void *buffer, unsigned size)
       process_acquire_filesys_lock ();
       struct file *file = process_fetch_file (fd);
       if (file == NULL) /* File not found. */
-        return 0;
+        {
+          return 0;
+        }
       written = file_write_at (file, buffer, size, file_tell (file));
       process_release_filesys_lock ();
     }
@@ -332,7 +340,9 @@ syscall_tell (int fd)
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
-    pos = file_tell (file);
+    {
+      pos = file_tell (file);
+    }
   process_release_filesys_lock ();
   return pos;
 }
@@ -344,6 +354,8 @@ syscall_close (int fd UNUSED)
   process_acquire_filesys_lock ();
   struct file *file = process_remove_file (fd);
   if (file != NULL) /* File found. */
-    file_close (file);
+    {
+      file_close (file);
+    }
   process_release_filesys_lock ();
 }
