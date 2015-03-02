@@ -201,10 +201,27 @@ syscall_exec (const char *cmd_line)
   return ret;
 }
 
+/* Waits on a process to exit and returns its thread's exit status. If it has
+   already exited, returns immediately. */
 static int
-syscall_wait (pid_t pid UNUSED)
+syscall_wait (pid_t pid)
 {
-  return 0;
+  // process_info p_info_temp;
+  // p_info_temp.pid = pid;
+  // struct hash_elem p_hash_elem;
+
+  // p_hash_elem = hash_find (&process_info_table, &p_info_temp->process_elem);
+  process_info *p_info = process_get_info (pid);
+
+  if (p_info != NULL)
+    {
+      return process_wait (p_info->tid);
+    }
+  else
+    {
+      return -1;
+    }
+
 }
 
 /* Creates file of size initial_size bytes with given name.
