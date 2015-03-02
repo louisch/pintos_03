@@ -43,7 +43,7 @@
                  (ARG3) get_arg (FRAME, 3))
 
 static void syscall_handler (struct intr_frame *);
-static void *check_pointer (void *);
+static const void *check_pointer (const void *);
 static uint32_t get_arg (struct intr_frame *f, int offset);
 
 static void syscall_halt (void) NO_RETURN;
@@ -126,8 +126,8 @@ syscall_handler (struct intr_frame *frame)
 
 /* Checks whether a given pointer is safe to deference, i.e. whether it lies
    below PHYS_BASE and points to mapped user virtual memory. */
-static void *
-check_pointer (void *uaddr)
+static const void *
+check_pointer (const void *uaddr)
 { /* TODO: May need modification to check a range of addresses*/
   if (is_user_vaddr (uaddr)
       && (pagedir_get_page (thread_current ()->pagedir, uaddr) != NULL))
@@ -189,8 +189,10 @@ syscall_wait (pid_t pid UNUSED)
 static bool
 syscall_create (const char *file, unsigned initial_size)
 {
-  if (file == NULL)
-    return false; /* File name is not real. */
+  if (!check_pointer (file))
+    {
+      return false;
+    }
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_create (file, initial_size);
@@ -203,6 +205,10 @@ syscall_create (const char *file, unsigned initial_size)
 static bool
 syscall_remove (const char *file UNUSED)
 {
+  if (!check_pointer (file))
+    {
+      return false;
+    }
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_remove (file);
@@ -215,8 +221,10 @@ syscall_remove (const char *file UNUSED)
 static int
 syscall_open (const char *file)
 {
-  if (file == NULL)
-    return -1; /* File name is not real. */
+  if (!check_pointer (file))
+    {
+      return -1;
+    }
   process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
   if (open_file == NULL) /* File not found. */
@@ -245,6 +253,10 @@ syscall_filesize (int fd)
 static int
 syscall_read (int fd, void *buffer, unsigned size)
 {
+  if (!check_pointer (buffer))
+    {
+      return 0;
+    }
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file == NULL) /* File not found. */
@@ -267,6 +279,10 @@ static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
   if (fd < 1) return 0; /* Quit if fd cannot be written to. */
+  if (!check_pointer (buffer))
+    {
+      return 0;
+    }
   int written;
 
   if (fd == 1)
