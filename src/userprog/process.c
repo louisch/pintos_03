@@ -158,7 +158,7 @@ process_execute_aux (const char *file_name)
   child_info *c_info = create_child_info ();
   hash_insert (&process_current ()->children, &c_info->child_elem);
   /* Set child's process_info to point to its parent's child info */
-  p_info->parent_c_info = c_info;
+  p_info->parent_child_info = c_info;
 
   /* Create a new thread to execute FILE_NAME. */
   tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
@@ -214,7 +214,7 @@ process_create_process_info (void)
   info->exit_status = -1;
 
   info->pid = allocate_pid ();
-  /* Set by thread_create */
+  /* Set by thread_create. */
   info->tid = TID_ERROR;
 
   lock_init (&info->children_lock);
@@ -237,7 +237,7 @@ create_child_info (void)
   child_info *c_info = calloc (1, sizeof *c_info);
   ASSERT (c_info != NULL);
 
-  /* Set by thread_create */
+  /* Set by thread_create. */
   c_info->tid = TID_ERROR;
   c_info->running = true;
   c_info->parent_wait_sema = NULL;
@@ -262,34 +262,47 @@ allocate_pid (void)
    exception), returns -1.  If TID is invalid or if it was not a
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
-   immediately, without waiting.
-
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+   immediately, without waiting. */
 int
 process_wait (tid_t child_tid UNUSED)
 {
   child_info c_info_temp;
+  c_info_temp.tid = child_tid;
   struct hash_elem *child_hash_elem;
 
-  c_info_temp.tid = child_tid;
+  struct lock *c_lock = &process_current ()->children_lock;
+
+  lock_acquire (c_lock);
   child_hash_elem = hash_find (&process_current ()->children,
                                &c_info_temp.child_elem);
+  lock_release (c_lock);
+
   if (child_hash_elem != NULL) {
     child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
 
+    /* Wait for the process if it is still running. */
     if (c_info->running) {
-      struct semaphore blocker;
-      // TODO: complete
+      struct semaphore wait_for_child;
+      sema_init (&wait_for_child, 0);
+      /* Inform child that parent is waiting. N.B. There is no need to unset
+         this, since the child will only check this once i.e. at termination. */
+      c_info->parent_wait_sema = &wait_for_child;
+      sema_down(&wait_for_child);
     }
 
     int status = c_info->exit_status;
-    // free (hash_delete (&process_current ()->children, child_hash_elem));
+    /* Remove child_info from hash so it cannot be waited on again. */
+    lock_acquire (c_lock);
+    hash_delete (&process_current ()->children, child_hash_elem);
+    lock_release (c_lock);
+    /* Free its memory. */
+    free(c_info);
     return status;
 
   } else {
-    /* Child not found, meaning it never existed/has already been waited on */
-    return -1;
+    /* Child not found, meaning it is not a child of the current process
+       or has already been waited on. */
+    return -1; /* See function comment. */
   }
 }
 

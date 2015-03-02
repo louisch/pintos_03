@@ -24,7 +24,7 @@ typedef struct process_info
      which have not been waited on. */
   struct hash children;
   /* Pointer to parent's child_info struct. */
-  struct child_info *parent_c_info;
+  struct child_info *parent_child_info;
 
   /* For placing process_info in hash table mapping pids to process_info. */
   struct hash_elem process_elem;
@@ -45,6 +45,8 @@ typedef struct child_info
   bool running;
   /* Pointer to parent wait semaphore. Is NULL if the parent is not waiting. */
   struct semaphore *parent_wait_sema;
+  /* Pointer to child process_info. */
+  process_info *child_process_info;
   /* Hash elem to be placed into process_info's children hash. */
   struct hash_elem child_elem;
 
