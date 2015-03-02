@@ -16,7 +16,7 @@ typedef struct process_info
   /* ID of the thread owned by the process. */
   tid_t tid;
 
-  /* Exit status of thread. */
+  /* Exit status of process. */
   int exit_status;
   /* Lock to synchronise access to children hashtable. */
   struct lock children_lock;
