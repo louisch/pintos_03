@@ -464,8 +464,8 @@ static void write_args_to_stack (void **esp, const char *args, int arg_length);
 const char* delimiters = " \n\t\0";
 
 /* Size limit in bytes for command line arguments.
-  Equals about half page size. */
-static int arg_size_limit = 2048;
+  Equals approximately two thrids of stack page size. */
+static int arg_size_limit = 3052;
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
