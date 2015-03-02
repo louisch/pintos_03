@@ -76,6 +76,7 @@ process_info_init (void)
     {
       lock_init (&process_info_lock);
       process_info_lock_init = true;
+      lock_init (&next_pid_lock);
       lock_acquire (&process_info_lock);
       hash_init (&process_info_table, process_info_hash_func,
                  process_info_less_func, NULL);
@@ -252,6 +253,7 @@ allocate_pid (void)
   pid_t allocated = next_pid;
   next_pid++;
   lock_release (&next_pid_lock);
+
   return allocated;
 }
 
@@ -974,7 +976,7 @@ children_less_func (const struct hash_elem *a,
          < hash_entry (b, child_info, child_elem)->tid;
 }
 
-/* Destroys children hash elements by setting them free. 
+/* Destroys children hash elements by setting them free.
    Also tells child's process_info that it's child_info no longer exists. */
 static void
 children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
