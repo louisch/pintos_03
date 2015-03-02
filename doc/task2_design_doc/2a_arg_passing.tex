@@ -32,8 +32,21 @@ One possible issue with this approach is its lack in flexibility; that is, if th
 Why does Pintos implement strtok\_r() but not strtok()?.
 
 strtok\_r and strtok provide very similar functionality: both parse a string into tokens defined by delimiters.
-However, where strtok\_r uses a third argument to keep track of its position in the string, strtok uses a static buffer (pointer to the position in the string), which makes it thread unsafe.
-Thread safety is very important in pintos, as an interrupt can take place at any time, making any thread unsafe processes very dangerous. In the case of strtok, if a process' execution of strtok is interrupted by another process which runs strtok, the static buffer will modified, invalidating the execution of the first process.
+However, where strtok\_r uses a third argument to keep track of its position in the string, strtok uses a static buffer (a static pointer to the position in the string), which makes it thread unsafe.
+
+Thread safety is very important in Pintos, as an interrupt can take place at any time, making thread unsafe processes dangerous. In the case of strtok, if its execution is interrupted by another process which also runs strtok, the static buffer will modified and corrupt the execution of the initial process. Therefore, it is impossible to guarantee that strtok will run correctly in Pintos.
 
 \paragraph{A4:} % (10 marks)
-In Pintos, the kernel separates commands into a executable name and arguments.  In Unix-like systems, the shell does this separation.  Identify at least two advantages of the Unix approach.
+In Pintos, the kernel separates commands into an executable name and arguments.  In Unix-like systems, the shell does this separation.  Identify at least two advantages of the Unix approach.
+
+There are several advantages to parsing commands in the shell.
+First, 
+
+flexibility:
+- possibility to update the shell without changing the kernel
+- allocate arguments differently - only leave the pointers on the stack (less stack space)
+safety:
+- parsing code runs in userspace, instead of kernel space
+separation:
+- software things are done in software land
+
