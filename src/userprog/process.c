@@ -155,13 +155,14 @@ process_execute_aux (const char *file_name)
   /* Add information for process waiting. */
   /* Create child_info struct and add it to the parent's chidren hash */
   child_info *c_info = create_child_info (p_info);
-  hash_insert (&process_current ()->children, &c_info->child_elem);
   /* Set child's process_info to point to its parent's child info */
   p_info->parent_child_info = c_info;
 
   /* Create a new thread to execute FILE_NAME. */
   tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
                                                fn_copy, p_info, c_info);
+  // TODO: fix concurrency issues here
+  hash_insert (&process_current ()->children, &c_info->child_elem);
   if (thread_tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -216,15 +217,19 @@ process_create_process_info (void)
   /* Set by thread_create. */
   info->tid = TID_ERROR;
 
+  /* Init children hashtable. */
   lock_init (&info->children_lock);
   lock_acquire (&info->children_lock);
   hash_init (&info->children, children_hash_func, children_less_func, NULL);
   lock_release (&info->children_lock);
 
-  lock_acquire (&process_info_lock);
-  hash_insert (&process_info_table, &info->process_elem);
+  /* Init open_files hashtable. */
   info->fd_counter = 2; /* 0 and 1 are reserved for stdin and stdout. */
   hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
+
+  /* Add process_info to process_info_table. */
+  lock_acquire (&process_info_lock);
+  hash_insert (&process_info_table, &info->process_elem);
   lock_release (&process_info_lock);
 
   return info;
@@ -264,7 +269,7 @@ allocate_pid (void)
    been successfully called for the given TID, returns -1
    immediately, without waiting. */
 int
-process_wait (tid_t child_tid UNUSED)
+process_wait (tid_t child_tid)
 {
   child_info c_info_temp;
   c_info_temp.tid = child_tid;
@@ -284,6 +289,7 @@ process_wait (tid_t child_tid UNUSED)
       /* Wait for the process if it is still running. */
       if (c_info->running)
         {
+          printf("Waiting for child.\n");
           struct semaphore wait_for_child;
           sema_init (&wait_for_child, 0);
           /* Inform child that parent is waiting. N.B. There is no need to unset
@@ -299,6 +305,7 @@ process_wait (tid_t child_tid UNUSED)
       lock_release (c_lock);
       /* Free its memory. */
       free(c_info);
+      printf("Child found, exiting.\n");
       return status;
 
     }
@@ -306,6 +313,7 @@ process_wait (tid_t child_tid UNUSED)
     {
       /* Child not found, meaning it is not a child of the current process
          or has already been waited on. */
+      printf("Child not found/is non-existant.\n");
       return -1; /* See function comment. */
     }
 }
@@ -316,12 +324,6 @@ process_exit (void)
 {
   process_info *proc = process_current ();
   int exit_status = proc->exit_status;
-  /* Orphan all children, free all child_infos and destroy the hashtable. */
-  struct lock *c_lock = &proc->children_lock;
-
-  lock_acquire (c_lock);
-  process_info_kill (proc);
-  lock_release (c_lock);
 
   /* If process_current still has a parent, send it status information and
      unblock it if necessary. */
@@ -340,6 +342,10 @@ process_exit (void)
 
   /* Remove process from hash. */
   hash_delete (&process_info_table, &proc->process_elem);
+
+  /* Orphan all children, free all child_infos and destroy the children and fd
+     hashtable. */
+  process_info_kill (proc);
 
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -472,6 +478,8 @@ load (char *fn_args, void (**eip) (void), void **esp)
   /* Separate file name from command-line arguments. */
   int arg_length = strlen (fn_args);
   const char* file_name = strtok_r (NULL, delimiters, &fn_args);
+
+    printf("Writing arguments for: %s.\n", file_name);
 
   if (arg_length > arg_size_limit)
   {
@@ -870,11 +878,18 @@ process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
   lock_release (&process_info_lock);
 }
 
+// TODO: Comment this function
 static void
 process_info_kill (process_info *info)
 {
   hash_destroy (&info->open_files, fd_hash_destroy);
+
+  /* Frees all children_info and destroys children hashtable. */
+  struct lock *c_lock = &info->children_lock;
+  lock_acquire (c_lock);
   hash_destroy (&info->children, children_hash_destroy);
+  lock_release (c_lock);
+
   free (info);
 }
 
@@ -963,7 +978,9 @@ fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 static unsigned
 children_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  return (unsigned) hash_entry (e, child_info, child_elem)->tid;
+  unsigned hash = (unsigned) hash_entry (e, child_info, child_elem)->tid;
+  printf("I'm hashing with %d\n", hash);
+  return hash;
 }
 
 /* Compares two child_info structs by tid. */
