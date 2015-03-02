@@ -342,7 +342,7 @@ process_exit (void)
   lock_acquire (&p_c_info->child_lock);
   if (p_c_info != NULL)
     {
-      p_c_info->exit_status = process_current ()->exit_status;
+      p_c_info->exit_status = exit_status;
       p_c_info->running = false;
 
       struct semaphore *p_sema = p_c_info->parent_wait_sema;
