@@ -136,8 +136,8 @@ check_pointer (const void *uaddr, size_t size)
   const uint8_t *pos;
   for (pos = uaddr; pos >= start && pos < size + start; pos++)
     {
-      if (!(is_user_vaddr (pos)
-          && (pagedir_get_page (thread_current ()->pagedir, pos) != NULL)))
+      if (!is_user_vaddr (pos)
+          || (pagedir_get_page (thread_current ()->pagedir, pos) == NULL))
         {
           /* uaddr is unsafe. */
           thread_exit ();
