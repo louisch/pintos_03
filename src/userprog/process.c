@@ -1004,13 +1004,21 @@ children_less_func (const struct hash_elem *a,
          < hash_entry (b, child_info, child_elem)->tid;
 }
 
-/* Destroys children hash elements by setting them free.
-   Also tells child's process_info that it's child_info no longer exists. */
+/* Destroys children hash elements by setting them free. */
 static void
 children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
   child_info *c_info = hash_entry (e, child_info, child_elem);
-  c_info->child_process_info->parent_child_info = NULL;
+  
+  /* If the child is still running, tell it that its child_info no longer exists
+     as its parent no longer exists. We acquire child_lock to ensure the child
+     cannot interrupt and exit before we set its process_info. */
+  lock_acquire (&c_info->child_lock);
+  if (c_info->running)
+    {
+      c_info->child_process_info->parent_child_info = NULL;
+    }
+  lock_release (&c_info->child_lock);
   free (c_info);
 }
 
