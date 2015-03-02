@@ -42,7 +42,7 @@ static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 
 static process_info *process_execute_aux (const char *file_name);
-static child_info *create_child_info (void);
+static child_info *create_child_info (process_info *p_info);
 static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
@@ -155,7 +155,7 @@ process_execute_aux (const char *file_name)
   process_info *p_info = process_create_process_info ();
   /* Add information for process waiting. */
   /* Create child_info struct and add it to the parent's chidren hash */
-  child_info *c_info = create_child_info ();
+  child_info *c_info = create_child_info (p_info);
   hash_insert (&process_current ()->children, &c_info->child_elem);
   /* Set child's process_info to point to its parent's child info */
   p_info->parent_child_info = c_info;
@@ -232,15 +232,15 @@ process_create_process_info (void)
 }
 
 static child_info *
-create_child_info (void)
+create_child_info (process_info *p_info)
 {
   child_info *c_info = calloc (1, sizeof *c_info);
   ASSERT (c_info != NULL);
 
-  /* Set by thread_create. */
-  c_info->tid = TID_ERROR;
+  c_info->tid = TID_ERROR; /* Set by thread_create. */
   c_info->running = true;
   c_info->parent_wait_sema = NULL;
+  c_info->child_process_info = p_info;
 
   return c_info;
 }
@@ -277,39 +277,66 @@ process_wait (tid_t child_tid UNUSED)
                                &c_info_temp.child_elem);
   lock_release (c_lock);
 
-  if (child_hash_elem != NULL) {
-    child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
+  if (child_hash_elem != NULL)
+    {
+      child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
 
-    /* Wait for the process if it is still running. */
-    if (c_info->running) {
-      struct semaphore wait_for_child;
-      sema_init (&wait_for_child, 0);
-      /* Inform child that parent is waiting. N.B. There is no need to unset
-         this, since the child will only check this once i.e. at termination. */
-      c_info->parent_wait_sema = &wait_for_child;
-      sema_down(&wait_for_child);
+      /* Wait for the process if it is still running. */
+      if (c_info->running)
+        {
+          struct semaphore wait_for_child;
+          sema_init (&wait_for_child, 0);
+          /* Inform child that parent is waiting. N.B. There is no need to unset
+             this, since the child will only check this once i.e. at termination. */
+          c_info->parent_wait_sema = &wait_for_child;
+          sema_down(&wait_for_child);
+        }
+
+      int status = c_info->exit_status;
+      /* Remove child_info from hash so it cannot be waited on again. */
+      lock_acquire (c_lock);
+      hash_delete (&process_current ()->children, child_hash_elem);
+      lock_release (c_lock);
+      /* Free its memory. */
+      free(c_info);
+      return status;
+
     }
-
-    int status = c_info->exit_status;
-    /* Remove child_info from hash so it cannot be waited on again. */
-    lock_acquire (c_lock);
-    hash_delete (&process_current ()->children, child_hash_elem);
-    lock_release (c_lock);
-    /* Free its memory. */
-    free(c_info);
-    return status;
-
-  } else {
-    /* Child not found, meaning it is not a child of the current process
-       or has already been waited on. */
-    return -1; /* See function comment. */
-  }
+  else
+    {
+      /* Child not found, meaning it is not a child of the current process
+         or has already been waited on. */
+      return -1; /* See function comment. */
+    }
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
+  /* Orphan all children, free all child_infos and destroy the hashtable. */
+  struct lock *c_lock = &process_current ()->children_lock;
+  lock_acquire (c_lock);
+  hash_destroy(&process_current ()->children, children_hash_destroy);
+  lock_release (c_lock);
+
+  /* If process_current still has a parent, send it status information and
+     unblock it if necessary. */
+  child_info *p_c_info = process_current ()->parent_child_info;
+  if (p_c_info != NULL)
+    {
+      p_c_info->exit_status = process_current ()->exit_status;
+      p_c_info->running = false;
+
+      struct semaphore *p_sema = p_c_info->parent_wait_sema;
+      if (p_sema != NULL)
+        {
+          sema_up (p_sema);
+        }
+    }
+  /* TODO: Free all elems in the fd hashtable (i.e. destroy it),
+           remove itself from process_info_table */
+
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
@@ -929,11 +956,14 @@ children_less_func (const struct hash_elem *a,
          < hash_entry (b, child_info, child_elem)->tid;
 }
 
-/* Destroys children hash elements by setting them free. */
+/* Destroys children hash elements by setting them free. 
+   Also tells child's process_info that it's child_info no longer exists. */
 static void
 children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
-  free (hash_entry (e, child_info, child_elem));
+  child_info *c_info = hash_entry (e, child_info, child_elem);
+  c_info->child_process_info->parent_child_info = NULL;
+  free (c_info);
 }
 
 static void
