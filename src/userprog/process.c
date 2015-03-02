@@ -290,7 +290,7 @@ process_wait (tid_t child_tid)
       /* Wait for the process if it is still running. */
       if (c_info->running)
         {
-          printf("Waiting for child.\n");
+          // printf("Waiting for child.\n");
           struct semaphore wait_for_child;
           sema_init (&wait_for_child, 0);
           /* Inform child that parent is waiting. N.B. There is no need to unset
@@ -307,7 +307,7 @@ process_wait (tid_t child_tid)
       lock_release (c_lock);
       /* Free its memory. */
       free(c_info);
-      printf("Child found, exiting.\n");
+      // printf("Child found, exiting.\n");
       return status;
 
     }
@@ -315,7 +315,7 @@ process_wait (tid_t child_tid)
     {
       /* Child not found, meaning it is not a child of the current process
          or has already been waited on. */
-      printf("Child not found/is non-existant.\n");
+      // printf("Child not found/is non-existant.\n");
       return -1; /* See function comment. */
     }
 }
@@ -480,7 +480,7 @@ load (char *fn_args, void (**eip) (void), void **esp)
   int arg_length = strlen (fn_args);
   const char* file_name = strtok_r (NULL, delimiters, &fn_args);
 
-    printf("Writing arguments for: %s.\n", file_name);
+    // printf("Writing arguments for: %s.\n", file_name);
 
   if (arg_length > arg_size_limit)
   {
@@ -873,10 +873,8 @@ process_info_kill_all (void)
 static void
 process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
-  lock_acquire (&process_info_lock);
   process_info *info = hash_entry (e, process_info, process_elem);
   process_info_kill (info);
-  lock_release (&process_info_lock);
 }
 
 // TODO: Comment this function
@@ -980,7 +978,7 @@ static unsigned
 children_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
   unsigned hash = (unsigned) hash_entry (e, child_info, child_elem)->tid;
-  printf("I'm hashing with %d\n", hash);
+  // printf("I'm hashing with %d\n", hash);
   return hash;
 }
 
