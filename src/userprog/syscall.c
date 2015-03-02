@@ -43,7 +43,7 @@
                  (ARG3) get_arg (FRAME, 3))
 
 static void syscall_handler (struct intr_frame *);
-static const void *check_pointer (const void *);
+static const void *check_pointer (const void *uaddr, unsigned size);
 static uint32_t get_arg (struct intr_frame *f, int offset);
 
 static void syscall_halt (void) NO_RETURN;
@@ -69,7 +69,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *frame)
 {
-  uint32_t call_no = *(uint32_t*) check_pointer (frame->esp);
+  uint32_t call_no = *(uint32_t*) check_pointer (frame->esp, 1);
 
   // printf ("system call %d!\n", call_no);
   /* TODO: remove above debug print before submission */
@@ -88,57 +88,61 @@ syscall_handler (struct intr_frame *frame)
     case (SYS_WAIT):
       frame->eax = call_syscall_1 (syscall_wait, int, frame, pid_t);
       break;
-  case (SYS_CREATE):
-    frame->eax = call_syscall_2 (syscall_create, bool, frame, const char*, unsigned);
-    break;
-  case (SYS_REMOVE):
-    frame->eax = call_syscall_1 (syscall_remove, bool, frame, const char*);
-    break;
-  case (SYS_OPEN):
-    frame->eax = call_syscall_1 (syscall_open, int, frame, const char*);
-    break;
-  case (SYS_FILESIZE):
-    frame->eax = call_syscall_1 (syscall_filesize, int, frame, int);
-    break;
-  case (SYS_READ):
-    frame->eax = call_syscall_3 (syscall_read, int, frame, int, void*, unsigned);
-    break;
-  case (SYS_WRITE):
-    frame->eax = call_syscall_3 (syscall_write, uint32_t, frame,
-                                 int, const void*, unsigned);
-    break;
-  case (SYS_SEEK):
-    call_syscall_2_void (syscall_seek, frame, int, unsigned);
-    break;
-  case (SYS_TELL):
-    frame->eax = call_syscall_1 (syscall_tell, unsigned, frame, int);
-    break;
-  case (SYS_CLOSE):
-    call_syscall_1_void (syscall_close, frame, int);
-      break;
+    case (SYS_CREATE):
+        frame->eax = call_syscall_2 (syscall_create, bool, frame, const char*, unsigned);
+          break;
+    case (SYS_REMOVE):
+        frame->eax = call_syscall_1 (syscall_remove, bool, frame, const char*);
+          break;
+    case (SYS_OPEN):
+        frame->eax = call_syscall_1 (syscall_open, int, frame, const char*);
+          break;
+    case (SYS_FILESIZE):
+        frame->eax = call_syscall_1 (syscall_filesize, int, frame, int);
+          break;
+    case (SYS_READ):
+        frame->eax = call_syscall_3 (syscall_read, int, frame, int, void*, unsigned);
+          break;
+    case (SYS_WRITE):
+        frame->eax = call_syscall_3 (syscall_write, uint32_t, frame,
+                                       int, const void*, unsigned);
+          break;
+    case (SYS_SEEK):
+        call_syscall_2_void (syscall_seek, frame, int, unsigned);
+          break;
+    case (SYS_TELL):
+        frame->eax = call_syscall_1 (syscall_tell, unsigned, frame, int);
+          break;
+    case (SYS_CLOSE):
+        call_syscall_1_void (syscall_close, frame, int);
+          break;
     default:
-      /* Unknown system call encountered! */
-      printf ("That system call is not of this world!\n");
-      /* TODO: remove above debug print before submission */
+        /* Unknown system call encountered! */
+        printf ("That system call is not of this world!\n");
+          /* TODO: remove above debug print before submission */
   }
 
 }
 
-/* Checks whether a given pointer is safe to deference, i.e. whether it lies
-   below PHYS_BASE and points to mapped user virtual memory. */
+/* Checks whether a given range in memory (starting from uaddr to uaddr + size)
+   is safe to deference, i.e. whether it lies below PHYS_BASE and points to
+   mapped user virtual memory. */
 static const void *
-check_pointer (const void *uaddr)
-{ /* TODO: May need modification to check a range of addresses*/
-  if (is_user_vaddr (uaddr)
-      && (pagedir_get_page (thread_current ()->pagedir, uaddr) != NULL))
-    { /* uaddr is safe (points to mapped user virtual memory). */
-      return uaddr;
+check_pointer (const void *uaddr, unsigned size)
+{
+  const void *pos;
+  for (pos = uaddr; pos != pos + (sizeof *uaddr) * size; pos++)
+    {
+      if (!is_user_vaddr (pos)
+          || (pagedir_get_page (thread_current ()->pagedir, pos) == NULL))
+        {
+          /* uaddr is unsafe. */
+          thread_exit ();
+          /* Release other syscall-related resources here. */
+        }
     }
-  else
-    { /* uaddr is unsafe. */
-      thread_exit ();
-      /* Release other syscall-related resources here. */
-    }
+  /* uaddr is safe (points to mapped user virtual memory). */
+  return uaddr;
 }
 
 /* Safely dereferences an interrupt frame's stack pointer,
@@ -147,7 +151,7 @@ static uint32_t
 get_arg (struct intr_frame *frame, int offset)
 {
   uint32_t *arg_pointer = (((uint32_t*) (frame->esp)) + offset);
-  return *((uint32_t*) check_pointer ((void*) arg_pointer));
+  return *((uint32_t*) check_pointer ((void*) arg_pointer, 1));
 }
 
 /* System call functions below */
@@ -189,7 +193,7 @@ syscall_wait (pid_t pid UNUSED)
 static bool
 syscall_create (const char *file, unsigned initial_size)
 {
-  if (!check_pointer (file))
+  if (!check_pointer (file, initial_size))
     {
       return false;
     }
@@ -205,7 +209,7 @@ syscall_create (const char *file, unsigned initial_size)
 static bool
 syscall_remove (const char *file UNUSED)
 {
-  if (!check_pointer (file))
+  if (!check_pointer (file, 1))
     {
       return false;
     }
@@ -221,7 +225,7 @@ syscall_remove (const char *file UNUSED)
 static int
 syscall_open (const char *file)
 {
-  if (!check_pointer (file))
+  if (!check_pointer (file, 1))
     {
       return -1;
     }
@@ -257,7 +261,7 @@ syscall_filesize (int fd)
 static int
 syscall_read (int fd, void *buffer, unsigned size)
 {
-  if (!check_pointer (buffer))
+  if (!check_pointer (buffer, size))
     {
       return 0;
     }
@@ -285,7 +289,7 @@ static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
   if (fd < 1) return 0; /* Quit if fd cannot be written to. */
-  if (!check_pointer (buffer))
+  if (!check_pointer (buffer, size))
     {
       return 0;
     }
