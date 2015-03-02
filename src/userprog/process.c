@@ -247,6 +247,8 @@ create_child_info (process_info *p_info)
   c_info->parent_wait_sema = NULL;
   c_info->child_process_info = p_info;
 
+  lock_init (&c_info->child_lock);
+
   return c_info;
 }
 
@@ -291,7 +293,7 @@ process_wait (tid_t child_tid)
       child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
 
       /* Wait for the process if it is still running. */
-      // TODO: solve concurrency problems here
+      lock_acquire (&c_info->child_lock);
       if (c_info->running)
         {
           // printf("Waiting for child.\n");
@@ -301,6 +303,7 @@ process_wait (tid_t child_tid)
              need to unset this, since the child will only check this once i.e.
              at termination. */
           c_info->parent_wait_sema = &wait_for_child;
+          lock_release (&c_info->child_lock);
           sema_down(&wait_for_child);
         }
 
@@ -335,6 +338,8 @@ process_exit (void)
   /* If process_current still has a parent, send it status information and
      unblock it if necessary. */
   child_info *p_c_info = process_current ()->parent_child_info;
+
+  lock_acquire (&p_c_info->child_lock);
   if (p_c_info != NULL)
     {
       p_c_info->exit_status = process_current ()->exit_status;
@@ -346,12 +351,13 @@ process_exit (void)
           sema_up (p_sema);
         }
     }
+  lock_release (&p_c_info->child_lock);
 
   /* Remove process from hash. */
   hash_delete (&process_info_table, &proc->process_elem);
 
   /* Orphan all children, free all child_infos and destroy the children and fd
-     hashtable. */
+     hashtable. Also free the process_info itself. */
   process_info_kill (proc);
 
   struct thread *cur = thread_current ();
@@ -894,6 +900,7 @@ process_info_kill (process_info *info)
   hash_destroy (&info->children, children_hash_destroy);
   lock_release (c_lock);
 
+  /* Free the process_info itself. */
   free (info);
 }
 

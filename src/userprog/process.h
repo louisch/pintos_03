@@ -49,6 +49,8 @@ typedef struct child_info
   process_info *child_process_info;
   /* Hash elem to be placed into process_info's children hash. */
   struct hash_elem child_elem;
+  /* Lock to synchronise reads/writes to the child_info's fields. */
+  struct lock child_lock;
 
 } child_info;
 
