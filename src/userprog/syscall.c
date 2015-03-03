@@ -359,12 +359,12 @@ syscall_write (int fd, const void *buffer, unsigned size)
     }
   else
     {
-      process_acquire_filesys_lock ();
       struct file *file = process_fetch_file (fd);
       if (file == NULL) /* File not found. */
         {
           return 0;
         }
+      process_acquire_filesys_lock ();
       written = file_write_at (file, buffer, size, file_tell (file));
       process_release_filesys_lock ();
     }
