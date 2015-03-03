@@ -44,6 +44,7 @@
 
 static void syscall_handler (struct intr_frame *);
 static const void *check_pointer (const uint32_t *uaddr, unsigned size);
+static const char *check_filename (const char *filename);
 static uint32_t get_arg (struct intr_frame *f, int offset);
 
 static void syscall_halt (void) NO_RETURN;
@@ -148,6 +149,13 @@ check_pointer (const uint32_t *uaddr, size_t size)
   /* uaddr is safe (points to mapped user virtual memory). */
       // printf ("pointer good\n");
   return uaddr;
+}
+
+static const char *
+check_filename (const char *filename)
+{
+  return (const char *) check_pointer ((const uint32_t *)filename,
+                                       READDIR_MAX_LEN);
 }
 
 /* Safely dereferences an interrupt frame's stack pointer,
