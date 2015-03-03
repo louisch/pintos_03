@@ -135,7 +135,7 @@ Any access to user program memory at a user-specified address can fail due to a 
 
 To keep the primary function code free from error-handling we created a function which deals with checking the correctness of a pointer, check\_pointer(). This function checks whether the given pointer is safe to dereference, i.e. the given range lies below PHYS\_BASE and that it points to a mappped user virtual memory. If the pointer is safe then it returns it otherwise it exits the thread via thread\_exit().
 
-check_pointer is used in each stage of the system call. With the system call ``write'', the system call number from the user stack is checked in the syscall_handler by check\_pointer. This ensures that the stack pointer is safe to dereference before executing the system call.
+check\_pointer is used in each stage of the system call. With the system call ``write'', the system call number from the user stack is checked in the syscall\_handler by check\_pointer. This ensures that the stack pointer is safe to dereference before executing the system call.
 
 % Perhaps talk about other stages...
 
