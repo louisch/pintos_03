@@ -36,7 +36,7 @@ static struct lock next_pid_lock;
 /* Maximum number of allowed open files per process. */
 static unsigned OPEN_FILE_LIMIT = 128;
 
-/* Lock used for filesystem operations in process.c and syscall.c. */
+/* Lock used to synchronise filesystem operations in process.c and syscall.c. */
 static struct lock filesys_access;
 
 static void process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED);
