@@ -197,7 +197,9 @@ syscall_exec (const char *cmd_line)
     = process_execute_aux (cmd_line, &reply_lock);
   if (info != NULL)
   {
+    // TODO fix: info values are fine here
     cond_wait (&info->finish_load, &reply_lock);
+    // info values are now clobbered here
     ret = info->pid;
   }
   lock_release (&reply_lock);
