@@ -198,7 +198,7 @@ static pid_t
 syscall_exec (const char *cmd_line)
 {
   pid_t ret = PID_ERROR;
-  if (cmd_line == NULL)
+  if (check_pointer ((const void *)cmd_line, 1) == NULL)
     {
       return PID_ERROR;
     }
