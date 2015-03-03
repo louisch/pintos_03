@@ -156,7 +156,7 @@ typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 tid_t thread_create_with_infos (const char *name, int priority,
                                 thread_func *function, void *aux,
-                                process_info *p_info, child_info *c_info);
+                                process_info *p_info);
 
 void thread_give_way (struct thread *t);
 void thread_block (void);

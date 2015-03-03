@@ -293,7 +293,7 @@ run_task (char **argv)
   p_info->tid = thread_current ()->tid;
   thread_current ()->owning_pid = p_info->pid;
 
-  process_wait (process_execute (task));
+  process_wait (process_execute_pid (task));
 #else
   run_test (task);
 #endif

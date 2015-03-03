@@ -71,8 +71,7 @@ static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *t, const char *name, int priority,
-                         process_info *p_info, child_info *c_info,
-                         bool set_tid);
+                         process_info *p_info, bool set_tid);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -104,7 +103,7 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT, NULL, NULL, false);
+  init_thread (initial_thread, "main", PRI_DEFAULT, NULL, false);
   initial_thread->status = THREAD_RUNNING;
   if (thread_mlfqs)
     {
@@ -184,7 +183,7 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
-  return thread_create_with_infos (name, priority, function, aux, NULL, NULL);
+  return thread_create_with_infos (name, priority, function, aux, NULL);
 }
 
 /* Create a thread and return a pointer to it. This is NULL if the thread
@@ -192,7 +191,7 @@ thread_create (const char *name, int priority,
 tid_t
 thread_create_with_infos (const char *name, int priority,
                           thread_func *function, void *aux,
-                          process_info *p_info, child_info *c_info)
+                          process_info *p_info)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -208,7 +207,7 @@ thread_create_with_infos (const char *name, int priority,
     return TID_ERROR;
 
   /* Initialize thread. */
-  init_thread (t, name, priority, p_info, c_info, true);
+  init_thread (t, name, priority, p_info, true);
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
@@ -652,7 +651,7 @@ is_thread (struct thread *t)
    NAME. */
 static void
 init_thread (struct thread *t, const char *name, int priority,
-             process_info *p_info, child_info *c_info, bool set_tid)
+             process_info *p_info, bool set_tid)
 {
   enum intr_level old_level;
 
@@ -687,10 +686,6 @@ init_thread (struct thread *t, const char *name, int priority,
     {
       t->owning_pid = p_info->pid;
       p_info->tid = t->tid;
-    }
-  if (c_info != NULL)
-    {
-      c_info->tid = t->tid;
     }
 #endif
 

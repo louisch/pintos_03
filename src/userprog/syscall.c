@@ -209,17 +209,7 @@ syscall_exec (const char *cmd_line)
 static int
 syscall_wait (pid_t pid)
 {
-  process_info *p_info = process_get_info (pid);
-
-  if (p_info != NULL)
-    {
-      return process_wait (p_info->tid);
-    }
-  else
-    {
-      return -1;
-    }
-
+  return process_wait (pid);
 }
 
 /* Creates file of size initial_size bytes with given name.

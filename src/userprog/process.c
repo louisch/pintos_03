@@ -146,18 +146,21 @@ process_execute_aux (const char *file_name, struct lock *lock)
     return NULL;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Add information for process waiting: Create child_info struct. */
+  /* Create process's process_info. */
   process_info *p_info = process_create_process_info_reply (lock);
+  /* Add information for process waiting: */
+  /* Create child_info struct. */
   child_info *c_info = create_child_info (p_info);
   /* Point the child's process_info at its parent's child_info. */
   p_info->parent_child_info = c_info;
-  /* Create a new thread to execute FILE_NAME. */
-  tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
-                                               fn_copy, p_info, c_info);
   /* Add child_info to the parent's chidren hash. Surprisingly there are no
      concurrency issues here; if the child terminates before its child_info is
      added to the parent's hash, the correct information will still be added. */
   hash_insert (&process_current ()->children, &c_info->child_elem);
+
+  /* Create a new thread to execute FILE_NAME. */
+  tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
+                                               fn_copy, p_info);
 
   if (thread_tid == TID_ERROR)
     palloc_free_page (fn_copy);
@@ -259,7 +262,7 @@ create_child_info (process_info *p_info)
   child_info *c_info = calloc (1, sizeof *c_info);
   ASSERT (c_info != NULL);
 
-  c_info->tid = TID_ERROR; /* Set by thread_create. */
+  c_info->pid = p_info->pid;
   c_info->running = true;
   c_info->parent_wait_sema = NULL;
   c_info->child_process_info = p_info;
@@ -289,16 +292,16 @@ allocate_pid (void)
    been successfully called for the given TID, returns -1
    immediately, without waiting. */
 int
-process_wait (tid_t child_tid)
+process_wait (pid_t child_pid)
 {
   /* Hashtable retrieval related things. */
   child_info c_info_temp;
-  c_info_temp.tid = child_tid;
+  c_info_temp.pid = child_pid;
   struct hash_elem *child_hash_elem;
 
   struct lock *c_lock = &process_current ()->children_lock;
 
-  /* Search children hashtable for a child_info with child_tid, storing the
+  /* Search children hashtable for a child_info with child_pid, storing the
      result in child_hash_elem. */
   lock_acquire (c_lock);
   child_hash_elem = hash_find (&process_current ()->children,
@@ -998,11 +1001,11 @@ fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
   free (file_fd);
 }
 
-/* Hashes child_info by tid. */
+/* Hashes child_info by pid. */
 static unsigned
 children_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  unsigned hash = (unsigned) hash_entry (e, child_info, child_elem)->tid;
+  unsigned hash = (unsigned) hash_entry (e, child_info, child_elem)->pid;
   // printf("I'm hashing with %d\n", hash);
   return hash;
 }
@@ -1013,8 +1016,8 @@ children_less_func (const struct hash_elem *a,
               const struct hash_elem *b,
               void *aux UNUSED)
 {
-  return hash_entry (a, child_info, child_elem)->tid
-         < hash_entry (b, child_info, child_elem)->tid;
+  return hash_entry (a, child_info, child_elem)->pid
+         < hash_entry (b, child_info, child_elem)->pid;
 }
 
 /* Destroys children hash elements by setting them free. */
