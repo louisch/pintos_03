@@ -42,7 +42,7 @@ static struct lock filesys_access;
 static void process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
-static void process_info_kill (process_info *info);
+static void process_info_free (process_info *info);
 
 static child_info *create_child_info (process_info *p_info);
 static pid_t allocate_pid (void);
@@ -75,6 +75,7 @@ void
 process_info_init (void)
 {
   lock_init (&process_info_lock);
+  lock_init (&filesys_access);
   lock_init (&next_pid_lock);
   lock_acquire (&process_info_lock);
   hash_init (&process_info_table, process_info_hash_func,
@@ -351,6 +352,13 @@ process_wait (pid_t child_pid)
     }
 }
 
+/* Utility function for printing exit messages from process exit. */
+static void
+print_exit_message (const char *file_name, int status)
+{
+  printf ("%s: exit(%d)\n", file_name, status);
+}
+
 /* Free the current process's resources. */
 void
 process_exit (void)
@@ -380,7 +388,7 @@ process_exit (void)
 
   /* Orphan all children, free all child_infos and destroy the children and fd
      hashtable. Also free the process_info itself. */
-  process_info_kill (proc);
+  process_info_free (proc);
 
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -682,13 +690,6 @@ write_args_to_stack (void **esp, const char *argv_string, int arg_length)
 
   /* Set esp pointer to bottom of stack. */
   *esp = esp_pointer;
-
-  /* Test things */
-/*
-  uint32_t *test = (uint32_t *) *esp;
-  char **arr = (char **) *(test+2);
-  printf("%d, %d, %d, %s, %s, %s, %s\n", *test, *(test+1), arr[4] == NULL, arr[0], arr[1], arr[2], arr[3]);
-*/
 }
 
 /* load() helpers. */
@@ -854,12 +855,6 @@ process_get_info (pid_t pid)
 void
 process_acquire_filesys_lock (void)
 {
-  static bool filesys_access_lock_init = false;
-  if (!filesys_access_lock_init)
-    { /* Init lock if it has not yet been inited yet. */
-      lock_init (&filesys_access);
-      filesys_access_lock_init = true;
-    }
   lock_acquire (&filesys_access);
 }
 
@@ -888,9 +883,10 @@ process_info_less_func (const struct hash_elem *a,
     process_info_hash_func (b, NULL);
 }
 
-/* Clears the entire process info hashtable. */
+/* Clears the entire process info hashtable and
+   frees all the process info structs. */
 void
-process_info_kill_all (void)
+process_info_free_all (void)
 {
   lock_acquire (&process_info_lock);
   hash_destroy (&process_info_table, process_info_hash_destroy);
@@ -903,12 +899,12 @@ static void
 process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
   process_info *info = hash_entry (e, process_info, process_elem);
-  process_info_kill (info);
+  process_info_free (info);
 }
 
-// TODO: Comment this function
+/* Frees the process info struct, destroys its children and fd hashes. */
 static void
-process_info_kill (process_info *info)
+process_info_free (process_info *info)
 {
   hash_destroy (&info->open_files, fd_hash_destroy);
 
@@ -935,25 +931,20 @@ process_add_file (struct file *file)
 
   file_fd->fd = fd;
   file_fd->file = file;
-  printf ("inserting element %d\n", fd);
   hash_insert (open_files, &file_fd->elem);
   return fd;
 }
 
 /* Finds file_fd in open_files hash. */
 static struct file_fd*
-process_find_file_fd (int fd)
+process_find_file (int fd)
 {
-  printf ("fetching file %d\n", fd);
   struct hash *open_files = &process_current ()->open_files;
   struct file_fd file_fd;
   file_fd.fd = fd;
-    printf ("fetching file2\n");
   struct hash_elem *elem = hash_find (open_files, &file_fd.elem);
-    printf ("Hash yay: %d\n", elem == NULL);
-  if (elem == NULL) /* File not Found. */
+  if (elem == NULL) /* File not found. */
     return NULL;
-  printf ("done fetching file\n");
   return hash_entry (elem, struct file_fd, elem);
 }
 
@@ -961,7 +952,7 @@ process_find_file_fd (int fd)
 struct file*
 process_fetch_file (int fd)
 {
-  struct file_fd* file_fd = process_find_file_fd (fd);
+  struct file_fd* file_fd = process_find_file (fd);
   return file_fd == NULL ? NULL : file_fd->file;
 }
 
@@ -970,7 +961,7 @@ struct file*
 process_remove_file (int fd)
 {
   struct hash *open_files = &process_current ()->open_files;
-  struct file_fd *file_fd = process_find_file_fd (fd);
+  struct file_fd *file_fd = process_find_file (fd);
   if (file_fd == NULL) /* File was not found. */
     return NULL;
   hash_delete (open_files, &file_fd->elem);
@@ -1013,7 +1004,6 @@ static unsigned
 children_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
   unsigned hash = (unsigned) hash_entry (e, child_info, child_elem)->pid;
-  // printf("I'm hashing with %d\n", hash);
   return hash;
 }
 
@@ -1043,10 +1033,4 @@ children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
     }
   lock_release (&c_info->child_lock);
   free (c_info);
-}
-
-static void
-print_exit_message (const char *file_name, int status)
-{
-  printf ("%s: exit(%d)\n", file_name, status);
 }

@@ -59,7 +59,7 @@ typedef struct child_info
 
 } child_info;
 
-void process_info_kill_all (void);
+void process_info_free_all (void);
 process_info *process_execute_aux (const char *file_name, struct lock *lock);
 
 void process_acquire_filesys_lock (void);
