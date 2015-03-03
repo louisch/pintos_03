@@ -195,7 +195,9 @@ syscall_exec (const char *cmd_line)
 {
   pid_t ret = -1;
   if (cmd_line == NULL)
-    return PID_ERROR;
+    {
+      return PID_ERROR;
+    }
 
   struct lock reply_lock;
   lock_init (&reply_lock);
@@ -309,7 +311,7 @@ static unsigned console_write_size = 256;
 
 /*
   Writes size bytes from buffer to open file fd.
-  Returns number of bytes writen.
+  Returns number of bytes written.
 
   Does not extend files past their size.
   If fd = 1, writes to console with putbuf.
