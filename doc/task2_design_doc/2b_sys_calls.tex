@@ -128,3 +128,9 @@ What advantages or disadvantages can you see to your design for file descriptors
 
 \paragraph{B11:} % (5 marks)
 The default tid\_t to pid\_t mapping is the identity mapping. If you changed it, what advantages are there to your approach?
+
+Making pid\_t separate to tid\_t makes it easier in the future to have processes own multiple threads.
+
+We can also allocate pid\_t and tid\_t in any order this way.
+
+Both of these make future changes easier.
