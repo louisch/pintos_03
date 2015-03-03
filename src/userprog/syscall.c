@@ -310,6 +310,7 @@ syscall_read (int fd, void *buffer, unsigned size)
   if (file != NULL) /* File not found. */
     {
       ret = file_read_at (file, buffer, size, file_tell (file));
+      file_seek (file, file_tell (file) + ret);
     }
   process_release_filesys_lock ();
   return ret;
@@ -356,6 +357,7 @@ syscall_write (int fd, const void *buffer, unsigned size)
         }
       process_acquire_filesys_lock ();
       written = file_write_at (file, buffer, size, file_tell (file));
+      file_seek (file, file_tell (file) + written);
       process_release_filesys_lock ();
     }
 
