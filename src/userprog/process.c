@@ -961,7 +961,8 @@ process_find_file_fd (int fd)
 struct file*
 process_fetch_file (int fd)
 {
-  return process_find_file_fd (fd)->file;
+  struct file_fd* file_fd = process_find_file_fd (fd);
+  return file_fd == NULL ? NULL : file_fd->file;
 }
 
 /* Removes and returns file from open_file hash. */
