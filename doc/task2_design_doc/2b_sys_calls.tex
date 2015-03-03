@@ -29,6 +29,19 @@ static struct lock filesys_access;
 \subparagraph{Structures}
 
 \begin{verbatim}
+/* Struct for linking files to fds. */
+struct file_fd
+  {
+    int fd;
+    struct file *file;
+    struct hash_elem elem;
+  };
+\end{verbatim}
+
+\paragraph{process.h:}
+\subparagraph{Structures}
+
+\begin{verbatim}
 /* Data for a process used for syscalls. */
 typedef struct process_info
 {
@@ -87,7 +100,13 @@ typedef struct child_info
 \end{verbatim}
 
 \subsubsection*{Question B2} % (5 marks)
-Describe how file descriptors are associated with open files. Are file descriptors unique within the entire OS or just within a single process?
+\textit{Describe how file descriptors are associated with open files. Are file descriptors unique within the entire OS or just within a single process?}
+
+In our design, each process owns a file descriptor counter value fd\_counter and an open\_files hash.
+
+When a process opens a file, it uses the counter value to generate an fd, which it stores alongside the open file struct pointer within the file\_fd struct which is then inserted into the open\_files hash. These file\_fd structs are hashed by their fd.
+
+Given that fd\_counter is proper to each process, the file descriptors it generates are unique to the process.
 
 \subsection{Algorithms}
 \subsubsection*{Question B3} % (5 marks)
@@ -138,11 +157,13 @@ Once the condition variable is signaled, the parent process returns the child's 
 \subsubsection*{Question B10} % (5 marks)
 \textit{What advantages or disadvantages can you see to your design for file descriptors?}
 
-Our implementation of file descriptors (hereafter `fds') relies on a counter variable proper to each process\_info structure. Once opened, the file is stored in the open\_files hash inside process\_info, which hashes by file descriptor.
+In our implementation, open files are associated with an fd unique to the process and stored inside a hash table hashed by fd. Each hash table is also unique to the process.
 
-Each time a file is opened, even if it is opened several times by the same process, it receives a new file descriptor. We do not keep track of the fds in use, which makes the system extremely lightweight and fast.
+This approach grants the advantage of simplicity, as we do not keep track of the fds in use, which makes the system fast and flexible.
+Each time a file is opened, even if it is opened several times by the same process, it receives a new file descriptor, which makes it possible to have a file open multiple times in the same process.
+As each process keeps track of its own files separately, it is also easier to find and close all files owned by it.
 
-The obvious downfall of this system is that it does not scale: the amount of distinct fds that can be generated throughout the lifetime of a process is limited by the size of `unsigned'. As we do not keep track of the fds in use, if the counter variable overflows, it is possible for a file to receive an fd that is already in use by another open file. Of course, this is not a concern for Pintos, as `unsigned' is 32 bits long and a process will run out of stack before it is able to open that many files.
+The obvious downfall of this system is that it does not scale: the amount of distinct fds that can be generated throughout the lifetime of a process is limited by the size of `unsigned'. As we do not keep track of the fds in use, if the counter variable overflows, it is possible for a file to receive an fd that is already in use by another file open in the same process.
 
 
 \subsubsection*{Question B11} % (5 marks)
