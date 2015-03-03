@@ -271,11 +271,11 @@ syscall_open (const char *file)
     }
   process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
+  process_release_filesys_lock ();
   if (open_file == NULL) /* File not found. */
     {
       return ABNORMAL_IO_VALUE;
     }
-  process_release_filesys_lock ();
   return process_add_file (open_file);
 }
 
@@ -307,7 +307,6 @@ syscall_read (int fd, void *buffer, unsigned size)
     }
 
   int ret = ABNORMAL_IO_VALUE;
-  printf ("Reading\n");
   if (fd < 2)
     {
       return ret; /* Bad fd. */
@@ -315,13 +314,11 @@ syscall_read (int fd, void *buffer, unsigned size)
 
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
-  printf ("Got file struct ref %d\n", file == NULL);
   if (file != NULL) /* File not found. */
     {
       ret = file_read_at (file, buffer, size, file_tell (file));
     }
   process_release_filesys_lock ();
-  printf ("Done reading\n");
   return ret;
 }
 
