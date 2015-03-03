@@ -338,7 +338,7 @@ static unsigned console_write_size = 256;
 static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
-  if (fd < 1) return -1; /* Bad fd. */
+  if (fd < 1) return 0; /* Bad fd. */
   if (check_pointer (buffer, size) == NULL)
     {
       thread_exit ();
