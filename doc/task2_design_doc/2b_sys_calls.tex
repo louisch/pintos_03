@@ -133,14 +133,14 @@ When process\_wait() is called, it first looks in the current process's children
 \subsubsection*{Question B6} % (5 marks)
 Any access to user program memory at a user-specified address can fail due to a bad pointer value.  Such accesses must cause the process to be terminated.  System calls are fraught with such accesses, e.g. a ``write'' system call requires reading the system call number from the user stack, then each of the call's three arguments, then an arbitrary amount of user memory, and any of these can fail at any point.  This poses a design and error-handling problem: how do you best avoid obscuring the primary function of code in a morass of error-handling?  `, when an error is detected, how do you ensure that all temporarily allocated resources (locks, buffers, etc.) are freed?  In a few paragraphs, describe the strategy or strategies you adopted for managing these issues.  Give an example.
 
-To keep the primary function code free from error-handling we created a function which deals with checking the correctness of a pointer, check_pointer(). This function checks whether the given pointer is safe to dereference, i.e. the given range lies below PHYS_BASE and that it points to a mappped user virtual memory. If the pointer is safe then it returns it otherwise it exits the thread via thread_exit().
+To keep the primary function code free from error-handling we created a function which deals with checking the correctness of a pointer, check\_pointer(). This function checks whether the given pointer is safe to dereference, i.e. the given range lies below PHYS\_BASE and that it points to a mappped user virtual memory. If the pointer is safe then it returns it otherwise it exits the thread via thread\_exit().
 
-check_pointer is used in each stage of the system call. With the system call ``write'', the system call number from the user stack is checked in the syscall_handler by check_pointer. This ensures that the stack pointer is safe to dereference before executing the system call.
+check_pointer is used in each stage of the system call. With the system call ``write'', the system call number from the user stack is checked in the syscall_handler by check\_pointer. This ensures that the stack pointer is safe to dereference before executing the system call.
 
 % Perhaps talk about other stages...
 
-When an error is encoutered check_pointer() will call thread_exit(). In thread_exit(), process_exit() is called which deallocates all the memory allocated towards the exiting process and its children.
-Then in thread_exit() it removes the thread from the all threads list and releases all the held locks by this thread.
+When an error is encoutered check\_pointer() will call thread\_exit(). In thread\_exit(), process\_exit() is called which deallocates all the memory allocated towards the exiting process and its children.
+Then in thread\_exit() it removes the thread from the all threads list and releases all the held locks by this thread.
 
 For buffers, no memory is allocated until all these checks have completed. Therefore a bad pointer will not require any buffers to be deallocated as none have been created.
 
