@@ -164,6 +164,17 @@ Once the condition variable is signaled, the parent process returns the child's 
 \subsubsection*{Question B9} % (5 marks)
 \textit{Why did you choose to implement access to user memory from the kernel in the way that you did?}
 
+For simplicity, we chose the simple way of using a function to check each
+pointer fully before we dereference it.
+
+There were many more difficult problems to tackle this time round, so we chose
+to save on time where we could. We ended up having to spend a large amount of
+time debugging, so this decision turned out quite well.
+
+We reasoned that the optimization would only be faster by a constant factor
+algorithmically (for each check, we only check 2 pointers, which is a constant),
+so would not be very noticeable anyway.
+
 \subsubsection*{Question B10} % (5 marks)
 \textit{What advantages or disadvantages can you see to your design for file descriptors?}
 
