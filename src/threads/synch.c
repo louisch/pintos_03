@@ -125,6 +125,7 @@ sema_up (struct semaphore *sema)
       struct thread *t = list_entry (list_pop_front (&sema->waiters),
                                      struct thread, elem);
       thread_unblock (t);
+      thread_give_way (t);
     }
   intr_set_level (old_level);
 }
@@ -442,7 +443,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   lock_acquire (lock);
 }
 
-/* Resorts waiting list in cond according to new priorities. */
+/* Re-sorts waiting list in cond according to new priorities. */
 void
 cond_update (struct condition *cond)
 {

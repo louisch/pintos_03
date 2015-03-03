@@ -6,6 +6,9 @@
 #include <list.h>
 #include <stdint.h>
 #include "synch.h"
+#ifdef USERPROG
+#include <user/syscall.h>
+#endif
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -92,12 +95,18 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+/* This include must be placed here because tid_t must be declared before
+   including process.h */
+#ifdef USERPROG
+#include "userprog/process.h"
+#endif
 struct thread
   {
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
-    char name[16];                      /* Name (for debugging purposes). */
+    char name[16];                      /* Name */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority of thread. */
 
@@ -117,6 +126,8 @@ struct thread
     struct list_elem mlfqs_elem;        /* Used by the MLFQS */
 
 #ifdef USERPROG
+    /* The pid of the process owning this thread. */
+    pid_t owning_pid;
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
@@ -136,9 +147,18 @@ void thread_start (void);
 void thread_tick (void);
 void thread_print_stats (void);
 
+/* Predeclarations of structs from process.h, which needs to include this
+   file, but will not then recursively include process.h again. */
+typedef struct process_info process_info;
+typedef struct child_info child_info;
+
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
+tid_t thread_create_with_infos (const char *name, int priority,
+                                thread_func *function, void *aux,
+                                process_info *p_info);
 
+void thread_give_way (struct thread *t);
 void thread_block (void);
 void thread_unblock (struct thread *);
 

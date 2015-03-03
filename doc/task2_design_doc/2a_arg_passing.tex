@@ -1,0 +1,52 @@
+\section{Argument Passing}
+\subsection{Data Structures}
+\subsubsection*{Question A1} % (5 marks)
+No new data structures were added for processing argument passing.
+
+\subsection{Algorithms}
+\subsubsection*{Question A2} % (10 marks)
+\textit{Briefly describe how you implemented argument parsing.  How do you arrange for the elements of argv[] to be in the right order? How do you avoid overflowing the stack page?}
+
+When load() is invoked with the argument string, it determines its length and parses it once with strtok\_r() in order to delimit the invoked function's name.
+The length's function here is two-fold.
+First, it used to check whether the argument string exceeds the length limit, to prevent overflowing the stack page.
+This method is not particularly accurate, as it ignores the fact that any number of the characters in the argument string can be delimiters, however it has the advantage of being quick.
+Second, the length is necessary for parsing the rest of the arguments.
+
+In our implementation, the actual parsing is done by an auxiliary function,
+\begin{verbatim}
+static void
+write_args_to_stack (void **esp, const char *argv_string, int arg_length)
+\end{verbatim}
+
+Instead of parsing the argument string with strok\_r(), write\_args\_to\_stack() uses a similar algorithm to the read argument string back-to-front, writing characters one-by-one to the stack, ignoring delimiter characters in the string and separating arguments with null-bytes.
+Throughout this process, it also records the pointers to each argument in an array and the number of arguments found.
+Finally, we iterate through the array to write the argument references, as well as the other references described in the calling convention.
+
+This approach makes it possible to parse and write the entire in a little over two passes: one pass to get its length, another pass to write each argument to the stack and the pass strtok\_r() uses to delimit the file name.
+Moreover, as we write characters directly, there is little space overhead and no need to allocate space for the arguments.
+One possible issue with this approach is its lack in flexibility; that is, if the calling convention ever changes, changing write\_args\_to\_stack() might be somewhat more cumbersome than other approaches to parsing arguments, however in comparison to other changes incurred by this change of standard, in our opinion this inconvenience is worth the performance gain.
+
+\subsection{Rationale}
+\subsubsection*{Question A3} % (5 marks)
+\textit{Why does Pintos implement strtok\_r() but not strtok()?}
+
+strtok\_r and strtok provide very similar functionality: both parse a string into tokens defined by delimiters.
+However, where strtok\_r uses a third argument to keep track of its position in the string, strtok uses a static buffer (a static pointer to the position in the string), which makes it thread unsafe.
+
+Thread safety is very important in Pintos, as an interrupt can take place at any time, making thread unsafe processes dangerous. In the case of strtok, if its execution is interrupted by another process which also runs strtok, the static buffer will modified and corrupt the execution of the initial process. Therefore, it is impossible to guarantee that strtok will run correctly in Pintos.
+
+\subsubsection*{Question A4} % (10 marks)
+\textit{In Pintos, the kernel separates commands into an executable name and arguments.  In Unix-like systems, the shell does this separation.  Identify at least two advantages of the Unix approach.}
+
+There are several advantages to parsing commands in the shell.
+First, 
+
+flexibility:
+- possibility to update the shell without changing the kernel
+- allocate arguments differently - only leave the pointers on the stack (less stack space)
+safety:
+- parsing code runs in userspace, instead of kernel space
+separation:
+- software things are done in software land
+

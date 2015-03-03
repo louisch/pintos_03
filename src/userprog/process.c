@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <kernel/list.h>
+#include <kernel/hash.h>
+#include <user/syscall.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -14,35 +17,158 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#define ABNORMAL_EXIT_STATUS -1
+
+/* The lock for the below hash table */
+static struct lock process_info_lock;
+/* Maps pids to process_infos. Also serves to keep track of all
+   processes that exist. */
+static struct hash process_info_table;
+
+/* Used for allocating pids. */
+static struct lock next_pid_lock;
+
+/* Maximum number of allowed open files per process. */
+static unsigned OPEN_FILE_LIMIT = 128;
+
+/* Lock used to synchronise filesystem operations in process.c and syscall.c. */
+static struct lock filesys_access;
+
+static void process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED);
+static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
+static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
+static void process_info_free (process_info *info);
+
+static child_info *create_child_info (process_info *p_info);
+static pid_t allocate_pid (void);
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (char *cmdline, void (**eip) (void), void **esp);
+
+static process_info *process_create_process_info_reply (struct lock *lock);
+static process_info *process_get_process_info (pid_t lookup_pid);
+static unsigned process_info_hash_func (const struct hash_elem *e, void *aux);
+static bool process_info_less_func (const struct hash_elem *a,
+                                    const struct hash_elem *b,
+                                    void *aux);
+
+/* fd_file hash related funcitons */
+static unsigned fd_hash_func (const struct hash_elem*, void*);
+static bool fd_less_func (const struct hash_elem *a,
+                          const struct hash_elem *b,
+                          void *aux UNUSED);
+
+/* children hash related funcitons */
+static unsigned children_hash_func (const struct hash_elem*, void*);
+static bool children_less_func (const struct hash_elem *a,
+                          const struct hash_elem *b,
+                          void *aux UNUSED);
+
+static void print_exit_message (const char *file_name, int status);
+
+/* Initializes the process_info system. */
+void
+process_info_init (void)
+{
+  lock_init (&process_info_lock);
+  lock_init (&filesys_access);
+  lock_init (&next_pid_lock);
+  lock_acquire (&process_info_lock);
+  hash_init (&process_info_table, process_info_hash_func,
+             process_info_less_func, NULL);
+  lock_release (&process_info_lock);
+}
+
+/* Struct for linking files to fds. */
+struct file_fd
+  {
+    int fd;
+    struct file *file;
+    struct hash_elem elem;
+  };
+
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char *file_name)
+{
+  process_info *p_info = process_execute_aux (file_name, NULL);
+  return p_info == NULL ? TID_ERROR : p_info->tid;
+}
+
+/* Same as process_execute, but returns a pid_t instead.
+   This will be PID_ERROR if a thread could not be created.
+   This pid can be used to access the process_info attached to
+   the process. */
+pid_t
+process_execute_pid (const char *file_name)
+{
+  process_info *p_info = process_execute_aux (file_name, NULL);
+  return p_info == NULL ? PID_ERROR : p_info->pid;
+}
+
+/* Return info on the currently running process. */
+process_info *
+process_current (void)
+{
+  return process_get_process_info (thread_current ()->owning_pid);
+}
+
+static process_info *
+process_get_process_info (pid_t lookup_pid)
+{
+  process_info lookup;
+  lookup.pid = lookup_pid;
+
+  lock_acquire (&process_info_lock);
+  struct hash_elem *current_process_elem =
+    hash_find (&process_info_table, &lookup.process_elem);
+  lock_release (&process_info_lock);
+
+  return current_process_elem != NULL ?
+    hash_entry (current_process_elem, process_info, process_elem) : NULL;
+}
+
+/* Performs the work of the process_execute functions, returning
+   the process_info created. */
+process_info *
+process_execute_aux (const char *file_name, struct lock *lock)
 {
   char *fn_copy;
-  tid_t tid;
-
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
-    return TID_ERROR;
+    return NULL;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  /* Create process's process_info. */
+  process_info *p_info = process_create_process_info_reply (lock);
+  /* Add information for process waiting: */
+  /* Create child_info struct. */
+  child_info *c_info = create_child_info (p_info);
+  /* Point the child's process_info at its parent's child_info. */
+  p_info->parent_child_info = c_info;
+  /* Add child_info to the parent's chidren hash. Surprisingly there are no
+     concurrency issues here; if the child terminates before its child_info is
+     added to the parent's hash, the correct information will still be added. */
+  hash_insert (&process_current ()->children, &c_info->child_elem);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
-  return tid;
+  tid_t thread_tid = thread_create_with_infos (file_name, PRI_DEFAULT, start_process,
+                                               fn_copy, p_info);
+
+  if (thread_tid == TID_ERROR)
+    palloc_free_page (fn_copy);
+
+  return p_info;
 }
 
 /* A thread function that loads a user process and starts it
@@ -53,7 +179,6 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -61,9 +186,21 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  struct lock *reply_lock = process_current()->reply_lock;
+  if (reply_lock != NULL)
+    { /* Parent thread requested to be notified when load finishes. */
+      lock_acquire (reply_lock);
+      if (!success)
+        process_current ()->parent_child_info->pid = -1;
+      cond_broadcast (&process_current ()->finish_load, reply_lock);
+      lock_release (reply_lock);
+    }
+
+  struct thread *t = thread_current ();
+  strlcpy (t->name, file_name, sizeof t->name);
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
     thread_exit ();
 
   /* Start the user process by simulating a return from an
@@ -76,32 +213,194 @@ start_process (void *file_name_)
   NOT_REACHED ();
 }
 
-/* Waits for thread TID to die and returns its exit status.  If
-   it was terminated by the kernel (i.e. killed due to an
-   exception), returns -1.  If TID is invalid or if it was not a
-   child of the calling process, or if process_wait() has already
-   been successfully called for the given TID, returns -1
-   immediately, without waiting.
-
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
-int
-process_wait (tid_t child_tid UNUSED) 
+/* Creates a process_info from a thread and adds it to the hash table.
+   If a TID_ERROR is passed in, then the pid will be set to PID_ERROR,
+   and the tid set to TID_ERROR. Also, other fields will not be
+   initialized. The process_info will also not be added to the hash
+   table. */
+process_info *
+process_create_process_info (void)
 {
-  return -1;
+  return process_create_process_info_reply (NULL);
+}
+
+static process_info *
+process_create_process_info_reply (struct lock *lock)
+{
+  process_info *info = calloc (1, sizeof *info);
+  ASSERT (info != NULL);
+
+  info->exit_status = ABNORMAL_EXIT_STATUS;
+
+  info->pid = allocate_pid ();
+  /* Set by thread_create. */
+  info->tid = TID_ERROR;
+
+  /* Cond var to signal spawner thread that loading process finished. */
+  if (lock != NULL)
+    {
+      cond_init (&info->finish_load);
+      info->reply_lock = lock;
+    }
+
+  /* Init children hashtable. */
+  lock_init (&info->children_lock);
+  lock_acquire (&info->children_lock);
+  hash_init (&info->children, children_hash_func, children_less_func, NULL);
+  lock_release (&info->children_lock);
+
+  /* Init open_files hashtable. */
+  info->fd_counter = 2; /* 0 and 1 are reserved for stdin and stdout. */
+  hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
+
+  /* Add process_info to process_info_table. */
+  lock_acquire (&process_info_lock);
+  hash_insert (&process_info_table, &info->process_elem);
+  lock_release (&process_info_lock);
+
+  return info;
+}
+
+static child_info *
+create_child_info (process_info *p_info)
+{
+  child_info *c_info = calloc (1, sizeof *c_info);
+  ASSERT (c_info != NULL);
+
+  c_info->pid = p_info->pid;
+  c_info->running = true;
+  c_info->parent_wait_sema = NULL;
+  c_info->child_process_info = p_info;
+
+  lock_init (&c_info->child_lock);
+
+  return c_info;
+}
+
+static pid_t
+allocate_pid (void)
+{
+  static pid_t next_pid = 0;
+
+  lock_acquire (&next_pid_lock);
+  pid_t allocated = next_pid;
+  next_pid++;
+  lock_release (&next_pid_lock);
+
+  return allocated;
+}
+
+/* Waits for thread TID to die and returns its exit status.  If it was
+   terminated by the kernel (i.e. killed due to an exception), returns
+   ABNORMAL_EXIT_STATUS.  If TID is invalid or if it was not a child of the
+   calling process, or if process_wait() has already been successfully called
+   for the given TID, returns ABNORMAL_EXIT_STATUS immediately, without
+   waiting. */
+int
+process_wait (pid_t child_pid)
+{
+  /* Hashtable retrieval related things. */
+  child_info c_info_temp;
+  c_info_temp.pid = child_pid;
+  struct hash_elem *child_hash_elem;
+
+  struct lock *c_lock = &process_current ()->children_lock;
+
+  /* Search children hashtable for a child_info with child_pid, storing the
+     result in child_hash_elem. */
+  lock_acquire (c_lock);
+  child_hash_elem = hash_find (&process_current ()->children,
+                               &c_info_temp.child_elem);
+  lock_release (c_lock);
+
+  if (child_hash_elem != NULL)
+    {
+      child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
+
+      /* Wait for the process if it is still running. */
+      lock_acquire (&c_info->child_lock);
+      if (c_info->running)
+        {
+          struct semaphore wait_for_child;
+          sema_init (&wait_for_child, 0);
+          /* Indirectly inform child that parent is waiting. N.B. There is no
+             need to unset this, since the child will only check this once i.e.
+             at termination. */
+          c_info->parent_wait_sema = &wait_for_child;
+          lock_release (&c_info->child_lock);
+          /* Block and wait for child to exit. */
+          sema_down (&wait_for_child);
+        }
+      else
+        {
+          lock_release (&c_info->child_lock);
+        }
+
+      int status = c_info->exit_status;
+
+      /* Remove child_info from hash so it cannot be waited on again. */
+      lock_acquire (c_lock);
+      hash_delete (&process_current ()->children, child_hash_elem);
+      lock_release (c_lock);
+
+      /* Free its memory. */
+      free (c_info);
+      return status;
+    }
+  else
+    {
+      /* Child not found, meaning it is not a child of the current process
+         or has already been waited on. */
+      return ABNORMAL_EXIT_STATUS; /* See function comment. */
+    }
+}
+
+/* Utility function for printing exit messages from process exit. */
+static void
+print_exit_message (const char *file_name, int status)
+{
+  printf ("%s: exit(%d)\n", file_name, status);
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
+  process_info *proc = process_current ();
+  int exit_status = proc->exit_status;
+  /* If process_current still has a parent, send it status information and
+     unblock it if necessary. */
+  child_info *p_c_info = proc->parent_child_info;
+
+  if (p_c_info != NULL)
+    {
+      lock_acquire (&p_c_info->child_lock);
+
+      p_c_info->exit_status = exit_status;
+      p_c_info->running = false;
+
+      struct semaphore *p_sema = p_c_info->parent_wait_sema;
+      if (p_sema != NULL)
+        {
+          sema_up (p_sema);
+        }
+
+      lock_release (&p_c_info->child_lock);
+    }
+
+  /* Remove process from process_info_table hashtable. */
+  hash_delete (&process_info_table, &proc->process_elem);
+
+  /* Orphan all children, free all child_infos and destroy the children and fd
+     hashtable. Also free the process_info itself. */
+  process_info_free (proc);
+
   struct thread *cur = thread_current ();
   uint32_t *pd;
-
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
-  if (pd != NULL) 
+  if (pd != NULL)
     {
       /* Correct ordering here is crucial.  We must set
          cur->pagedir to NULL before switching page directories,
@@ -114,6 +413,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  print_exit_message (cur->name, exit_status);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -131,7 +431,7 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -200,13 +500,20 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+static void write_args_to_stack (void **esp, const char *args, int arg_length);
+
+const char* delimiters = " \n\t\0";
+
+/* Size limit in bytes for command line arguments.
+  Equals approximately two thrids of stack page size. */
+static int arg_size_limit = 3052;
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (char *fn_args, void (**eip) (void), void **esp)
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -215,19 +522,35 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  /* Separate file name from command-line arguments. */
+  int arg_length = strlen (fn_args);
+  const char* file_name = strtok_r (NULL, delimiters, &fn_args);
+
+  if (arg_length > arg_size_limit)
+    {
+      printf ("load: %s: argument lists exceeds size limit\n", file_name);
+      goto done;
+    }
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
-  if (t->pagedir == NULL) 
+  if (t->pagedir == NULL)
     goto done;
   process_activate ();
 
+  /* Lock filesystem to deny write to file that is being read. */
+  process_acquire_filesys_lock ();
   /* Open executable file. */
   file = filesys_open (file_name);
-  if (file == NULL) 
+  if (file == NULL)
     {
+      process_release_filesys_lock ();
       printf ("load: %s: open failed\n", file_name);
-      goto done; 
+      goto done;
     }
+  /* Deny write to opened executables. */
+  file_deny_write (file);
+  process_add_file (file);
+  process_release_filesys_lock ();
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -236,15 +559,15 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_machine != 3
       || ehdr.e_version != 1
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
-      || ehdr.e_phnum > 1024) 
+      || ehdr.e_phnum > 1024)
     {
       printf ("load: %s: error loading executable\n", file_name);
-      goto done; 
+      goto done;
     }
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
-  for (i = 0; i < ehdr.e_phnum; i++) 
+  for (i = 0; i < ehdr.e_phnum; i++)
     {
       struct Elf32_Phdr phdr;
 
@@ -255,7 +578,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
         goto done;
       file_ofs += sizeof phdr;
-      switch (phdr.p_type) 
+      switch (phdr.p_type)
         {
         case PT_NULL:
         case PT_NOTE:
@@ -269,7 +592,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
         case PT_SHLIB:
           goto done;
         case PT_LOAD:
-          if (validate_segment (&phdr, file)) 
+          if (validate_segment (&phdr, file))
             {
               bool writable = (phdr.p_flags & PF_W) != 0;
               uint32_t file_page = phdr.p_offset & ~PGMASK;
@@ -284,7 +607,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
                                 - read_bytes);
                 }
-              else 
+              else
                 {
                   /* Entirely zero.
                      Don't read anything from disk. */
@@ -305,15 +628,72 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!setup_stack (esp))
     goto done;
 
+  /* Set up command arguments on stack. */
+  write_args_to_stack (esp, file_name, arg_length);
+
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
 
  done:
-  /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  /* We arrive here whether the load is successful or not.
+     We also reallow writes to the files again. */
   return success;
+}
+
+/* Writes arguments to stack according to the calling convention.
+   Note that the caller already guarantees that the argv_string
+   actually contains arguments. */
+static void
+write_args_to_stack (void **esp, const char *argv_string, int arg_length)
+{
+  ASSERT (argv_string != NULL && arg_length > 0);
+
+  int read = arg_length ? arg_length - 1 : arg_length;
+  char *esp_char = *esp;
+  /* arg_length/2+1 is the maximum possible number of distincts args in string.*/
+  uint32_t argv[arg_length/2 + 1];
+  uint32_t argc = 0;
+
+  while (read >= 0)
+    {
+      /* Skip delimiter characters. */
+      while (read >= 0 && strchr (delimiters, argv_string[read]) != NULL)
+          --read;
+      /* Write characters from argv_string onto stack. */
+      *--esp_char = '\0';
+      while (read >= 0 && strchr (delimiters, argv_string[read]) == NULL)
+          *--esp_char = argv_string[read--];
+      /* Remember position of first character of the argument. */
+      argv[argc++] = (uint32_t) esp_char;
+    }
+
+  /* Word-align esp address. */
+  uint8_t *esp_fill = (uint8_t *) esp_char;
+  while ((uint32_t) esp_fill % (uint32_t) 8 != 0)
+    *--esp_fill = 0;
+
+  /* Add pointer addresses to arguments. */
+  uint32_t *esp_pointer = (uint32_t *) esp_fill;
+  /* argv[argc] = nullptr */
+  *--esp_pointer = 0;
+  uint32_t i;
+  for (i = 0; i < argc; ++i)
+      *--esp_pointer = argv[i];
+
+  /* Pointer to argv. */
+  --esp_pointer;
+  *esp_pointer = (uint32_t) (esp_pointer + 1);
+
+  /* argc value. */
+  *--esp_pointer = argc;
+
+  /* Return address. */
+  *--esp_pointer = 0;
+
+  /* Set esp pointer to bottom of stack. */
+  *esp = esp_pointer;
 }
 
 /* load() helpers. */
@@ -323,24 +703,24 @@ static bool install_page (void *upage, void *kpage, bool writable);
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool
-validate_segment (const struct Elf32_Phdr *phdr, struct file *file) 
+validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
 {
   /* p_offset and p_vaddr must have the same page offset. */
-  if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK)) 
-    return false; 
+  if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK))
+    return false;
 
   /* p_offset must point within FILE. */
-  if (phdr->p_offset > (Elf32_Off) file_length (file)) 
+  if (phdr->p_offset > (Elf32_Off) file_length (file))
     return false;
 
   /* p_memsz must be at least as big as p_filesz. */
-  if (phdr->p_memsz < phdr->p_filesz) 
-    return false; 
+  if (phdr->p_memsz < phdr->p_filesz)
+    return false;
 
   /* The segment must not be empty. */
   if (phdr->p_memsz == 0)
     return false;
-  
+
   /* The virtual memory region must both start and end within the
      user address space range. */
   if (!is_user_vaddr ((void *) phdr->p_vaddr))
@@ -381,14 +761,14 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    or disk read error occurs. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable)
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
   file_seek (file, ofs);
-  while (read_bytes > 0 || zero_bytes > 0) 
+  while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
          We will read PAGE_READ_BYTES bytes from FILE
@@ -405,15 +785,15 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
           palloc_free_page (kpage);
-          return false; 
+          return false;
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
       /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
+      if (!install_page (upage, kpage, writable))
         {
           palloc_free_page (kpage);
-          return false; 
+          return false;
         }
 
       /* Advance. */
@@ -427,13 +807,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp)
 {
   uint8_t *kpage;
   bool success = false;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
+  if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
@@ -462,4 +842,207 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+/* Gets the process_info corresponding to a given pid_t. */
+process_info *
+process_get_info (pid_t pid)
+{
+  process_info info;
+  info.pid = pid;
+
+  struct hash_elem *e = hash_find (&process_info_table, &info.process_elem);
+  return e != NULL ? hash_entry (e, process_info, process_elem) : NULL;
+}
+
+/* Acquires lock over filesystem. */
+void
+process_acquire_filesys_lock (void)
+{
+  lock_acquire (&filesys_access);
+}
+
+/* Releases lock over filesystem. */
+void
+process_release_filesys_lock (void)
+{
+  lock_release (&filesys_access);
+}
+
+/* This hash_func simply returns the process_info's pid */
+static unsigned
+process_info_hash_func (const struct hash_elem *e, void *aux UNUSED)
+{
+  process_info *info = hash_entry (e, process_info, process_elem);
+  return (unsigned)info->pid;
+}
+
+/* Returns whether a's pid is less than b's pid. */
+static bool
+process_info_less_func (const struct hash_elem *a,
+                        const struct hash_elem *b,
+                        void *aux UNUSED)
+{
+  return process_info_hash_func (a, NULL) <
+    process_info_hash_func (b, NULL);
+}
+
+/* Clears the entire process info hashtable and
+   frees all the process info structs. */
+void
+process_info_free_all (void)
+{
+  lock_acquire (&process_info_lock);
+  hash_destroy (&process_info_table, process_info_hash_destroy);
+  lock_release (&process_info_lock);
+}
+
+/* Destroy an info_hash element by removing it from the hash,
+   destroying its children and fds. */
+static void
+process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
+{
+  process_info *info = hash_entry (e, process_info, process_elem);
+  process_info_free (info);
+}
+
+/* Frees the process info struct, destroys its children and fd hashes. */
+static void
+process_info_free (process_info *info)
+{
+  hash_destroy (&info->open_files, fd_hash_destroy);
+
+  /* Frees all children_info and destroys children hashtable. */
+  struct lock *c_lock = &info->children_lock;
+  lock_acquire (c_lock);
+  hash_destroy (&info->children, children_hash_destroy);
+  lock_release (c_lock);
+
+  /* Free the process_info itself. */
+  free (info);
+}
+
+/* Adds file to open_files hash. Returns the fd it generates. */
+int
+process_add_file (struct file *file)
+{
+  process_info *process = process_current ();
+  int fd = process->fd_counter++;
+  struct hash *open_files = &process->open_files;
+  struct file_fd *file_fd = malloc (sizeof(struct file_fd));
+  if (file_fd == NULL || hash_size (open_files) > OPEN_FILE_LIMIT)
+    return -1; /* File not found or too many files open. */
+
+  file_fd->fd = fd;
+  file_fd->file = file;
+  hash_insert (open_files, &file_fd->elem);
+  return fd;
+}
+
+/* Finds file_fd in open_files hash. */
+static struct file_fd*
+process_find_file (int fd)
+{
+  struct hash *open_files = &process_current ()->open_files;
+  struct file_fd file_fd;
+  file_fd.fd = fd;
+  struct hash_elem *elem = hash_find (open_files, &file_fd.elem);
+  if (elem == NULL) /* File not Found. */
+    {
+      return NULL;
+    }
+  return hash_entry (elem, struct file_fd, elem);
+}
+
+/* Gets file from open_files hash. */
+struct file*
+process_fetch_file (int fd)
+{
+  struct file_fd* file_fd = process_find_file (fd);
+  return file_fd == NULL ? NULL : file_fd->file;
+}
+
+/* Removes and returns file from open_file hash. */
+struct file*
+process_remove_file (int fd)
+{
+  struct hash *open_files = &process_current ()->open_files;
+  struct file_fd *file_fd = process_find_file (fd);
+  if (file_fd == NULL) /* File was not found. */
+    return NULL;
+  hash_delete (open_files, &file_fd->elem);
+
+  struct file *file = file_fd->file;
+  free (file_fd);
+  return file;
+}
+
+/* Hashes open files by fd. */
+static unsigned
+fd_hash_func (const struct hash_elem *e, void *aux UNUSED)
+{
+  return (unsigned) hash_entry (e, struct file_fd, elem)->fd;
+}
+
+/* Compares two files by fd. */
+static bool
+fd_less_func (const struct hash_elem *a,
+              const struct hash_elem *b,
+              void *aux UNUSED)
+{
+  return hash_entry (a, struct file_fd, elem)->fd
+         < hash_entry (b, struct file_fd, elem)->fd;
+}
+
+/* Destroy function for the open_files hash. Frees file_fd struct
+   and closes associated file. */
+static void
+fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
+{
+  struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
+
+  /* Allow writes on the process's file so other processes can write to it. */
+  if (file_fd->file != NULL)
+    {
+      file_allow_write (file_fd->file);
+    }
+
+  file_close (file_fd->file);
+  free (file_fd);
+}
+
+/* Hashes child_info by pid. */
+static unsigned
+children_hash_func (const struct hash_elem *e, void *aux UNUSED)
+{
+  unsigned hash = (unsigned) hash_entry (e, child_info, child_elem)->pid;
+  return hash;
+}
+
+/* Compares two child_info structs by tid. */
+static bool
+children_less_func (const struct hash_elem *a,
+              const struct hash_elem *b,
+              void *aux UNUSED)
+{
+  return hash_entry (a, child_info, child_elem)->pid
+         < hash_entry (b, child_info, child_elem)->pid;
+}
+
+/* Destroys children hash elements by setting them free. */
+static void
+children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
+{
+  child_info *c_info = hash_entry (e, child_info, child_elem);
+
+  /* If the child is still running, tell it that its child_info no longer exists
+     as its parent no longer exists. We acquire child_lock to ensure the child
+     cannot interrupt and exit before we set its process_info. */
+  lock_acquire (&c_info->child_lock);
+  if (c_info->running)
+    {
+      c_info->child_process_info->parent_child_info = NULL;
+    }
+  lock_release (&c_info->child_lock);
+  free (c_info);
 }

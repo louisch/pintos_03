@@ -1,0 +1,24 @@
+#Task 2 - stuff to do:
+
+process termination messages
+argument passing <-- DIRTY HAXX <-- Anton
+user memory access function <--
+system calls
+	halt
+	exit <--
+	exec
+	wait <-- DIRTY HAXX
+	create
+	remove
+	open
+	filesize
+	read
+	write <--
+	seek
+	tell
+	close
+denying writes to executables
+
+argument passing
+	tokenising string (by whitespace)
+	taking each argument & putting into argv
