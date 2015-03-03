@@ -133,7 +133,9 @@ check_pointer (const uint32_t *uaddr, size_t size)
 {
   // printf ("checking pointer\n");
   if (uaddr == NULL)
-    thread_exit ();
+    {
+      thread_exit ();
+    }
   const uint8_t *start = (uint8_t *) uaddr;
   const uint8_t *pos;
   for (pos = start; pos < start + size; pos++)
@@ -305,13 +307,17 @@ syscall_read (int fd, void *buffer, unsigned size)
   int ret = -1;
   printf ("Reading\n");
   if (fd < 2)
-    return ret; /* Bad fd. */
+    {
+      return ret; /* Bad fd. */
+    }
 
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   printf ("Got file struct ref %d\n", file == NULL);
   if (file != NULL) /* File not found. */
+    {
       ret = file_read_at (file, buffer, size, file_tell (file));
+    }
   process_release_filesys_lock ();
   printf ("Done reading\n");
   return ret;
@@ -372,7 +378,9 @@ syscall_seek (int fd, unsigned position)
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
-    file_seek (file, position);
+    {
+      file_seek (file, position);
+    }
   process_release_filesys_lock ();
 }
 
