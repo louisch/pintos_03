@@ -188,7 +188,7 @@ start_process (void *file_name_)
 
   struct lock *reply_lock = process_current()->reply_lock;
   if (reply_lock != NULL)
-    {
+    { /* Parent thread requested to be notified when load finishes. */
       lock_acquire (reply_lock);
       cond_broadcast (&process_current ()->finish_load, reply_lock);
       lock_release (reply_lock);

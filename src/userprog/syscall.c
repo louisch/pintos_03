@@ -200,7 +200,7 @@ syscall_exec (const char *cmd_line)
   pid_t ret = PID_ERROR;
   if (check_pointer ((const void *)cmd_line, 1) == NULL)
     {
-      return PID_ERROR;
+      return ret;
     }
 
   struct lock reply_lock;
@@ -209,14 +209,14 @@ syscall_exec (const char *cmd_line)
 
   process_info *info
     = process_execute_aux (cmd_line, &reply_lock);
+  child_info *c_info = info->parent_child_info;
   if (info != NULL)
   {
-    // TODO fix: info values are fine here
+    /* Wait for child process to signal that it finished loading. */
     cond_wait (&info->finish_load, &reply_lock);
-    // info values are now clobbered here
-    ret = info->pid;
   }
   lock_release (&reply_lock);
+  ret = c_info->pid;
   return ret;
 }
 
