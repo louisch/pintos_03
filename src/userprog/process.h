@@ -42,7 +42,7 @@ typedef struct process_info
 
 typedef struct child_info
 {
-  /* Child thread's ID, used when checking if a child belongs to a parent. */
+  /* Child process's ID, used when checking if a child belongs to a parent. */
   pid_t pid;
   /* Exit status of thread. */
   int exit_status;
