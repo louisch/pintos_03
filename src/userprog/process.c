@@ -331,7 +331,7 @@ process_wait (pid_t child_pid)
           /* Block and wait for child to exit. */
           sema_down (&wait_for_child);
         }
-      if (lock_held_by_current_thread (&c_info->child_lock))
+      else
         {
           lock_release (&c_info->child_lock);
         }
