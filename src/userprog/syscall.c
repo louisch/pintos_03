@@ -74,9 +74,6 @@ syscall_handler (struct intr_frame *frame)
 {
   uint32_t call_no = *(uint32_t*) check_pointer (frame->esp, 1);
 
-  // printf ("system call %d!\n", call_no);
-  /* TODO: remove above debug print before submission */
-
   switch (call_no)
   {
   case (SYS_HALT):
@@ -122,7 +119,6 @@ syscall_handler (struct intr_frame *frame)
   default:
     /* Unknown system call encountered! */
     printf ("That system call is not of this world!\n");
-          /* TODO: remove above debug print before submission */
   }
 
 }
@@ -133,7 +129,6 @@ syscall_handler (struct intr_frame *frame)
 static const void *
 check_pointer (const uint32_t *uaddr, size_t size)
 {
-  // printf ("checking pointer\n");
   if (uaddr == NULL)
     {
       thread_exit ();
@@ -151,7 +146,6 @@ check_pointer (const uint32_t *uaddr, size_t size)
         }
     }
   /* uaddr is safe (points to mapped user virtual memory). */
-      // printf ("pointer good\n");
   return uaddr;
 }
 
@@ -168,7 +162,6 @@ static uint32_t
 get_arg (struct intr_frame *frame, int offset)
 {
   uint32_t *arg_pointer = (((uint32_t*) (frame->esp)) + offset);
-  // printf ("Got pointer %08x\n", (int) arg_pointer);
   return *((uint32_t*) check_pointer (arg_pointer, 4));
 }
 
