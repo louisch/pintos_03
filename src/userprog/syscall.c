@@ -138,17 +138,21 @@ check_pointer (const uint32_t *uaddr, size_t size)
     {
       thread_exit ();
     }
-  const uint8_t *start = (uint8_t *) uaddr;
-  const uint8_t *pos;
-  for (pos = start; pos < start + size; pos++)
+  if (size == 0)
     {
-      if (!is_user_vaddr (pos)
-          || (pagedir_get_page (thread_current ()->pagedir, pos) == NULL))
-        {
-          /* uaddr is unsafe. */
-          thread_exit ();
-          /* Release other syscall-related resources here. */
-        }
+      return uaddr;
+    }
+  const uint8_t *start = (uint8_t *) uaddr;
+  const uint8_t *end = start + size - 1;
+  if ((!is_user_vaddr (start)
+        || (pagedir_get_page (thread_current ()->pagedir, start) == NULL))
+      &&
+      (!is_user_vaddr (end)
+        || (pagedir_get_page (thread_current ()->pagedir, end) == NULL)))
+    {
+      /* uaddr is unsafe. */
+      thread_exit ();
+      /* Release other syscall-related resources here. */
     }
   /* uaddr is safe (points to mapped user virtual memory). */
   return uaddr;
