@@ -76,49 +76,49 @@ syscall_handler (struct intr_frame *frame)
 
   switch (call_no)
   {
-    case (SYS_HALT):
-      call_syscall_0_void (syscall_halt);
-      break;
-    case (SYS_EXIT):
-      call_syscall_1_void (syscall_exit, frame, int);
-      break;
-    case (SYS_EXEC):
-      frame->eax = call_syscall_1 (syscall_exec, pid_t, frame, const char*);
-      break;
-    case (SYS_WAIT):
-      frame->eax = call_syscall_1 (syscall_wait, int, frame, pid_t);
-      break;
-    case (SYS_CREATE):
-        frame->eax = call_syscall_2 (syscall_create, bool, frame, const char*, unsigned);
-          break;
-    case (SYS_REMOVE):
-        frame->eax = call_syscall_1 (syscall_remove, bool, frame, const char*);
-          break;
-    case (SYS_OPEN):
-        frame->eax = call_syscall_1 (syscall_open, int, frame, const char*);
-          break;
-    case (SYS_FILESIZE):
-        frame->eax = call_syscall_1 (syscall_filesize, int, frame, int);
-          break;
-    case (SYS_READ):
-        frame->eax = call_syscall_3 (syscall_read, int, frame, int, void*, unsigned);
-          break;
-    case (SYS_WRITE):
-        frame->eax = call_syscall_3 (syscall_write, uint32_t, frame,
-                                       int, const void*, unsigned);
-          break;
-    case (SYS_SEEK):
-        call_syscall_2_void (syscall_seek, frame, int, unsigned);
-          break;
-    case (SYS_TELL):
-        frame->eax = call_syscall_1 (syscall_tell, unsigned, frame, int);
-          break;
-    case (SYS_CLOSE):
-        call_syscall_1_void (syscall_close, frame, int);
-          break;
-    default:
-        /* Unknown system call encountered! */
-        printf ("That system call is not of this world!\n");
+  case (SYS_HALT):
+    call_syscall_0_void (syscall_halt);
+    break;
+  case (SYS_EXIT):
+    call_syscall_1_void (syscall_exit, frame, int);
+    break;
+  case (SYS_EXEC):
+    frame->eax = call_syscall_1 (syscall_exec, pid_t, frame, const char*);
+    break;
+  case (SYS_WAIT):
+    frame->eax = call_syscall_1 (syscall_wait, int, frame, pid_t);
+    break;
+  case (SYS_CREATE):
+    frame->eax = call_syscall_2 (syscall_create, bool, frame, const char*, unsigned);
+    break;
+  case (SYS_REMOVE):
+    frame->eax = call_syscall_1 (syscall_remove, bool, frame, const char*);
+    break;
+  case (SYS_OPEN):
+    frame->eax = call_syscall_1 (syscall_open, int, frame, const char*);
+    break;
+  case (SYS_FILESIZE):
+    frame->eax = call_syscall_1 (syscall_filesize, int, frame, int);
+    break;
+  case (SYS_READ):
+    frame->eax = call_syscall_3 (syscall_read, int, frame, int, void*, unsigned);
+    break;
+  case (SYS_WRITE):
+    frame->eax = call_syscall_3 (syscall_write, uint32_t, frame,
+                                 int, const void*, unsigned);
+    break;
+  case (SYS_SEEK):
+    call_syscall_2_void (syscall_seek, frame, int, unsigned);
+    break;
+  case (SYS_TELL):
+    frame->eax = call_syscall_1 (syscall_tell, unsigned, frame, int);
+    break;
+  case (SYS_CLOSE):
+    call_syscall_1_void (syscall_close, frame, int);
+    break;
+  default:
+    /* Unknown system call encountered! */
+    printf ("That system call is not of this world!\n");
           /* TODO: remove above debug print before submission */
   }
 
