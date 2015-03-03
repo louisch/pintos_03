@@ -120,7 +120,7 @@ First of all, like all the other system calls, before they receive their argumen
 If the fd they were given is invalid, both functions would return 0.
 Next, both functions ensure that their buffers begin and end within user memory.
 
-In `write', if the fd supplied is 1, the buffer is output to command line in chunks of 256 bytes via the putbuf() function. Otherwise, the entire buffer is passed to file\_write\_at(). 
+In `write', if the fd supplied is 1, the buffer is output to command line in chunks of 256 bytes via the putbuf() function. Otherwise, the entire buffer is passed to file\_write\_at().
 
 In `read', the entire buffer is passed to file\_read\_at().
 
@@ -227,8 +227,14 @@ The obvious downfall of this system is that it does not scale: the amount of dis
 \subsubsection*{Question B11} % (5 marks)
 \textit{The default tid\_t to pid\_t mapping is the identity mapping. If you changed it, what advantages are there to your approach?}
 
-Making pid\_t separate to tid\_t makes it easier in the future to have processes own multiple threads.
+Making pid\_t separate to tid\_t makes it easier in the future to have processes
+own multiple threads.
 
 We can also allocate pid\_t and tid\_t in any order this way.
 
-Both of these make future changes easier.
+Furthermore, if future needs require either tid\_t and pid\_t to be more complex
+types, this will allow for just one of them to be changed without affecting the
+other.
+
+Generally, all of the above make future changes easier, which is a good goal to
+try to aim for.
