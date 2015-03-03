@@ -39,14 +39,8 @@ Thread safety is very important in Pintos, as an interrupt can take place at any
 \subsubsection*{Question A4} % (10 marks)
 \textit{In Pintos, the kernel separates commands into an executable name and arguments.  In Unix-like systems, the shell does this separation.  Identify at least two advantages of the Unix approach.}
 
-There are several advantages to parsing commands in the shell.
-First, 
+First and foremost, parsing commands in the shell means that it takes place in user-space, as opposed to kernel space, which grants several security advantages. Notably, if the parsing fails and somehow crashes the shell, the kernel will not crash with it. It is also safer overall, as the shell has less permissions than the kernel, which also reinforces the notion that the kernel provides an interface between the hardware and the users, while the shell remains a user construct.
 
-flexibility:
-- possibility to update the shell without changing the kernel
-- allocate arguments differently - only leave the pointers on the stack (less stack space)
-safety:
-- parsing code runs in userspace, instead of kernel space
-separation:
-- software things are done in software land
+Using the shell is also more flexible. For instance, the way the shell parses the commands could be influenced by some external factors (which is safer than influencing the kernel) or the commands themselves. Moreover, it is possible to update the shell without changing the kernel.
 
+A final advantage of using the shell is that it is possible to run several shells at once, which is obviously not an option with the kernel.
