@@ -142,25 +142,25 @@ N.B. the signature of process\_wait() has been changed to take a pid as an argum
 When process\_wait() is called, it first looks in the current process's children hashtable whether it has a child with that pid. If not, then that process is either not a child, or it has already been waited on, but in either case -1 is returned. If it is found, then we must check whether it is still running. If so, we must create a semaphore, tell the child about this, and then wait for the child by blocking. After the child has exited (or if it was already finished), we then retrieve the exit status from the child\_info and return it. We also remove the child\_info from the children hashtable to ensure it cannot be waited on again.
 
 \subsubsection*{Question B6} % (5 marks)
-Any access to user program memory at a user-specified address can fail due to a bad pointer value.  Such accesses must cause the process to be terminated.  System calls are fraught with such accesses, e.g. a ``write'' system call requires reading the system call number from the user stack, then each of the call's three arguments, then an arbitrary amount of user memory, and any of these can fail at any point.  This poses a design and error-handling problem: how do you best avoid obscuring the primary function of code in a morass of error-handling?  `, when an error is detected, how do you ensure that all temporarily allocated resources (locks, buffers, etc.) are freed?  In a few paragraphs, describe the strategy or strategies you adopted for managing these issues.  Give an example.
+\textit{Any access to user program memory at a user-specified address can fail due to a bad pointer value.  Such accesses must cause the process to be terminated.  System calls are fraught with such accesses, e.g. a ``write'' system call requires reading the system call number from the user stack, then each of the call's three arguments, then an arbitrary amount of user memory, and any of these can fail at any point.  This poses a design and error-handling problem: how do you best avoid obscuring the primary function of code in a morass of error-handling?  `, when an error is detected, how do you ensure that all temporarily allocated resources (locks, buffers, etc.) are freed?  In a few paragraphs, describe the strategy or strategies you adopted for managing these issues.  Give an example.}
 
-To keep the primary function code free from error-handling we created a function which deals with checking the correctness of a pointer, check\_pointer(). This function checks whether the given pointer is safe to dereference, i.e. the given range lies below PHYS\_BASE and that it points to a mappped user virtual memory. If the pointer is safe then it returns it otherwise it exits the thread via thread\_exit().
+To keep the primary function code free from error-handling we created a function which deals with checking the correctness of a pointer, check\_pointer(). This function checks whether the given pointer is safe to dereference, i.e. the given range lies below PHYS\_BASE and that it points to a mapped user virtual memory. If the pointer is safe then it is returned, otherwise check\_pointer() exits the thread via thread\_exit().
 
-check\_pointer is used in each stage of the system call. With the system call ``write'', the system call number from the user stack is checked in the syscall\_handler by check\_pointer. This ensures that the stack pointer is safe to dereference before executing the system call.
+check\_pointer is used in each stage of the system call. In the case of system call ``write'', the system call number from the user stack is checked in the syscall\_handler by check\_pointer. This ensures that the stack pointer is safe to dereference before executing the system call.
 
-% Perhaps talk about other stages...
+On top of running check\_pointer() for ``write'', we also check that the buffer passed is located within mapped user virtual memory.
 
-When an error is encoutered check\_pointer() will call thread\_exit(). In thread\_exit(), process\_exit() is called which deallocates all the memory allocated towards the exiting process and its children.
+When an error is encountered check\_pointer() will call thread\_exit(). In thread\_exit(), process\_exit() is called which deallocates all the memory allocated towards the exiting process and its children.
 Then in thread\_exit() it removes the thread from the all threads list and releases all the held locks by this thread.
 
-For buffers, no memory is allocated until all these checks have completed. Therefore a bad pointer will not require any buffers to be deallocated as none have been created.
+As for other resources, such as buffers and the file-system lock, they only come into play once all these checks have completed.
 
 \subsubsection*{Question B7} % (5 marks)
 \textit{The ``exec'' system call returns -1 if loading the new executable fails, so it cannot return before the new executable has completed loading.  How does your code ensure this?  How is the load success/failure status passed back to the thread that calls ``exec''?}
 
 Before syscall\_exec spawns a child process, it initialises a lock. The lock's reference is passed to the child when its process\_info is initialised, which causes the child to initialise a condition variable. The parent then waits on its child's condition variable.
 
-Once the child loads the executable, it updates its pid if it fails, and signals the condition variable in order to notify the parent that it finished loading. It then ontinues execution as normal.
+Once the child loads the executable, it updates its pid if it fails, and signals the condition variable in order to notify the parent that it finished loading. It then continues execution as normal.
 
 Once the condition variable is signaled, the parent process returns the child's pid from the child\_info struct.
 
