@@ -139,38 +139,31 @@ two bytes also only takes two inspections, as we check the pointer to the first
 byte, and the pointer to the second byte. This is because we check by byte, not
 by word.
 
-Switching to letting the hardware do the check for us could potentially reduce
-the number of inspections to zero, though we did not implement this so we would
-not know.
-
 \subsubsection*{Question B5} % (5 marks)
 \textit{Briefly describe your implementation of the ``wait'' system call and how it interacts with process termination.}
 
 There are 3 main places where code has been inserted: in process creation (in process\_execute\_aux()), in process termination (in process\_exit()) and in process\_wait().
 
-Upon process creation, the child's process\_info is created, and its child\_info is created and inserted into the current process's children hashtable. Both structures have their values initialised, and also point to each other through the parent\_child\_info and child\_process\_info pointers.
+Upon process creation, the child's process\_info is created, and its child\_info is created and inserted into the current process's (i.e. the parent's) children hashtable. Both structures have their values initialised, and also point to each other through the parent\_child\_info and child\_process\_info pointers.
 
-Upon process termination, we need to inform both the process's parent and all its children. We first check whether the process still has a parent. This is indirectly determined by checking whether it still has a child\_info (by checking if parent\_child\_info is not NULL). If so, we update the child\_info's exit status and and running fields, thus indirectly informing the parent that its child has terminated. We also check whether the parent is waiting on the child to exit (by checking if wait\_for\_child is not NULL), and if so we up the semaphore and unblock the parent.
+Upon process termination, we need to inform both the process's parent and all its children. We first check whether the process still has a parent. This is indirectly determined by checking whether it still has a child\_info (by checking if parent\_child\_info is not NULL). If so, we update the child\_info's exit status and and running fields, thus indirectly informing the parent that its child has terminated. We also check whether the parent is waiting on the child to exit (by checking if the semaphore pointer wait\_for\_child is not NULL), and if so we up the semaphore and unblock the parent. We then inform all the process's children that their child\_info no longer exists. We do this by setting the parent\_child\_info pointer in the child's process\_info to NULL when destroying the parent's children hashtable (in the children\_hash\_destroy() function).
 
-We then inform all the process's children that their child\_info no longer exists, and we do this by setting the parent\_child\_info pointer in the child's process\_info to NULL when destroying the parent's children hashtable (in the children\_hash\_destroy() function).
-
-N.B. the signature of process\_wait() has been changed to take a pid as an argument. This is more intuitive since this function waits on a process (and thus indirectly on the process's thread), and also allows the children hashtable to be indexed by pid. If it were to be indexed by tid, calling the wait system call (which takes a pid) would have to look into the process\_info which matches that pid to retrieve its tid to pass to process\_wait(), which is not possible when the process\_info no longer exists i.e. after the process has terminated.
+N.B. the signature of process\_wait() has been changed to take a pid as an argument. This is more intuitive since this function waits on a process (and thus indirectly on the process's thread), and also allows the children hashtable to be indexed by pid. If it were to be indexed by tid, calling the wait system call (which takes a pid) would have to search the process\_info\_table to find a process\_info which matches that pid and retrieve its tid to pass to process\_wait(). However, this is not possible when the process\_info no longer exists i.e. after the process has terminated.
 
 When process\_wait() is called, it first looks in the current process's children hashtable whether it has a child with that pid. If not, then that process is either not a child, or it has already been waited on, but in either case -1 is returned. If it is found, then we must check whether it is still running. If so, we must create a semaphore, tell the child about this, and then wait for the child by blocking. After the child has exited (or if it was already finished), we then retrieve the exit status from the child\_info and return it. We also remove the child\_info from the children hashtable to ensure it cannot be waited on again.
 
 \subsubsection*{Question B6} % (5 marks)
 \textit{Any access to user program memory at a user-specified address can fail due to a bad pointer value.  Such accesses must cause the process to be terminated.  System calls are fraught with such accesses, e.g. a ``write'' system call requires reading the system call number from the user stack, then each of the call's three arguments, then an arbitrary amount of user memory, and any of these can fail at any point.  This poses a design and error-handling problem: how do you best avoid obscuring the primary function of code in a morass of error-handling?  `, when an error is detected, how do you ensure that all temporarily allocated resources (locks, buffers, etc.) are freed?  In a few paragraphs, describe the strategy or strategies you adopted for managing these issues.  Give an example.}
 
-To keep the primary function code free from error-handling we created a function which deals with checking the correctness of a pointer, check\_pointer(). This function checks whether the given pointer is safe to dereference, i.e. the given range lies below PHYS\_BASE and that it points to a mapped user virtual memory. If the pointer is safe then it is returned, otherwise check\_pointer() exits the thread via thread\_exit().
+To keep the primary function code free from error-handling we created a function which deals with checking the correctness of a pointer: check\_pointer(). This function checks whether the given pointer is safe to dereference, i.e. the given range lies below PHYS\_BASE and that it points to mapped user virtual memory. If the pointer is safe then it is returned, otherwise check\_pointer() terminates the current process via thread\_exit().
 
-check\_pointer is used in each stage of the system call. In the case of system call ``write'', the system call number from the user stack is checked in the syscall\_handler by check\_pointer. This ensures that the stack pointer is safe to dereference before executing the system call.
+check\_pointer() is used in each stage of the system call. In the case of the ``write'' system call, the system call number from the user stack is checked in the syscall\_handler() by check\_pointer(). This ensures that the stack pointer is safe to dereference before executing the appropriate system call function. All pointers to system call arguments located on the stack are also passed through check\_pointer before being dereferenced and passed to the system call function.
 
-On top of running check\_pointer() for ``write'', we also check that the buffer passed is located within mapped user virtual memory.
+In the case of ``write'', we also check that the buffer passed is located within mapped user virtual memory.
 
-When an error is encountered check\_pointer() will call thread\_exit(). In thread\_exit(), process\_exit() is called which deallocates all the memory allocated towards the exiting process and its children.
-Then in thread\_exit() it removes the thread from the all threads list and releases all the held locks by this thread.
-
-As for other resources, such as buffers and the file-system lock, they only come into play once all these checks have completed.
+When an error is encountered check\_pointer() will call thread\_exit(). In thread\_exit(), process\_exit() is called which deallocates all the memory allocated towards the exiting process (i.e. its process\_info struct and all its file\_fd and child\_infos structs).
+Then in thread\_exit() it removes the thread from the all threads list and releases all the locks held by this thread.
+As for other resources, such as buffers and the file-system lock, they are only allocated once these checks have been completed.
 
 \subsubsection*{Question B7} % (5 marks)
 \textit{The ``exec'' system call returns -1 if loading the new executable fails, so it cannot return before the new executable has completed loading.  How does your code ensure this?  How is the load success/failure status passed back to the thread that calls ``exec''?}
@@ -186,17 +179,15 @@ Once the condition variable is signalled, the parent process returns the child's
 
 If P calls wait(C) before C exits, then it will create a semaphore, set the pointer (i..e parent\_wait\_sema) in C's child\_info to this semaphore and then block itself by calling sema\_down(). When the child exits, it will check whether parent\_wait\_sema points to a semaphore (i.e. whether its parent is waiting on it), and call sema\_up appropriately, thus unblocking P.
 
-If P calls wait(C) after C exits, this case is simple since P can simply fetch the child\_info from the children hashtable and return its exit status (after removing it from the hashtable to ensure it cannot be waited on again).
+If P calls wait(C) after C exits, this case is simple since P can just fetch the child\_info from the children hashtable and return its exit status (after removing it from the hashtable to ensure it cannot be waited on again).
 
-If both P calls wait(C) and C calls process\_exit(), synchronisation here is handled by child\_lock in child\_info. This lock ensures that there are only 2 cases. In the first case, P acquires the lock first, in which case it sees that the child is still running and block. C will then acquire the lock, see that P is waiting and unblock it. In the second case, C acquires the lock first, and sets the exit status and the running field to false. Then when P acquires the lock, it will see that the child is terminated and will return its status. Thus we avoid the situation where a parent attempts to wait on a child, gets interrupted while the child terminates, and then resumes waiting indefinitely on a terminated child (which obviously cannot call sema\_up and unblock the parent).
+If P calls wait(C) and C calls process\_exit() at the same time, synchronisation here is handled by child\_lock in child\_info. This lock ensures that there are only 2 cases. In the first case, P acquires the lock first, in which case it sees that the child is still running and blocks. C will then acquire the lock, see that P is waiting and unblock it. In the second case, C acquires the lock first, and sets the exit status and the running field to false. Then when P acquires the lock, it will see that the child is terminated and will return its status. Thus we avoid the situation where a parent attempts to wait on a child, gets interrupted while the child terminates, and then resumes, calling sema_down and thus waiting indefinitely on a terminated child (which obviously cannot call sema\_up and unblock the parent).
 
 In the case where P terminates without waiting on C, it will check whether C is still running. If so, it will inform C's process\_info that it no longer has a child\_info by setting its parent\_child\_info pointer to null. In either case, P then frees the memory allocated to C's child\_info.
 
-If P is terminating without waiting on C while C is also terminating, C's child\_lock will prevent race conditions from arising. Here again there are only two cases: either C acquires the lock first, in which case the C's child\_info's running field is set to false and P will not attempt to set parent\_child\_info, or P acquires the lock in which case the child will not attempt to set a potentially non-existent child\_info.
+If both P is terminating without waiting on C and C is also terminating, C's child\_lock will prevent race condition problems. Here again there are only two cases: either C acquires the lock first, in which case the C's child\_info's running field is set to false and P will not attempt to set parent\_child\_info, or P acquires the lock in which case C will not attempt to set a potentially non-existent child\_info.
 
-There are only 2 cases - lock ensures that only parent or child can write bool running to child\_info at the same time. Thus cannot get into situation where parent waits on a terminated child (which obviously cannot up the semaphore and unblock the child)
-
-Because all necessary information about the current process which allow waiting to occur is held in a child\_info referenced from the parent's process\_info, we can freely deallocate all memory related to the child (i.e. its own process\_info and the child\_infos of its children) without having to worry about whether its parent, calling process\_wait(), will require this information later. Any locks acquired are also released.
+Because all necessary information about the current process which allows for waiting to occur is held in a child\_info stored in the parent's process\_info, we can freely deallocate all memory related to the current process (i.e. the child in this case, with its own process\_info and the child\_infos of its children) without having to worry about whether its parent, calling process\_wait(), will require this information later. Any locks acquired are also released.
 
 There is one special case which is where the first user process exits. Even though there may be other child (or orphaned) process still active, we do not need to terminate those processes since pintos itself will now terminate.
 
