@@ -20,7 +20,7 @@
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 
-#define BAD_READ -1
+#define ABNORMAL_IO_VALUE -1
 
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
@@ -197,7 +197,7 @@ syscall_exit (int status)
 static pid_t
 syscall_exec (const char *cmd_line)
 {
-  pid_t ret = -1;
+  pid_t ret = PID_ERROR;
   if (cmd_line == NULL)
     {
       return PID_ERROR;
@@ -261,7 +261,7 @@ syscall_remove (const char *file)
 }
 
 /* Opens file with given name.
-   Returns -1 if file is not found. */
+   Returns ABNORMAL_IO_VALUE if file is not found. */
 static int
 syscall_open (const char *file)
 {
@@ -273,18 +273,18 @@ syscall_open (const char *file)
   struct file *open_file = filesys_open (file);
   if (open_file == NULL) /* File not found. */
     {
-      return -1;
+      return ABNORMAL_IO_VALUE;
     }
   process_release_filesys_lock ();
   return process_add_file (open_file);
 }
 
 /* Returns the size of the file in bytes,
-   -1 if file is not open in the process. */
+   ABNORMAL_IO_VALUE if file is not open in the process. */
 static int
 syscall_filesize (int fd)
 {
-  int size = -1; /* File not found default value. */
+  int size = ABNORMAL_IO_VALUE; /* File not found default value. */
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
@@ -306,7 +306,7 @@ syscall_read (int fd, void *buffer, unsigned size)
       thread_exit ();
     }
 
-  int ret = BAD_READ;
+  int ret = ABNORMAL_IO_VALUE;
   printf ("Reading\n");
   if (fd < 2)
     {
@@ -388,11 +388,11 @@ syscall_seek (int fd, unsigned position)
 
 /* Returns the position of the next byte to be read or written in open file fd,
    expressed in bytes from the beginning of the file.
-   Returns -1 if no fd is not a valid file descriptor. */
+   Returns ABNORMAL_IO_VALUE if no fd is not a valid file descriptor. */
 static unsigned
 syscall_tell (int fd)
 {
-  unsigned pos = -1; /* Default file-not-found position. */
+  unsigned pos = ABNORMAL_IO_VALUE; /* Default file-not-found position. */
   process_acquire_filesys_lock ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
