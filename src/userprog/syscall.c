@@ -20,6 +20,8 @@
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 
+#define BAD_READ -1
+
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
 
@@ -304,7 +306,7 @@ syscall_read (int fd, void *buffer, unsigned size)
       thread_exit ();
     }
 
-  int ret = -1;
+  int ret = BAD_READ;
   printf ("Reading\n");
   if (fd < 2)
     {
