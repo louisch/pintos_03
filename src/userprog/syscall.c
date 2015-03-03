@@ -69,6 +69,9 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+/* Handles system calls by fetching the call no. off the stack, and then calling
+   the appropriate function with the correct arguments (also fetched off the
+   stack). */
 static void
 syscall_handler (struct intr_frame *frame)
 {
@@ -89,7 +92,8 @@ syscall_handler (struct intr_frame *frame)
     frame->eax = call_syscall_1 (syscall_wait, int, frame, pid_t);
     break;
   case (SYS_CREATE):
-    frame->eax = call_syscall_2 (syscall_create, bool, frame, const char*, unsigned);
+    frame->eax = call_syscall_2 (syscall_create, bool, frame,
+                                 const char*, unsigned);
     break;
   case (SYS_REMOVE):
     frame->eax = call_syscall_1 (syscall_remove, bool, frame, const char*);
@@ -101,7 +105,8 @@ syscall_handler (struct intr_frame *frame)
     frame->eax = call_syscall_1 (syscall_filesize, int, frame, int);
     break;
   case (SYS_READ):
-    frame->eax = call_syscall_3 (syscall_read, int, frame, int, void*, unsigned);
+    frame->eax = call_syscall_3 (syscall_read, int, frame,
+                                 int, void*, unsigned);
     break;
   case (SYS_WRITE):
     frame->eax = call_syscall_3 (syscall_write, uint32_t, frame,
@@ -149,6 +154,7 @@ check_pointer (const uint32_t *uaddr, size_t size)
   return uaddr;
 }
 
+/* TODO: Add comment */
 static const char *
 check_filename (const char *filename)
 {
@@ -177,6 +183,8 @@ syscall_halt (void)
   NOT_REACHED ();
 }
 
+/* Terminates the current process with the supplied exit status and frees its
+   resources. */
 static void
 syscall_exit (int status)
 {
