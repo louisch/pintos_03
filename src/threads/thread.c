@@ -347,6 +347,15 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+  struct list_elem *e;
+  for (e = list_begin (&thread_current ()->locks); 
+       e != list_end (&thread_current ()->locks);
+       e = list_next (e))
+    {
+      struct lock *lock = list_entry (e, struct lock, elem);
+      if(lock_held_by_current_thread(lock))
+        lock_release(lock);
+    }
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
