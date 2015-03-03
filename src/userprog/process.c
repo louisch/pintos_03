@@ -325,7 +325,11 @@ process_wait (pid_t child_pid)
              at termination. */
           c_info->parent_wait_sema = &wait_for_child;
           lock_release (&c_info->child_lock);
-          sema_down(&wait_for_child);
+          sema_down (&wait_for_child);
+        }
+      if (lock_held_by_current_thread (&c_info->child_lock))
+        {
+          lock_release (&c_info->child_lock);
         }
 
       int status = c_info->exit_status;
@@ -336,7 +340,7 @@ process_wait (pid_t child_pid)
       lock_release (c_lock);
 
       /* Free its memory. */
-      free(c_info);
+      free (c_info);
       return status;
     }
   else
