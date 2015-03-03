@@ -119,7 +119,11 @@ Any access to user program memory at a user-specified address can fail due to a 
 \subsubsection*{Question B7} % (5 marks)
 \textit{The ``exec'' system call returns -1 if loading the new executable fails, so it cannot return before the new executable has completed loading.  How does your code ensure this?  How is the load success/failure status passed back to the thread that calls ``exec''?}
 
+Before syscall\_exec spawns a child process, it initialises a lock. The lock's reference is passed to the child when its process\_info is initialised, which causes the child to initialise a condition variable. The parent then waits on its child's condition variable.
 
+Once the child loads the executable, it updates its pid if it fails, and signals the condition variable in order to notify the parent that it finished loading. It then ontinues execution as normal.
+
+Once the condition variable is signaled, the parent process returns the child's pid from the child\_info struct.
 
 \subsubsection*{Question B8} % (5 marks)
 \textit{Consider parent process P with child process C.  How do you ensure proper synchronization and avoid race conditions when P calls wait(C) before C exits?  After C exits?  How do you ensure that all resources are freed in each case?  How about when P terminates without waiting, before C exits?  After C exits?  Are there any special cases?}
