@@ -226,10 +226,7 @@ syscall_wait (pid_t pid)
 static bool
 syscall_create (const char *file, unsigned initial_size)
 {
-  if (check_filename (file) == NULL)
-    {
-      thread_exit ();
-    }
+  check_filename (file);
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_create (file, initial_size);
@@ -242,10 +239,7 @@ syscall_create (const char *file, unsigned initial_size)
 static bool
 syscall_remove (const char *file)
 {
-  if (check_filename (file) == NULL)
-    {
-      thread_exit ();
-    }
+  check_filename (file);
   bool success = false;
   process_acquire_filesys_lock ();
   success = filesys_remove (file);
@@ -258,10 +252,7 @@ syscall_remove (const char *file)
 static int
 syscall_open (const char *file)
 {
-  if (check_filename (file) == NULL)
-    {
-      thread_exit ();
-    }
+  check_filename (file);
   process_acquire_filesys_lock ();
   struct file *open_file = filesys_open (file);
   process_release_filesys_lock ();
@@ -294,11 +285,7 @@ syscall_filesize (int fd)
 static int
 syscall_read (int fd, void *buffer, unsigned size)
 {
-  if (check_pointer (buffer, size) == NULL)
-    {
-      thread_exit ();
-    }
-
+  check_pointer (buffer, size);
   int ret = ABNORMAL_IO_VALUE;
   if (fd < 2)
     {
@@ -329,10 +316,7 @@ static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
   if (fd < 1) return 0; /* Bad fd. */
-  if (check_pointer (buffer, size) == NULL)
-    {
-      thread_exit ();
-    }
+  check_pointer (buffer, size);
   int written;
 
   if (fd == 1)
