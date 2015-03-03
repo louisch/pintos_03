@@ -945,8 +945,12 @@ process_find_file (int fd)
   struct file_fd file_fd;
   file_fd.fd = fd;
   struct hash_elem *elem = hash_find (open_files, &file_fd.elem);
-  if (elem == NULL) /* File not found. */
-    return NULL;
+    printf ("Hash yay: %d\n", elem == NULL);
+  if (elem == NULL) /* File not Found. */
+    {
+      return NULL;
+    }
+  printf ("done fetching file\n");
   return hash_entry (elem, struct file_fd, elem);
 }
 
