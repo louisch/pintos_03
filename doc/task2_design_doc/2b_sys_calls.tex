@@ -79,6 +79,7 @@ typedef struct process_info
 that needs to be saved.
 
 \begin{verbatim}
+/* Data about a process's child, carried by the parent process_info. */
 typedef struct child_info
 {
   /* Child process's ID, used when checking if a child belongs to a parent. */
@@ -98,6 +99,8 @@ typedef struct child_info
 
 } child_info;
 \end{verbatim}
+
+The child\_info struct, stored in the parent process\_info's children hash, saves information about that process's children, even after its children's process\_infos have been destroyed.
 
 \subsubsection*{Question B2} % (5 marks)
 \textit{Describe how file descriptors are associated with open files. Are file descriptors unique within the entire OS or just within a single process?}
@@ -129,7 +132,7 @@ Suppose a system call causes a full page (4,096 bytes) of data to be copied from
 \subsubsection*{Question B5} % (5 marks)
 Briefly describe your implementation of the ``wait'' system call and how it interacts with process termination.
 
-There are 3 main places where code has been inserted: in process creation (in process\_execute\_aux()), in process termination (in process\_exit()) and in process\_wait.
+There are 3 main places where code has been inserted: in process creation (in process\_execute\_aux()), in process termination (in process\_exit()) and in process\_wait().
 
 Upon process creation, the child's process\_info is created, and its child\_info is created and inserted into the current process's children hashtable. Both structures have their values initialised, and also point to each other through the parent\_child\_info and child\_process\_info pointers.
 
@@ -162,12 +165,26 @@ Before syscall\_exec spawns a child process, it initialises a lock. The lock's r
 
 Once the child loads the executable, it updates its pid if it fails, and signals the condition variable in order to notify the parent that it finished loading. It then continues execution as normal.
 
-Once the condition variable is signaled, the parent process returns the child's pid from the child\_info struct.
+Once the condition variable is signalled, the parent process returns the child's pid from the child\_info struct.
 
 \subsubsection*{Question B8} % (5 marks)
 \textit{Consider parent process P with child process C.  How do you ensure proper synchronization and avoid race conditions when P calls wait(C) before C exits?  After C exits?  How do you ensure that all resources are freed in each case?  How about when P terminates without waiting, before C exits?  After C exits?  Are there any special cases?}
 
+If P calls wait(C) before C exits, then it will create a semaphore, set the pointer (i..e parent\_wait\_sema) in C's child\_info to this semaphore and then block itself by calling sema\_down(). When the child exits, it will check whether parent\_wait\_sema points to a semaphore (i.e. whether its parent is waiting on it), and call sema\_up appropriately, thus unblocking P.
 
+If P calls wait(C) after C exits, this case is simple since P can simply fetch the child\_info from the children hashtable and return its exit status (after removing it from the hashtable to ensure it cannot be waited on again).
+
+If both P calls wait(C) and C calls process\_exit(), synchronisation here is handled by child\_lock in child\_info. This lock ensures that there are only 2 cases. In the first case, P acquires the lock first, in which case it sees that the child is still running and block. C will then acquire the lock, see that P is waiting and unblock it. In the second case, C acquires the lock first, and sets the exit status and the running field to false. Then when P acquires the lock, it will see that the child is terminated and will return its status. Thus we avoid the situation where a parent attempts to wait on a child, gets interrupted while the child terminates, and then resumes waiting indefinitely on a terminated child (which obviously cannot call sema\_up and unblock the parent).
+
+In the case where P terminates without waiting on C, it will check whether C is still running. If so, it will inform C's process\_info that it no longer has a child\_info by setting its parent\_child\_info pointer to null. In either case, P then frees the memory allocated to C's child\_info.
+
+If P is terminating without waiting on C while C is also terminating, C's child\_lock will prevent race conditions from arising. Here again there are only two cases: either C acquires the lock first, in which case the C's child\_info's running field is set to false and P will not attempt to set parent\_child\_info, or P acquires the lock in which case the child will not attempt to set a potentially non-existent child\_info.
+
+There are only 2 cases - lock ensures that only parent or child can write bool running to child\_info at the same time. Thus cannot get into situation where parent waits on a terminated child (which obviously cannot up the semaphore and unblock the child)
+
+Because all necessary information about the current process which allow waiting to occur is held in a child\_info referenced from the parent's process\_info, we can freely deallocate all memory related to the child (i.e. its own process\_info and the child\_infos of its children) without having to worry about whether its parent, calling process\_wait(), will require this information later. Any locks acquired are also released.
+
+There is one special case which is where the first user process exits. Even though there may be other child (or orphaned) process still active, we do not need to terminate those processes since pintos itself will now terminate.
 
 \subsection{Rationale}
 
