@@ -1,11 +1,11 @@
 \section{Argument Passing}
 \subsection{Data Structures}
-\paragraph{A1:} % (5 marks)
+\subsubsection*{Question A1} % (5 marks)
 No new data structures were added for processing argument passing.
 
 \subsection{Algorithms}
-\paragraph{A2:} % (10 marks)
-Briefly describe how you implemented argument parsing.  How do you arrange for the elements of argv[] to be in the right order? How do you avoid overflowing the stack page?
+\subsubsection*{Question A2} % (10 marks)
+\textit{Briefly describe how you implemented argument parsing.  How do you arrange for the elements of argv[] to be in the right order? How do you avoid overflowing the stack page?}
 
 When load() is invoked with the argument string, it determines its length and parses it once with strtok\_r() in order to delimit the invoked function's name.
 The length's function here is two-fold.
@@ -28,16 +28,16 @@ Moreover, as we write characters directly, there is little space overhead and no
 One possible issue with this approach is its lack in flexibility; that is, if the calling convention ever changes, changing write\_args\_to\_stack() might be somewhat more cumbersome than other approaches to parsing arguments, however in comparison to other changes incurred by this change of standard, in our opinion this inconvenience is worth the performance gain.
 
 \subsection{Rationale}
-\paragraph{A3:} % (5 marks)
-Why does Pintos implement strtok\_r() but not strtok()?.
+\subsubsection*{Question A3} % (5 marks)
+\textit{Why does Pintos implement strtok\_r() but not strtok()?}
 
 strtok\_r and strtok provide very similar functionality: both parse a string into tokens defined by delimiters.
 However, where strtok\_r uses a third argument to keep track of its position in the string, strtok uses a static buffer (a static pointer to the position in the string), which makes it thread unsafe.
 
 Thread safety is very important in Pintos, as an interrupt can take place at any time, making thread unsafe processes dangerous. In the case of strtok, if its execution is interrupted by another process which also runs strtok, the static buffer will modified and corrupt the execution of the initial process. Therefore, it is impossible to guarantee that strtok will run correctly in Pintos.
 
-\paragraph{A4:} % (10 marks)
-In Pintos, the kernel separates commands into an executable name and arguments.  In Unix-like systems, the shell does this separation.  Identify at least two advantages of the Unix approach.
+\subsubsection*{Question A4} % (10 marks)
+\textit{In Pintos, the kernel separates commands into an executable name and arguments.  In Unix-like systems, the shell does this separation.  Identify at least two advantages of the Unix approach.}
 
 There are several advantages to parsing commands in the shell.
 First, 

@@ -1,9 +1,10 @@
 \section{System Calls}
 \subsection{Data Structures}
-\paragraph{B1:} % (10 marks)
+\subsubsection*{Question B1} % (10 marks)
 Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.
 
-\subparagraph{process.c global static variables}
+\paragraph{process.c:}
+\subparagraph{Global static variables}
 
 \begin{verbatim}
 /* The lock for the below hash table */
@@ -12,19 +13,20 @@ static struct lock process_info_lock;
    processes that exist. */
 static struct hash process_info_table;
 \end{verbatim}
-
-The `process\_info\_table' keeps tracks of process information. Each process's
-information is stored in a `process\_info' struct (see below). Hashes by pid.
+The `process\_info\_table' keeps track of the process\_info structs corresponding to each currently running process. Hashes by pid.
 
 \begin{verbatim}
 /* Used for allocating pids. */
 static struct lock next_pid_lock;
 \end{verbatim}
+Lock used when allocating pids. This static variable is local allocate\_pid ().
 
-This is only used for allocating pids. This is to lock a static variable that
-is local to the function that allocates the pids.
+\begin{verbatim}
+/* Lock used to synchronise filesystem operations in process.c and syscall.c. */
+static struct lock filesys_access;
+\end{verbatim}
 
-\subparagraph{process\_info}
+\subparagraph{Structures}
 
 \begin{verbatim}
 /* Data for a process used for syscalls. */
@@ -48,66 +50,26 @@ typedef struct process_info
   /* For placing process_info in hash table mapping pids to process_info. */
   struct hash_elem process_elem;
 
+  /* Cond to notify parent process that child process is finished loading. */
+  struct condition finish_load;
+  /* Pointer to lock held by parent. */
+  struct lock *reply_lock;
+
+  /* Provides unique files descriptors for process. */
   unsigned fd_counter;
+  /* Hash used to remember files open by process by their fd. */
   struct hash open_files;
 
 } process_info;
 \end{verbatim}
-
 `process\_info' represents various pieces of information attached to a process
 that needs to be saved.
 
 \begin{verbatim}
-  /* Process ID. */
-  pid_t pid;
-  /* ID of the thread owned by the process. */
-  tid_t tid;
-\end{verbatim}
-
-The pid of a process unique identifies the process, and the tid identifies the
-thread owned by the process.
-
-\begin{verbatim}
-  /* Exit status of process. */
-  int exit_status;
-\end{verbatim}
-
-Used by `syscall\_exit', this is the exit status of the process, set by the exit
-system call. It is initialized to -1.
-
-\begin{verbatim}
-  /* Lock to synchronise access to children hashtable. */
-  struct lock children_lock;
-  /* Tracks the process's children, running or terminated,
-     which have not been waited on. */
-  struct hash children;
-\end{verbatim}
-
-The `children' hash tracks the children of a process, using the pid to hash
-them.
-
-\begin{verbatim}
-  /* Pointer to parent's child_info struct. */
-  struct child_info *parent_child_info;
-\end{verbatim}
-
-This is a pointer to this thread's parent's `child\_info' struct (see below).
-
-\begin{verbatim}
-  /* For placing process_info in hash table mapping pids to process_info. */
-  struct hash_elem process_elem;
-\end{verbatim}
-
-This is used to place the process\_info into the static hash table
-`process\_info\_table'.
-
-\subparagraph{child\_info}
-
-\begin{verbatim}
 typedef struct child_info
 {
-  /* Child thread's ID, used when checking if a child belongs to a parent. */
-  tid_t tid;
+  /* Child process's ID, used when checking if a child belongs to a parent. */
+  pid_t pid;
   /* Exit status of thread. */
   int exit_status;
   /* Indicates whether the child process is still running. */
@@ -118,46 +80,72 @@ typedef struct child_info
   process_info *child_process_info;
   /* Hash elem to be placed into process_info's children hash. */
   struct hash_elem child_elem;
+  /* Lock to synchronise reads/writes to the child_info's fields. */
+  struct lock child_lock;
 
 } child_info;
 \end{verbatim}
 
-\paragraph{B2:} % (5 marks)
+\subsubsection*{Question B2} % (5 marks)
 Describe how file descriptors are associated with open files. Are file descriptors unique within the entire OS or just within a single process?
 
 \subsection{Algorithms}
-\paragraph{B3:} % (5 marks)
+\subsubsection*{Question B3} % (5 marks)
 Describe your code for reading and writing user data from the kernel.
 
-\paragraph{B4:} % (5 marks)
+\subsubsection*{Question B4} % (5 marks)
 Suppose a system call causes a full page (4,096 bytes) of data to be copied from user space into the kernel.  What is the least and the greatest possible number of inspections of the page table (e.g. calls to pagedir\_get\_page()) that might result?  What about for a system call that only copies 2 bytes of data?  Is there room for improvement in these numbers, and how much?
 
-\paragraph{B5:} % (5 marks)
+\subsubsection*{Question B5} % (5 marks)
 Briefly describe your implementation of the ``wait'' system call and how it interacts with process termination.
 
-Describe structures and their relations to each other - provide justification
-	Possibly insert diagram here
-3 points where code is inserted
-	process_exit - up the semaphore if there is one
+There are 3 main places where code has been inserted: in process creation (in process\_execute\_aux()), in process termination (in process\_exit()) and in process\_wait.
 
-\paragraph{B6:} % (5 marks)
+Upon process creation, the child's process\_info is created, and its child\_info is created and inserted into the current process's children hashtable. Both structures have their values initialised, and also point to each other through the parent\_child\_info and child\_process\_info pointers.
+
+Upon process termination, we need to inform both the process's parent and all its children. We first check whether the process still has a parent. This is indirectly determined by checking whether it still has a child\_info (by checking if parent\_child\_info is not NULL). If so, we update the child\_info's exit status and and running fields, thus indirectly informing the parent that its child has terminated. We also check whether the parent is waiting on the child to exit (by checking if wait\_for\_child is not NULL), and if so we up the semaphore and unblock the parent.
+
+We then inform all the process's children that their child\_info no longer exists, and we do this by setting the parent\_child\_info pointer in the child's process\_info to NULL when destroying the parent's children hashtable (in the children\_hash\_destroy() function).
+
+N.B. the signature of process\_wait() has been changed to take a pid as an argument. This is more intuitive since this function waits on a process (and thus indirectly on the process's thread), and also allows the children hashtable to be indexed by pid. If it were to be indexed by tid, calling the wait system call (which takes a pid) would have to look into the process\_info which matches that pid to retrieve its tid to pass to process\_wait(), which is not possible when the process\_info no longer exists i.e. after the process has terminated.
+
+When process\_wait() is called, it first looks in the current process's children hashtable whether it has a child with that pid. If not, then that process is either not a child, or it has already been waited on, but in either case -1 is returned. If it is found, then we must check whether it is still running. If so, we must create a semaphore, tell the child about this, and then wait for the child by blocking. After the child has exited (or if it was already finished), we then retrieve the exit status from the child\_info and return it. We also remove the child\_info from the children hashtable to ensure it cannot be waited on again.
+
+\subsubsection*{Question B6} % (5 marks)
 Any access to user program memory at a user-specified address can fail due to a bad pointer value.  Such accesses must cause the process to be terminated.  System calls are fraught with such accesses, e.g. a ``write'' system call requires reading the system call number from the user stack, then each of the call's three arguments, then an arbitrary amount of user memory, and any of these can fail at any point.  This poses a design and error-handling problem: how do you best avoid obscuring the primary function of code in a morass of error-handling?  Furthermore, when an error is detected, how do you ensure that all temporarily allocated resources (locks, buffers, etc.) are freed?  In a few paragraphs, describe the strategy or strategies you adopted for managing these issues.  Give an example.
 
 \subsection{Synchronization}
 
-\paragraph{B7:} % (5 marks)
-The ``exec'' system call returns -1 if loading the new executable fails, so it cannot return before the new executable has completed loading.  How does your code ensure this?  How is the load success/failure status passed back to the thread that calls ``exec''?
+\subsubsection*{Question B7} % (5 marks)
+\textit{The ``exec'' system call returns -1 if loading the new executable fails, so it cannot return before the new executable has completed loading.  How does your code ensure this?  How is the load success/failure status passed back to the thread that calls ``exec''?}
 
-\paragraph{B8:} % (5 marks)
-Consider parent process P with child process C.  How do you ensure proper synchronization and avoid race conditions when P calls wait(C) before C exits?  After C exits?  How do you ensure that all resources are freed in each case?  How about when P terminates without waiting, before C exits?  After C exits?  Are there any special cases?
+
+
+\subsubsection*{Question B8} % (5 marks)
+\textit{Consider parent process P with child process C.  How do you ensure proper synchronization and avoid race conditions when P calls wait(C) before C exits?  After C exits?  How do you ensure that all resources are freed in each case?  How about when P terminates without waiting, before C exits?  After C exits?  Are there any special cases?}
+
+
 
 \subsection{Rationale}
 
-\paragraph{B9:} % (5 marks)
-Why did you choose to implement access to user memory from the kernel in the way that you did?
+\subsubsection*{Question B9} % (5 marks)
+\textit{Why did you choose to implement access to user memory from the kernel in the way that you did?}
 
-\paragraph{B10:} % (5 marks)
-What advantages or disadvantages can you see to your design for file descriptors?
+\subsubsection*{Question B10} % (5 marks)
+\textit{What advantages or disadvantages can you see to your design for file descriptors?}
 
-\paragraph{B11:} % (5 marks)
+Our implementation of file descriptors (hereafter `fds') relies on a counter variable proper to each process\_info structure. Once opened, the file is stored in the open\_files hash inside process\_info, which hashes by file descriptor.
+
+Each time a file is opened, even if it is opened several times by the same process, it receives a new file descriptor. We do not keep track of the fds in use, which makes the system extremely lightweight and fast.
+
+The obvious downfall of this system is that it does not scale: the amount of distinct fds that can be generated throughout the lifetime of a process is limited by the size of `unsigned'. As we do not keep track of the fds in use, if the counter variable overflows, it is possible for a file to receive an fd that is already in use by another open file. Of course, this is not a concern for Pintos, as `unsigned' is 32 bits long and a process will run out of stack before it is able to open that many files.
+
+
+\subsubsection*{Question B11} % (5 marks)
 The default tid\_t to pid\_t mapping is the identity mapping. If you changed it, what advantages are there to your approach?
+
+Making pid\_t separate to tid\_t makes it easier in the future to have processes own multiple threads.
+
+We can also allocate pid\_t and tid\_t in any order this way.
+
+Both of these make future changes easier.

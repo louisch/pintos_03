@@ -31,7 +31,8 @@ typedef struct process_info
 
   /* Cond to notify parent process that child process is finished loading. */
   struct condition finish_load;
-  struct lock *reply_lock; /* Lock used for above condition. */
+  /* Pointer to lock held by parent. */
+  struct lock *reply_lock;
 
   /* Provides unique files descriptors for process. */
   unsigned fd_counter;
