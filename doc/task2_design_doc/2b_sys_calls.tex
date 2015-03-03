@@ -110,7 +110,18 @@ Given that fd\_counter is proper to each process, the file descriptors it genera
 
 \subsection{Algorithms}
 \subsubsection*{Question B3} % (5 marks)
-Describe your code for reading and writing user data from the kernel.
+\textit{Describe your code for reading and writing user data from the kernel.}
+
+Both the `read' and the `write' system calls share some similarities between their code.
+First of all, like all the other system calls, before they receive their arguments, we make sure that the arguments point to a valid point in memory.
+If the fd they were given is invalid, both functions would return 0.
+Next, both functions ensure that their buffers begin and end within user memory.
+
+In `write', if the fd supplied is 1, the buffer is output to command line in chunks of 256 bytes via the putbuf() function. Otherwise, the entire buffer is passed to file\_write\_at(). 
+
+In `read', the entire buffer is passed to file\_read\_at().
+
+In both cases, file\_seek() is then used to increment the position in the file by the amount of bytes written/read.
 
 \subsubsection*{Question B4} % (5 marks)
 Suppose a system call causes a full page (4,096 bytes) of data to be copied from user space into the kernel.  What is the least and the greatest possible number of inspections of the page table (e.g. calls to pagedir\_get\_page()) that might result?  What about for a system call that only copies 2 bytes of data?  Is there room for improvement in these numbers, and how much?
@@ -143,9 +154,6 @@ When an error is encoutered check\_pointer() will call thread\_exit(). In thread
 Then in thread\_exit() it removes the thread from the all threads list and releases all the held locks by this thread.
 
 For buffers, no memory is allocated until all these checks have completed. Therefore a bad pointer will not require any buffers to be deallocated as none have been created.
-
-
-\subsection{Synchronization}
 
 \subsubsection*{Question B7} % (5 marks)
 \textit{The ``exec'' system call returns -1 if loading the new executable fails, so it cannot return before the new executable has completed loading.  How does your code ensure this?  How is the load success/failure status passed back to the thread that calls ``exec''?}
