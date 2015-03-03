@@ -375,7 +375,7 @@ process_exit (void)
   if (p_c_info != NULL)
     {
       lock_acquire (&p_c_info->child_lock);
-      
+
       p_c_info->exit_status = exit_status;
       p_c_info->running = false;
 
@@ -384,7 +384,7 @@ process_exit (void)
         {
           sema_up (p_sema);
         }
-      
+
       lock_release (&p_c_info->child_lock);
     }
 
@@ -549,6 +549,7 @@ load (char *fn_args, void (**eip) (void), void **esp)
     }
   /* Deny write to opened executables. */
   file_deny_write (file);
+  process_add_file (file);
   process_release_filesys_lock ();
 
   /* Read and verify executable header. */
@@ -638,8 +639,6 @@ load (char *fn_args, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not.
      We also reallow writes to the files again. */
- if (file != NULL) file_allow_write (file);
-  file_close (file);
   return success;
 }
 
@@ -1001,6 +1000,12 @@ static void
 fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
   struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
+
+  /* Allow writes on the process's file so other processes can write to it. */
+  if (file_fd->file != NULL)
+    {
+      file_allow_write (file_fd->file);
+    }
 
   file_close (file_fd->file);
   free (file_fd);
