@@ -54,60 +54,16 @@ typedef struct process_info
 } process_info;
 \end{verbatim}
 
-`process\_info' represents various pieces of information attached to a process
-that needs to be saved.
-
-\begin{verbatim}
-  /* Process ID. */
-  pid_t pid;
-  /* ID of the thread owned by the process. */
-  tid_t tid;
-\end{verbatim}
-
-The pid of a process unique identifies the process, and the tid identifies the
-thread owned by the process.
-
-\begin{verbatim}
-  /* Exit status of process. */
-  int exit_status;
-\end{verbatim}
-
-Used by `syscall\_exit', this is the exit status of the process, set by the exit
-system call. It is initialized to -1.
-
-\begin{verbatim}
-  /* Lock to synchronise access to children hashtable. */
-  struct lock children_lock;
-  /* Tracks the process's children, running or terminated,
-     which have not been waited on. */
-  struct hash children;
-\end{verbatim}
-
-The `children' hash tracks the children of a process, using the pid to hash
-them.
-
-\begin{verbatim}
-  /* Pointer to parent's child_info struct. */
-  struct child_info *parent_child_info;
-\end{verbatim}
-
-This is a pointer to this thread's parent's `child\_info' struct (see below).
-
-\begin{verbatim}
-  /* For placing process_info in hash table mapping pids to process_info. */
-  struct hash_elem process_elem;
-\end{verbatim}
-
-This is used to place the process\_info into the static hash table
-`process\_info\_table'.
+`process\_info' represents various pieces of information attached to a running process
+that needs to be saved. The struct is destroyed upon process termination.
 
 \subparagraph{child\_info}
 
 \begin{verbatim}
 typedef struct child_info
 {
-  /* Child thread's ID, used when checking if a child belongs to a parent. */
-  tid_t tid;
+  /* Child process's ID, used when checking if a child belongs to a parent. */
+  pid_t pid;
   /* Exit status of thread. */
   int exit_status;
   /* Indicates whether the child process is still running. */
@@ -122,6 +78,8 @@ typedef struct child_info
 } child_info;
 \end{verbatim}
 
+The child\_info struct, stored in the parent process\_info's children hash, saves information about that process's children, even after its children's process\_infos have been destroyed.
+
 \paragraph{B2:} % (5 marks)
 Describe how file descriptors are associated with open files. Are file descriptors unique within the entire OS or just within a single process?
 
@@ -135,10 +93,17 @@ Suppose a system call causes a full page (4,096 bytes) of data to be copied from
 \paragraph{B5:} % (5 marks)
 Briefly describe your implementation of the ``wait'' system call and how it interacts with process termination.
 
-Describe structures and their relations to each other - provide justification
-	Possibly insert diagram here
-3 points where code is inserted
-	process_exit - up the semaphore if there is one
+There are 3 main places where code has been inserted: in process creation (in process\_execute\_aux()), in process termination (in process\_exit()) and in process\_wait.
+
+Upon process creation, the child's process\_info is created, and its child\_info is created and inserted into the current process's children hashtable. Both structures have their values initialised, and also point to each other through the parent\_child\_info and child\_process\_info pointers.
+
+Upon process termination, we need to inform both the process's parent and all its children. We first check whether the process still has a parent. This is indirectly determined by checking whether it still has a child\_info (by checking if parent\_child\_info is not NULL). If so, we update the child\_info's exit status and and running fields, thus indirectly informing the parent that its child has terminated. We also check whether the parent is waiting on the child to exit (by checking if wait\_for\_child is not NULL), and if so we up the semaphore and unblock the parent.
+
+We then inform all the process's children that their child\_info no longer exists, and we do this by setting the parent\_child\_info pointer in the child's process\_info to NULL when destroying the parent's children hashtable (in the children\_hash\_destroy() function).
+
+N.B. the signature of process\_wait() has been changed to take a pid as an argument. This is more intuitive since this function waits on a process (and thus indirectly on the process's thread), and also allows the children hashtable to be indexed by pid. If it were to be indexed by tid, calling the wait system call (which takes a pid) would have to look into the process\_info which matches that pid to retrieve its tid to pass to process\_wait(), which is not possible when the process\_info no longer exists i.e. after the process has terminated.
+
+When process\_wait() is called, it first looks in the current process's children hashtable whether it has a child with that pid. If not, then that process is either not a child, or it has already been waited on, but in either case -1 is returned. If it is found, then we must check whether it is still running. If so, we must create a semaphore, tell the child about this, and then wait for the child by blocking. After the child has exited (or if it was already finished), we then retrieve the exit status from the child\_info and return it. We also remove the child\_info from the children hashtable to ensure it cannot be waited on again.
 
 \paragraph{B6:} % (5 marks)
 Any access to user program memory at a user-specified address can fail due to a bad pointer value.  Such accesses must cause the process to be terminated.  System calls are fraught with such accesses, e.g. a ``write'' system call requires reading the system call number from the user stack, then each of the call's three arguments, then an arbitrary amount of user memory, and any of these can fail at any point.  This poses a design and error-handling problem: how do you best avoid obscuring the primary function of code in a morass of error-handling?  Furthermore, when an error is detected, how do you ensure that all temporarily allocated resources (locks, buffers, etc.) are freed?  In a few paragraphs, describe the strategy or strategies you adopted for managing these issues.  Give an example.
@@ -150,6 +115,8 @@ The ``exec'' system call returns -1 if loading the new executable fails, so it c
 
 \paragraph{B8:} % (5 marks)
 Consider parent process P with child process C.  How do you ensure proper synchronization and avoid race conditions when P calls wait(C) before C exits?  After C exits?  How do you ensure that all resources are freed in each case?  How about when P terminates without waiting, before C exits?  After C exits?  Are there any special cases?
+
+
 
 \subsection{Rationale}
 
