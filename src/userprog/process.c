@@ -369,9 +369,10 @@ process_exit (void)
      unblock it if necessary. */
   child_info *p_c_info = process_current ()->parent_child_info;
 
-  lock_acquire (&p_c_info->child_lock);
   if (p_c_info != NULL)
     {
+      lock_acquire (&p_c_info->child_lock);
+      
       p_c_info->exit_status = exit_status;
       p_c_info->running = false;
 
@@ -380,8 +381,9 @@ process_exit (void)
         {
           sema_up (p_sema);
         }
+      
+      lock_release (&p_c_info->child_lock);
     }
-  lock_release (&p_c_info->child_lock);
 
   /* Remove process from process_info_table hashtable. */
   hash_delete (&process_info_table, &proc->process_elem);
