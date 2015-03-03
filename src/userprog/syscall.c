@@ -135,7 +135,7 @@ check_pointer (const uint32_t *uaddr, size_t size)
     thread_exit ();
   const uint8_t *start = (uint8_t *) uaddr;
   const uint8_t *pos;
-  for (pos = start; pos >= start && pos < size + start; pos++)
+  for (pos = start; pos < start + size; pos++)
     {
       if (!is_user_vaddr (pos)
           || (pagedir_get_page (thread_current ()->pagedir, pos) == NULL))
