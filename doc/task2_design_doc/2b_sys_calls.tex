@@ -139,6 +139,10 @@ two bytes also only takes two inspections, as we check the pointer to the first
 byte, and the pointer to the second byte. This is because we check by byte, not
 by word.
 
+Switching to letting the hardware do the check for us could potentially reduce
+the number of inspections to zero, though we did not implement this so we would
+not know.
+
 \subsubsection*{Question B5} % (5 marks)
 \textit{Briefly describe your implementation of the ``wait'' system call and how it interacts with process termination.}
 
