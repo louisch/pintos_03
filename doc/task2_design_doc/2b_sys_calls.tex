@@ -129,6 +129,16 @@ In both cases, file\_seek() is then used to increment the position in the file b
 \subsubsection*{Question B4} % (5 marks)
 \textit{Suppose a system call causes a full page (4,096 bytes) of data to be copied from user space into the kernel.  What is the least and the greatest possible number of inspections of the page table (e.g. calls to pagedir\_get\_page()) that might result?  What about for a system call that only copies 2 bytes of data?  Is there room for improvement in these numbers, and how much?}
 
+During system calls, the only time that the page table is inspected is when
+pointers need to be checked.  Each time a check\_pointer() is called,
+pagedir\_get\_page() is called once.
+
+Checking the entire page would only involve two inspections, as we simply check
+the pointer to the beginning of the data, and the pointer to the end.  Checking
+two bytes also only takes two inspections, as we check the pointer to the first
+byte, and the pointer to the second byte. This is because we check by byte, not
+by word.
+
 \subsubsection*{Question B5} % (5 marks)
 \textit{Briefly describe your implementation of the ``wait'' system call and how it interacts with process termination.}
 
@@ -190,6 +200,17 @@ There is one special case which is where the first user process exits. Even thou
 
 \subsubsection*{Question B9} % (5 marks)
 \textit{Why did you choose to implement access to user memory from the kernel in the way that you did?}
+
+For simplicity, we chose the simple way of using a function to check each
+pointer fully before we dereference it.
+
+There were many more difficult problems to tackle this time round, so we chose
+to save on time where we could. We ended up having to spend a large amount of
+time debugging, so this decision turned out quite well.
+
+We reasoned that the optimization would only be faster by a constant factor
+algorithmically (for each check, we only check 2 pointers, which is a constant),
+so would not be very noticeable anyway.
 
 \subsubsection*{Question B10} % (5 marks)
 \textit{What advantages or disadvantages can you see to your design for file descriptors?}
