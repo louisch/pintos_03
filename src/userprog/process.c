@@ -190,6 +190,8 @@ start_process (void *file_name_)
   if (reply_lock != NULL)
     { /* Parent thread requested to be notified when load finishes. */
       lock_acquire (reply_lock);
+      if (!success)
+        process_current ()->parent_child_info->pid = -1;
       cond_broadcast (&process_current ()->finish_load, reply_lock);
       lock_release (reply_lock);
     }
@@ -367,7 +369,7 @@ process_exit (void)
   int exit_status = proc->exit_status;
   /* If process_current still has a parent, send it status information and
      unblock it if necessary. */
-  child_info *p_c_info = process_current ()->parent_child_info;
+  child_info *p_c_info = proc->parent_child_info;
 
   if (p_c_info != NULL)
     {
