@@ -41,6 +41,7 @@ typedef struct process_info
 
 } process_info;
 
+/* Data about a process's child, carried by the parent process_info. */
 typedef struct child_info
 {
   /* Child process's ID, used when checking if a child belongs to a parent. */
