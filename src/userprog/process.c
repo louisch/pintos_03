@@ -633,7 +633,7 @@ load (char *fn_args, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not.
      We also reallow writes to the files again. */
-  file_allow_write (file);
+ if (file != NULL) file_allow_write (file);
   file_close (file);
   return success;
 }
