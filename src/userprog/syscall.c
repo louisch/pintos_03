@@ -187,7 +187,7 @@ syscall_exec (const char *cmd_line)
 {
   pid_t ret = -1;
   if (cmd_line == NULL)
-    return -1;
+    return PID_ERROR;
 
   struct lock reply_lock;
   lock_init (&reply_lock);
