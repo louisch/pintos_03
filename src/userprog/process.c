@@ -190,7 +190,7 @@ start_process (void *file_name_)
   if (reply_lock != NULL)
     { /* Parent thread requested to be notified when load finishes. */
       lock_acquire (reply_lock);
-      if (!success)
+      if (!success) // HAXX - need better structure than child info
         process_current ()->parent_child_info->pid = -1;
       cond_broadcast (&process_current ()->finish_load, reply_lock);
       lock_release (reply_lock);
@@ -388,9 +388,10 @@ process_exit (void)
       lock_release (&p_c_info->child_lock);
     }
 
+  lock_acquire (&process_info_lock);
   /* Remove process from process_info_table hashtable. */
   hash_delete (&process_info_table, &proc->process_elem);
-
+  lock_release (&process_info_lock);
   /* Orphan all children, free all child_infos and destroy the children and fd
      hashtable. Also free the process_info itself. */
   process_info_free (proc);
@@ -500,13 +501,9 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
-static void write_args_to_stack (void **esp, const char *args, int arg_length);
+static bool put_args_on_stack (void **esp, const char *args, int arg_length);
 
-const char* delimiters = " \n\t\0";
-
-/* Size limit in bytes for command line arguments.
-  Equals approximately two thrids of stack page size. */
-static int arg_size_limit = 3052;
+static const char* delimiters = " \n\t\0";
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -526,11 +523,6 @@ load (char *fn_args, void (**eip) (void), void **esp)
   int arg_length = strlen (fn_args);
   const char* file_name = strtok_r (NULL, delimiters, &fn_args);
 
-  if (arg_length > arg_size_limit)
-    {
-      printf ("load: %s: argument lists exceeds size limit\n", file_name);
-      goto done;
-    }
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL)
@@ -629,12 +621,10 @@ load (char *fn_args, void (**eip) (void), void **esp)
     goto done;
 
   /* Set up command arguments on stack. */
-  write_args_to_stack (esp, file_name, arg_length);
+  success = put_args_on_stack (esp, file_name, arg_length);
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
-
-  success = true;
 
  done:
   /* We arrive here whether the load is successful or not.
@@ -643,12 +633,14 @@ load (char *fn_args, void (**eip) (void), void **esp)
 }
 
 /* Writes arguments to stack according to the calling convention.
-   Note that the caller already guarantees that the argv_string
+   Note that the caller already guarantees that the arg_string
    actually contains arguments. */
-static void
-write_args_to_stack (void **esp, const char *argv_string, int arg_length)
+static bool
+put_args_on_stack (void **esp, const char *arg_string, int arg_length)
 {
-  ASSERT (argv_string != NULL && arg_length > 0);
+  ASSERT (arg_string != NULL && arg_length > 0);
+
+  bool success = false;
 
   int read = arg_length ? arg_length - 1 : arg_length;
   char *esp_char = *esp;
@@ -656,15 +648,21 @@ write_args_to_stack (void **esp, const char *argv_string, int arg_length)
   uint32_t argv[arg_length/2 + 1];
   uint32_t argc = 0;
 
-  while (read >= 0)
+  while (read >= 0 && (void *) esp_char <= PHYS_BASE)
     {
       /* Skip delimiter characters. */
-      while (read >= 0 && strchr (delimiters, argv_string[read]) != NULL)
+      while (read >= 0 && strchr (delimiters, arg_string[read]) != NULL)
+        {
           --read;
-      /* Write characters from argv_string onto stack. */
-      *--esp_char = '\0';
-      while (read >= 0 && strchr (delimiters, argv_string[read]) == NULL)
-          *--esp_char = argv_string[read--];
+        }
+      /* Write characters from arg_string onto stack. */
+      --esp_char;
+      *esp_char = '\0';
+      while (read >= 0 && strchr (delimiters, arg_string[read]) == NULL
+                       && (void *) esp_char <= PHYS_BASE)
+        {
+            *--esp_char = arg_string[read--];
+        }
       /* Remember position of first character of the argument. */
       argv[argc++] = (uint32_t) esp_char;
     }
@@ -672,10 +670,21 @@ write_args_to_stack (void **esp, const char *argv_string, int arg_length)
   /* Word-align esp address. */
   uint8_t *esp_fill = (uint8_t *) esp_char;
   while ((uint32_t) esp_fill % (uint32_t) 8 != 0)
+  {
     *--esp_fill = 0;
+  }
+
+  uint32_t *esp_pointer = (uint32_t *) esp_fill;
+  /* Check that we have enough space to fit all remaining relevant information
+     to the stack.  The first 4 is the amount of extra arguments on top of the
+     pointers to argv, while the second 4 is the size of each pointer. */
+  if ((uint32_t) esp_pointer < (argc + 4) * 4
+       || (void *) esp_pointer > PHYS_BASE)
+  {
+    return success;
+  }
 
   /* Add pointer addresses to arguments. */
-  uint32_t *esp_pointer = (uint32_t *) esp_fill;
   /* argv[argc] = nullptr */
   *--esp_pointer = 0;
   uint32_t i;
@@ -694,6 +703,9 @@ write_args_to_stack (void **esp, const char *argv_string, int arg_length)
 
   /* Set esp pointer to bottom of stack. */
   *esp = esp_pointer;
+
+  success = true;
+  return success;
 }
 
 /* load() helpers. */
