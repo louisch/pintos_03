@@ -21,6 +21,11 @@
 #include "userprog/process.h"
 
 #define ABNORMAL_IO_VALUE -1
+#define STDIN 0
+#define STDOUT 1
+
+/* Max buffer size for reasonable console writes. */
+static unsigned console_write_size = 256;
 
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
@@ -128,7 +133,7 @@ syscall_handler (struct intr_frame *frame)
 
 }
 
-/* Checks whether a given range in memory (starting from uaddr to uaddr + size)
+/* Checks whether a given range in memory (starting from uaddr to uaddr+size-1)
    is safe to deference, i.e. whether it lies below PHYS_BASE and points to
    mapped user virtual memory. */
 static const void *
@@ -142,23 +147,23 @@ check_pointer (const uint32_t *uaddr, size_t size)
     {
       return uaddr;
     }
-  const uint8_t *start = (uint8_t *) uaddr;
-  const uint8_t *end = start + size - 1;
-  if ((!is_user_vaddr (start)
-        || (pagedir_get_page (thread_current ()->pagedir, start) == NULL))
-      &&
-      (!is_user_vaddr (end)
-        || (pagedir_get_page (thread_current ()->pagedir, end) == NULL)))
+  uint8_t *start = (uint8_t *) uaddr;
+  uint8_t *next = start;
+  for (; next < start + size; ++next)
     {
-      /* uaddr is unsafe. */
-      thread_exit ();
-      /* Release other syscall-related resources here. */
+      if (!is_user_vaddr (start)
+          || (pagedir_get_page (thread_current ()->pagedir, start) == NULL))
+        {
+          /* uaddr is unsafe. */
+          thread_exit ();
+          /* Release other syscall-related resources here. */
+        }
     }
   /* uaddr is safe (points to mapped user virtual memory). */
   return uaddr;
 }
 
-/* TODO: Add comment */
+/* Verifies that the given filename points to a valid space in memory. */
 static const char *
 check_filename (const char *filename)
 {
@@ -216,12 +221,13 @@ syscall_exec (const char *cmd_line)
     = process_execute_aux (cmd_line, &reply_lock);
   child_info *c_info = info->parent_child_info;
   if (info != NULL)
-  {
-    /* Wait for child process to signal that it finished loading. */
-    cond_wait (&info->finish_load, &reply_lock);
-  }
+    {
+      /* Wait for child process to signal that it finished loading. */
+      cond_wait (&info->finish_load, &reply_lock);
+      /* Note that child info persists even if child process already exited. */
+      ret = c_info->pid;
+    }
   lock_release (&reply_lock);
-  ret = c_info->pid;
   return ret;
 }
 
@@ -299,7 +305,7 @@ syscall_read (int fd, void *buffer, unsigned size)
 {
   check_pointer (buffer, size);
   int ret = ABNORMAL_IO_VALUE;
-  if (fd < 2)
+  if (fd == STDIN || fd == STDOUT || fd < 0)
     {
       return ret; /* Bad fd. */
     }
@@ -315,9 +321,6 @@ syscall_read (int fd, void *buffer, unsigned size)
   return ret;
 }
 
-/* Max buffer size for reasonable console writes. */
-static unsigned console_write_size = 256;
-
 /*
   Writes size bytes from buffer to open file fd.
   Returns number of bytes written.
@@ -328,11 +331,11 @@ static unsigned console_write_size = 256;
 static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
-  if (fd < 1) return 0; /* Bad fd. */
+  if (fd == STDIN || fd < 0) return 0; /* Bad fd. */
   check_pointer (buffer, size);
   int written;
 
-  if (fd == 1)
+  if (fd == STDOUT)
     {
       char *buff = (char *) buffer;
       while (size > 0)
