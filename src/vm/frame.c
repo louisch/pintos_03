@@ -1,11 +1,12 @@
+#include <vm/frame.h>
+
+#include <debug.h>
 #include <stdint.h>
 
 #include <lib/kernel/hash.h>
 #include <threads/malloc.h>
 #include <threads/palloc.h>
 #include <threads/synch.h>
-
-#include <vm/frame.h>
 
 /* Meta-data about a frame. A frame is a physical storage unit in memory,
    page-aligned, and page-sized. Pages are stored in frames, though their
@@ -111,6 +112,5 @@ static struct frame *
 frame_from_elem (const struct hash_elem *e)
 {
   ASSERT(e != NULL);
-
   return hash_entry (e, struct frame, frame_elem);
 }
