@@ -145,7 +145,7 @@ process_execute_aux (const char *file_name, struct lock *lock)
   char *fn_copy;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
+  fn_copy = palloc_get_page (PAL_NONE);
   if (fn_copy == NULL)
     return NULL;
   strlcpy (fn_copy, file_name, PGSIZE);
@@ -792,7 +792,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Get a page of memory. */
       /* TODO: Change this entire function to lazy load pages */
-      uint8_t *kpage = request_frame ();
+      uint8_t *kpage = request_frame (PAL_NONE);
       if (kpage == NULL)
         return false;
 
@@ -827,7 +827,7 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = request_zeroed_frame ();
+  kpage = request_frame (PAL_ZERO);
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);

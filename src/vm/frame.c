@@ -16,7 +16,6 @@ struct frame
   void *kpage; /* The kernel virtual address of the frame. */
 };
 
-static void *request_frame_flagged (enum palloc_flags flags);
 static struct frame *allocated_find_frame (void *kpage);
 static unsigned allocated_hash_func (const struct hash_elem *e, void *aux UNUSED);
 static bool allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
@@ -39,25 +38,12 @@ frame_init (void)
    Returns the kernel virtual address of the frame. A user virtual address can
    be mapped to this address in the page table. */
 void *
-request_frame (void)
-{
-  return request_frame_flagged (PAL_USER);
-}
-
-/* Same as request_frame, but frame is zeroed out. */
-void *
-request_zeroed_frame (void)
-{
-  return request_frame_flagged (PAL_USER | PAL_ZERO);
-}
-
-static void *
-request_frame_flagged (enum palloc_flags flags)
+request_frame (enum palloc_flags additional_flags)
 {
   /* For now, just panic (with PAL_ASSERT) if no page can
      be fetched. TODO: Implement eviction so this doesn't
      need to happen. */
-  void *page = palloc_get_page (flags | PAL_ASSERT);
+  void *page = palloc_get_page (additional_flags | PAL_USER | PAL_ASSERT);
 
   struct frame *frame = calloc (1, sizeof *frame);
   frame->kpage = page;
