@@ -21,6 +21,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/frame.h"
 
 #define ABNORMAL_EXIT_STATUS -1
 
@@ -199,6 +200,7 @@ start_process (void *file_name_)
   struct thread *t = thread_current ();
   strlcpy (t->name, file_name, sizeof t->name);
   /* If load failed, quit. */
+  /* This file_name is allocated above in process_execute_aux. */
   palloc_free_page (file_name);
   if (!success)
     thread_exit ();
@@ -789,14 +791,15 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
+      /* TODO: Change this entire function to lazy load pages */
+      uint8_t *kpage = request_frame ();
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
-          palloc_free_page (kpage);
+          free_frame (kpage);
           return false;
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -804,7 +807,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable))
         {
-          palloc_free_page (kpage);
+          free_frame (kpage);
           return false;
         }
 
@@ -824,14 +827,21 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+  kpage = request_zeroed_frame ();
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        {
+          *esp = PHYS_BASE;
+        }
       else
-        palloc_free_page (kpage);
+        {
+          /* Frame needs to be freed manually.
+             TODO: When supplementary page table is ready, use that to free
+             all pages. */
+          free_frame (kpage);
+        }
     }
   return success;
 }
