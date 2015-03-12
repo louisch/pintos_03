@@ -791,6 +791,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
+      /* TODO: Change this entire function to lazy load pages */
       uint8_t *kpage = request_frame ();
       if (kpage == NULL)
         return false;
@@ -831,9 +832,16 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        {
+          *esp = PHYS_BASE;
+        }
       else
-        free_frame (kpage);
+        {
+          /* Frame needs to be freed manually.
+             TODO: When supplementary page table is ready, use that to free
+             all pages. */
+          free_frame (kpage);
+        }
     }
   return success;
 }
