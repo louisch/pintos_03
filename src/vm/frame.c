@@ -105,6 +105,8 @@ static unsigned
 allocated_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
   uint32_t *kpage = (uint32_t *)frame_from_elem (e)->kpage;
+  /* sizeof returns how many bytes kpage, the pointer itself (not what it is
+     pointing to), takes up. */
   return hash_bytes (kpage, sizeof kpage);
 }
 
