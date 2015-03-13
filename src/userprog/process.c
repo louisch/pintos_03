@@ -22,6 +22,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "vm/frame.h"
+#include "vm/supp_page.h"
 
 #define ABNORMAL_EXIT_STATUS -1
 
@@ -177,6 +178,11 @@ process_execute_aux (const char *file_name, struct lock *lock)
 static void
 start_process (void *file_name_)
 {
+  struct thread *t = thread_current ();
+#ifdef VM
+  supp_page_table_init (&t->supp_page_table);
+#endif
+
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -197,7 +203,6 @@ start_process (void *file_name_)
       lock_release (reply_lock);
     }
 
-  struct thread *t = thread_current ();
   strlcpy (t->name, file_name, sizeof t->name);
   /* If load failed, quit. */
   /* This file_name is allocated above in process_execute_aux. */

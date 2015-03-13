@@ -9,6 +9,9 @@
 #ifdef USERPROG
 #include <user/syscall.h>
 #endif
+#ifdef VM
+#include <vm/supp_page.h>
+#endif
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -130,6 +133,9 @@ struct thread
     pid_t owning_pid;
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+#endif
+#ifdef VM
+    struct supp_page_table supp_page_table;
 #endif
 
     /* Owned by thread.c. */

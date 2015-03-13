@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <lib/kernel/hash.h>
 
+#include <filesys/file.h>
+#include <filesys/off_t.h>
+
 /* The supplementary page table keeps track of additional information on each
    page that the page table (in pagedir.h) cannot.
 
@@ -23,18 +26,36 @@ struct supp_page_table
 /* An entry in the supplementary page table.
 
    This is where the data for each page in the supplementary page table is
-   stored. */
+   stored.
+
+   Pages may have originated from a file (they are read from a file into
+   memory). If they did not, then the file field will be set to NULL. */
 struct supp_page_entry
 {
   struct hash_elem supp_elem; /* For placing this into a supp_page_table. */
   void *uaddr; /* The virtual user address of this page. */
+
+  /* File data fields */
+  struct file *file; /* The file that this page is read from. NULL if not a file. */
+  off_t offset; /* Offset amount into the file that this page starts at. */
+  /* We will read PAGE_READ_BYTES bytes from FILE
+     and zero the final PAGE_ZERO_BYTES bytes. */
+  size_t page_read_bytes;
+  size_t page_zero_bytes;
+
+  /* Other properties */
   bool writable; /* Whether this page is writable or not. */
-  bool all_zeroes; /* Whether this page is filled with zeroes. */
 };
 
 void supp_page_table_init (struct supp_page_table *supp_page_table);
-struct supp_page_entry *create_entry (struct supp_page_table *supp_page_table,
-                                      void *uaddr, bool writable, bool all_zeroes);
-void *map_user_addr (uint32_t *pd, struct supp_page_entry *entry);
+struct supp_page_entry *supp_page_create_entry (struct supp_page_table *supp_page_table,
+                                                void *uaddr, bool writable);
+struct supp_page_entry *supp_page_set_file_data (struct supp_page_entry *entry,
+                                                 struct file *file,
+                                                 size_t page_read_bytes,
+                                                 size_t page_zero_bytes);
+void *supp_page_map_entry (uint32_t *pd, struct supp_page_entry *entry);
+struct supp_page_entry *supp_page_lookup (struct supp_page_table *supp_page_table,
+                                          void *uaddr);
 
 #endif

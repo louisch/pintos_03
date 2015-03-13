@@ -3,11 +3,16 @@
 #include <debug.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <lib/kernel/hash.h>
 
+#include <filesys/file.h>
+#include <filesys/off_t.h>
 #include <threads/malloc.h>
 #include <threads/palloc.h>
+#include <threads/vaddr.h>
 #include <userprog/pagedir.h>
+#include <userprog/read_page.h>
 #include <vm/frame.h>
 
 static unsigned supp_page_hash_func (const struct hash_elem *e, void *aux UNUSED);
@@ -26,31 +31,63 @@ supp_page_table_init (struct supp_page_table *supp_page_table)
 
 /* Allocates a new supplementary page table entry, and insert it into the hash. */
 struct supp_page_entry *
-create_entry (struct supp_page_table *supp_page_table,
-              void *uaddr, bool writable, bool all_zeroes)
+supp_page_create_entry (struct supp_page_table *supp_page_table,
+                        void *uaddr, bool writable)
 {
   struct supp_page_entry *entry = calloc (1, sizeof *entry);
   entry->uaddr = uaddr;
+  entry->file = NULL;
+  entry->offset = 0;
   entry->writable = writable;
-  entry->all_zeroes = all_zeroes;
 
   hash_insert (&supp_page_table->table, &entry->supp_elem);
   return entry;
 }
 
+/* Sets data for a page that is read from a file. */
+struct supp_page_entry *
+supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
+                         size_t page_read_bytes, size_t page_zero_bytes)
+{
+  entry->file = file;
+  entry->page_read_bytes = page_read_bytes;
+  entry->page_zero_bytes = page_zero_bytes;
+  return entry;
+}
+
 /* Try to get a frame and map entry->upage to this frame in the page table. */
 void *
-map_user_addr (uint32_t *pd, struct supp_page_entry *entry)
+supp_page_map_entry (uint32_t *pd, struct supp_page_entry *entry)
 {
   enum palloc_flags flags = PAL_USER;
-  if (entry->all_zeroes)
+  bool all_zeroes = entry->page_zero_bytes == PGSIZE;
+  if (all_zeroes)
     {
       flags = flags & PAL_ZERO;
     }
 
   void *kpage = request_frame (flags);
+  bool success = true;
+  if (!all_zeroes)
+    {
+      success = read_page (kpage, entry->file,
+                           entry->page_read_bytes, entry->page_zero_bytes);
+    }
+
   pagedir_set_page (pd, entry->uaddr, kpage, entry->writable);
   return kpage;
+}
+
+/* Looks up a user virtual address in the supplementary page table.
+   Returns NULL if no entry can be found. */
+struct supp_page_entry *
+supp_page_lookup (struct supp_page_table *supp_page_table, void *uaddr)
+{
+  struct supp_page_entry for_hashing;
+  for_hashing.uaddr = pg_round_down (uaddr);
+  struct hash_elem *found = hash_find (&supp_page_table->table,
+                                       &for_hashing.supp_elem);
+  return found == NULL ? NULL : supp_page_from_elem (found);
 }
 
 /* Used for setting up the hash table. Gets hash value for hash elements. */
@@ -60,7 +97,7 @@ supp_page_hash_func (const struct hash_elem *e, void *aux UNUSED)
   uint32_t *uaddr = (uint32_t *)supp_page_from_elem (e)->uaddr;
   /* sizeof returns how many bytes uaddr, the pointer itself (not what it is
      pointing to), takes up. */
-  return hash_bytes (uaddr, sizeof uaddr);
+  return hash_bytes (&uaddr, sizeof uaddr);
 }
 
 /* Used for setting up hash table. Orders hash elements. */
