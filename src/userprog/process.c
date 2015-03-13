@@ -791,15 +791,23 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
+#ifndef VM
+      uint8_t *kpage = palloc_get_page (PAL_USER);
+#else
       /* TODO: Change this entire function to lazy load pages */
       uint8_t *kpage = request_frame (PAL_NONE);
+#endif
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
+#ifndef VM
+          palloc_free_page (kpage);
+#else
           free_frame (kpage);
+#endif
           return false;
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -807,7 +815,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable))
         {
+#ifndef VM
+          palloc_free_page (kpage);
+#else
           free_frame (kpage);
+#endif
           return false;
         }
 
@@ -827,7 +839,11 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
+#ifndef VM
+  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+#else
   kpage = request_frame (PAL_ZERO);
+#endif
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
@@ -837,10 +853,14 @@ setup_stack (void **esp)
         }
       else
         {
+#ifndef VM
+          palloc_free_page (kpage);
+#else
           /* Frame needs to be freed manually.
              TODO: When supplementary page table is ready, use that to free
              all pages. */
           free_frame (kpage);
+#endif
         }
     }
   return success;
