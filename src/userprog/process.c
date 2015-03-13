@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/read_page.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -798,35 +800,27 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Get a page of memory. */
 #ifndef VM
       uint8_t *kpage = palloc_get_page (PAL_USER);
-#else
-      /* TODO: Change this entire function to lazy load pages */
-      uint8_t *kpage = request_frame (PAL_NONE);
-#endif
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+      if (!read_page (kpage, page_read_bytes, read_zero_bytes))
         {
-#ifndef VM
-          palloc_free_page (kpage);
-#else
-          free_frame (kpage);
-#endif
           return false;
         }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable))
         {
-#ifndef VM
           palloc_free_page (kpage);
-#else
-          free_frame (kpage);
-#endif
           return false;
         }
+#else
+      struct thread *t = thread_current ();
+      supp_page_set_file_data (supp_page_create_entry (&t->supp_page_table, upage,
+                                                       writable),
+                               file, page_read_bytes, page_zero_bytes);
+#endif
 
       /* Advance. */
       read_bytes -= page_read_bytes;
