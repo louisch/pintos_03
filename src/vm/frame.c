@@ -95,7 +95,7 @@ allocated_find_frame (void *kpage)
 static unsigned
 allocated_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  uint32_t *kpage = (uint32_t *)frame_from_elem (e)->kpage;
+  void *kpage = frame_from_elem (e)->kpage;
   /* sizeof returns how many bytes kpage, the pointer itself (not what it is
      pointing to), takes up. */
   return hash_bytes (&kpage, sizeof kpage);
@@ -106,8 +106,8 @@ static bool
 allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
                      void *aux UNUSED)
 {
-  uint32_t *kpage_a = (uint32_t *)frame_from_elem (a)->kpage;
-  uint32_t *kpage_b = (uint32_t *)frame_from_elem (b)->kpage;
+  void *kpage_a = frame_from_elem (a)->kpage;
+  void *kpage_b = frame_from_elem (b)->kpage;
   return kpage_a < kpage_b;
 }
 
@@ -115,6 +115,6 @@ allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
 static struct frame *
 frame_from_elem (const struct hash_elem *e)
 {
-  ASSERT(e != NULL);
+  ASSERT (e != NULL);
   return hash_entry (e, struct frame, frame_elem);
 }

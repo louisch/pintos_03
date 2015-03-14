@@ -104,7 +104,7 @@ supp_page_lookup (struct supp_page_table *supp_page_table, void *uaddr)
 static unsigned
 supp_page_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  uint32_t *uaddr = (uint32_t *)supp_page_from_elem (e)->uaddr;
+  void *uaddr = supp_page_from_elem (e)->uaddr;
   /* sizeof returns how many bytes uaddr, the pointer itself (not what it is
      pointing to), takes up. */
   return hash_bytes (&uaddr, sizeof uaddr);
@@ -115,8 +115,8 @@ static bool
 supp_page_less_func (const struct hash_elem *a, const struct hash_elem *b,
                      void *aux UNUSED)
 {
-  uint32_t *upage_a = (uint32_t *)supp_page_from_elem (a)->uaddr;
-  uint32_t *upage_b = (uint32_t *)supp_page_from_elem (b)->uaddr;
+  void *upage_a = supp_page_from_elem (a)->uaddr;
+  void *upage_b = supp_page_from_elem (b)->uaddr;
   return upage_a < upage_b;
 }
 
