@@ -136,6 +136,8 @@ struct thread
 #endif
 #ifdef VM
     struct supp_page_table supp_page_table;
+
+    unsigned num_pages_in_stack;
 #endif
 
     /* Owned by thread.c. */
