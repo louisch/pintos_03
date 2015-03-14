@@ -98,6 +98,7 @@ main (void)
   palloc_init (user_page_limit);
   malloc_init ();
   paging_init ();
+  process_create_process_info (thread_current ());
 
   /* Segmentation. */
 #ifdef USERPROG
@@ -286,12 +287,7 @@ run_task (char **argv)
 
   printf ("Executing '%s':\n", task);
 #ifdef USERPROG
-  process_info *p_info = process_create_process_info ();
-  /* Set these manually. Normally, this is done from process_execute, but as
-     this root process is not started by process_execute, it must be done
-     manually.*/
-  thread_current ()->p_info = p_info;
-
+  // process_create_process_info(thread_current ());
   process_wait (process_execute_pid (task));
 #else
   run_test (task);

@@ -71,7 +71,7 @@ static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *t, const char *name, int priority,
-                         process_info *p_info, bool set_tid);
+                         bool set_tid);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -103,7 +103,7 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT, NULL, false);
+  init_thread (initial_thread, "main", PRI_DEFAULT, false);
   initial_thread->status = THREAD_RUNNING;
   if (thread_mlfqs)
     {
@@ -162,6 +162,16 @@ thread_print_stats (void)
           idle_ticks, kernel_ticks, user_ticks);
 }
 
+/* Returns tid of newly created thread. */
+tid_t
+thread_create (const char *name, int priority,
+               thread_func *function, void *aux)
+{
+  child_info *c_info = thread_create_thread (name, priority, function, aux);
+
+  return c_info == NULL ? TID_ERROR : c_info->tid;
+}
+
 /* Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
@@ -178,20 +188,10 @@ thread_print_stats (void)
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3.
 
-   This will initialize the thread's p_info to the given p_info (can be NULL).*/
-tid_t
-thread_create (const char *name, int priority,
-               thread_func *function, void *aux)
-{
-  return thread_create_with_infos (name, priority, function, aux, NULL);
-}
-
-/* Create a thread and return a pointer to it. This is NULL if the thread
-   could not be created. */
-tid_t
-thread_create_with_infos (const char *name, int priority,
-                          thread_func *function, void *aux,
-                          process_info *p_info)
+   This will initialize the thread's p_info if USERPROG is defined. */
+struct child_info*
+thread_create_thread (const char *name, int priority,
+                      thread_func *function, void *aux)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -204,10 +204,10 @@ thread_create_with_infos (const char *name, int priority,
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL)
-    return TID_ERROR;
+    return NULL;
 
   /* Initialize thread. */
-  init_thread (t, name, priority, p_info, true);
+  init_thread (t, name, priority, true);
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
@@ -229,12 +229,15 @@ thread_create_with_infos (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  child_info *c_info = t->p_info.parent_child_info;
+
   /* Add to run queue. */
   thread_unblock (t);
   thread_give_way (t);
 
   intr_set_level (old_level);
-  return t->tid;
+
+  return c_info;
 }
 
 /* Yields if thread t has higher priority than the current thread. */
@@ -660,7 +663,7 @@ is_thread (struct thread *t)
    NAME. */
 static void
 init_thread (struct thread *t, const char *name, int priority,
-             process_info *p_info, bool set_tid)
+             bool set_tid)
 {
   enum intr_level old_level;
 
@@ -687,7 +690,11 @@ init_thread (struct thread *t, const char *name, int priority,
   t->type = NONE;
 
 #ifdef USERPROG
-  t->p_info = p_info;
+  if (set_tid)
+    {
+      /* Create process's process_info. */
+      process_create_process_info (t);
+    }
 #endif
 
   t->magic = THREAD_MAGIC;

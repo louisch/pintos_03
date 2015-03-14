@@ -206,28 +206,18 @@ syscall_exit (int status)
 static pid_t
 syscall_exec (const char *cmd_line)
 {
-  pid_t ret = PID_ERROR;
   if (check_pointer ((const void *)cmd_line, 1) == NULL)
     {
-      return ret;
+      return PID_ERROR;
     }
 
-  struct lock reply_lock;
-  lock_init (&reply_lock);
-  lock_acquire (&reply_lock);
+  child_info *c_info = process_execute_aux (cmd_line);
+  /* Wait for child if it hasn't loaded, or unblocks immediately if child has
+     loaded (and thus called sema_up). */
+  sema_down (&c_info->parent_wait_sema);
 
-  process_info *info
-    = process_execute_aux (cmd_line, &reply_lock);
-  child_info *c_info = info->parent_child_info;
-  if (info != NULL)
-    {
-      /* Wait for child process to signal that it finished loading. */
-      cond_wait (&info->finish_load, &reply_lock);
-      /* Note that child info persists even if child process already exited. */
-      ret = c_info->pid;
-    }
-  lock_release (&reply_lock);
-  return ret;
+  /* Note that child info persists even if child process already exited. */
+  return c_info->pid;
 }
 
 /* Waits on a process to exit and returns its thread's exit status. If it has

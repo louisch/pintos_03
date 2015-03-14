@@ -128,7 +128,7 @@ struct thread
 
 #ifdef USERPROG
     /* The pid of the process owning this thread. */
-    process_info *p_info;
+    process_info p_info;
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
@@ -155,9 +155,8 @@ typedef struct child_info child_info;
 
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
-tid_t thread_create_with_infos (const char *name, int priority,
-                                thread_func *function, void *aux,
-                                process_info *p_info);
+child_info *thread_create_thread (const char *name, int priority,
+                            thread_func *function, void *aux);
 
 void thread_give_way (struct thread *t);
 void thread_block (void);
