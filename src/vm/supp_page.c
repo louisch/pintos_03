@@ -62,24 +62,21 @@ void *
 supp_page_map_entry (struct supp_page_entry *entry)
 {
   ASSERT (entry != NULL);
+  ASSERT (entry->file != NULL);
+  ASSERT (entry->page_read_bytes + entry->page_zero_bytes == PGSIZE);
 
-  enum palloc_flags flags = PAL_USER;
-
-  void *kpage = request_frame (flags);
+  void *kpage = request_frame (PAL_NONE);
   if (kpage == NULL)
     {
       /* This should never happen. */
       PANIC ("Was not able to retrieve frame.");
     }
-  if (entry->file != NULL)
+  file_seek (entry->file, entry->offset);
+  if (!read_page (kpage, entry->file, entry->page_read_bytes,
+                  entry->page_zero_bytes))
     {
-      if (!read_page (kpage, entry->file,
-                      entry->page_read_bytes,
-                      entry->page_zero_bytes))
-        {
-          free_frame (kpage);
-          thread_exit ();
-        }
+      free_frame (kpage);
+      thread_exit ();
     }
 
   if (!install_page (entry->uaddr, kpage, entry->writable))
