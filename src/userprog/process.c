@@ -788,6 +788,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+#ifdef VM
+  int pages_read = 0;
+#endif
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
@@ -819,7 +822,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       struct thread *t = thread_current ();
       supp_page_set_file_data (supp_page_create_entry (&t->supp_page_table, upage,
                                                        writable),
-                               file, page_read_bytes, page_zero_bytes);
+                               file, ofs + pages_read * PGSIZE,
+                               page_read_bytes, page_zero_bytes);
+      pages_read++;
 #endif
 
       /* Advance. */

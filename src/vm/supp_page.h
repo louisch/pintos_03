@@ -52,6 +52,7 @@ struct supp_page_entry *supp_page_create_entry (struct supp_page_table *supp_pag
                                                 void *uaddr, bool writable);
 struct supp_page_entry *supp_page_set_file_data (struct supp_page_entry *entry,
                                                  struct file *file,
+                                                 off_t offset,
                                                  size_t page_read_bytes,
                                                  size_t page_zero_bytes);
 void *supp_page_map_entry (struct supp_page_entry *entry);

@@ -49,9 +49,10 @@ supp_page_create_entry (struct supp_page_table *supp_page_table,
 /* Sets data for a page that is read from a file. */
 struct supp_page_entry *
 supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
-                         size_t page_read_bytes, size_t page_zero_bytes)
+                         off_t offset, size_t page_read_bytes, size_t page_zero_bytes)
 {
   entry->file = file;
+  entry->offset = offset;
   entry->page_read_bytes = page_read_bytes;
   entry->page_zero_bytes = page_zero_bytes;
   return entry;
