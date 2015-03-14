@@ -8,6 +8,8 @@
 #include <vm/frame.h>
 #endif
 
+#include <userprog/read_page.h>
+
 /* Try to read a page from a file.
    page_read_bytes gives the number of bytes to read from the file, and
    page_zero_bytes gives the number of bytes to zero out after the bytes
