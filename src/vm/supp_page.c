@@ -61,6 +61,8 @@ supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
 void *
 supp_page_map_entry (uint32_t *pd, struct supp_page_entry *entry)
 {
+  ASSERT (entry != NULL);
+
   enum palloc_flags flags = PAL_USER;
 
   void *kpage = request_frame (flags);
