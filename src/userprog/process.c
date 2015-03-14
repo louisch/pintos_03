@@ -841,33 +841,42 @@ static bool
 setup_stack (void **esp)
 {
   uint8_t *kpage;
-  bool success = false;
+
+  const bool WRITABLE = true;
+  void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
 
 #ifndef VM
+  bool success = false;
+
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-#else
-  kpage = request_frame (PAL_ZERO);
-#endif
   if (kpage != NULL)
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+      success = install_page (upage, kpage, WRITABLE);
       if (success)
         {
           *esp = PHYS_BASE;
         }
       else
         {
-#ifndef VM
           palloc_free_page (kpage);
-#else
-          /* Frame needs to be freed manually.
-             TODO: When supplementary page table is ready, use that to free
-             all pages. */
-          free_frame (kpage);
-#endif
         }
     }
   return success;
+#else
+  struct supp_page_entry *entry =
+    supp_page_create_entry (&thread_current ()->supp_page_table,
+                            upage, WRITABLE);
+  /* Create the page right now instead of waiting for it to fault,
+     as some kernel code needs it set up anyway. */
+  kpage = supp_page_map_entry (entry);
+  if (kpage == NULL)
+    {
+      return false;
+    }
+
+  *esp = PHYS_BASE;
+  return true;
+#endif
 }
 
 /* Gets the process_info corresponding to a given pid_t. */

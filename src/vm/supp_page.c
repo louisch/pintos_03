@@ -58,29 +58,40 @@ supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
   return entry;
 }
 
-/* Try to get a frame and map entry->upage to this frame in the page table. */
+/* Try to get a frame and map entry->upage to this frame in the page table.
+   Non-file pages will simply be zeroed out. File pages will have their data
+   read from the file that entry->file points to. */
 void *
 supp_page_map_entry (struct supp_page_entry *entry)
 {
   ASSERT (entry != NULL);
-  ASSERT (entry->file != NULL);
-  ASSERT (entry->page_read_bytes + entry->page_zero_bytes == PGSIZE);
 
-  /* Try to get a frame from the frame table. */
-  void *kpage = request_frame (PAL_NONE);
+  /* Try to get a frame and read the right data into it. */
+  void *kpage = NULL;
+  /* if this is not NULL, it represents a page that needs to be read from a
+     file. */
+  if (entry->file != NULL)
+    {
+      ASSERT (entry->page_read_bytes + entry->page_zero_bytes == PGSIZE);
+      /* Try to get a frame from the frame table. */
+      kpage = request_frame (PAL_NONE);
+      file_seek (entry->file, entry->offset);
+      if (!read_page (kpage, entry->file, entry->page_read_bytes,
+                      entry->page_zero_bytes))
+        {
+          free_frame (kpage);
+          thread_exit ();
+        }
+    }
+  else
+    {
+      kpage = request_frame (PAL_ZERO);
+    }
+
   if (kpage == NULL)
     {
       /* This should never happen. */
       PANIC ("Was not able to retrieve frame.");
-    }
-
-  /* Read file into page */
-  file_seek (entry->file, entry->offset);
-  if (!read_page (kpage, entry->file, entry->page_read_bytes,
-                  entry->page_zero_bytes))
-    {
-      free_frame (kpage);
-      thread_exit ();
     }
 
   /* Map the user address to the frame. */
