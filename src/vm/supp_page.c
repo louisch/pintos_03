@@ -10,9 +10,11 @@
 #include <filesys/off_t.h>
 #include <threads/malloc.h>
 #include <threads/palloc.h>
+#include <threads/thread.h>
 #include <threads/vaddr.h>
 #include <userprog/pagedir.h>
 #include <userprog/read_page.h>
+#include <userprog/install_page.h>
 #include <vm/frame.h>
 
 static unsigned supp_page_hash_func (const struct hash_elem *e, void *aux UNUSED);
@@ -60,21 +62,29 @@ void *
 supp_page_map_entry (uint32_t *pd, struct supp_page_entry *entry)
 {
   enum palloc_flags flags = PAL_USER;
-  bool all_zeroes = entry->page_zero_bytes == PGSIZE;
-  if (all_zeroes)
-    {
-      flags = flags & PAL_ZERO;
-    }
 
   void *kpage = request_frame (flags);
-  bool success = true;
-  if (!all_zeroes)
+  if (kpage == NULL)
     {
-      success = read_page (kpage, entry->file,
-                           entry->page_read_bytes, entry->page_zero_bytes);
+      /* This should never happen. */
+      PANIC ("Was not able to retrieve frame.");
+    }
+  if (entry->file != NULL)
+    {
+      if (!read_page (kpage, entry->file,
+                      entry->page_read_bytes,
+                      entry->page_zero_bytes))
+        {
+          free_frame (kpage);
+          thread_exit ();
+        }
     }
 
-  pagedir_set_page (pd, entry->uaddr, kpage, entry->writable);
+  if (!install_page (entry->uaddr, kpage, entry->writable))
+    {
+      free_frame (kpage);
+      thread_exit ();
+    }
   return kpage;
 }
 

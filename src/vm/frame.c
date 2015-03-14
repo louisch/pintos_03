@@ -45,6 +45,10 @@ request_frame (enum palloc_flags additional_flags)
      be fetched. TODO: Implement eviction so this doesn't
      need to happen. */
   void *page = palloc_get_page (additional_flags | PAL_USER | PAL_ASSERT);
+  if (page == NULL)
+    {
+      PANIC ("Could not get page");
+    }
 
   struct frame *frame = calloc (1, sizeof *frame);
   frame->kpage = page;

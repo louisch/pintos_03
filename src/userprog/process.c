@@ -13,6 +13,7 @@
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
 #include "userprog/read_page.h"
+#include "userprog/install_page.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -209,6 +210,7 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   /* This file_name is allocated above in process_execute_aux. */
   palloc_free_page (file_name);
+
   if (!success)
     thread_exit ();
 
@@ -719,8 +721,6 @@ put_args_on_stack (void **esp, const char *arg_string, int arg_length)
 
 /* load() helpers. */
 
-static bool install_page (void *upage, void *kpage, bool writable);
-
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool
@@ -804,7 +804,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         return false;
 
       /* Load this page. */
-      if (!read_page (kpage, page_read_bytes, read_zero_bytes))
+      if (!read_page (kpage, file, page_read_bytes, page_zero_bytes))
         {
           return false;
         }
@@ -863,26 +863,6 @@ setup_stack (void **esp)
         }
     }
   return success;
-}
-
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
 /* Gets the process_info corresponding to a given pid_t. */
