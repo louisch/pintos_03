@@ -6,6 +6,7 @@
 #include "threads/thread.h"
 
 #ifdef VM
+#include <threads/vaddr.h>
 #include <vm/supp_page.h>
 #endif
 
@@ -156,13 +157,16 @@ page_fault (struct intr_frame *f)
   struct thread *t = thread_current ();
 
   struct supp_page_entry *entry = supp_page_lookup (&t->supp_page_table, fault_addr);
-  if (user)
+  if (entry != NULL && //TODO : Check entry is null (Used currently for debugging)
+      (is_kernel_vaddr (entry->uaddr) || (write && !entry->writable)))
     {
-      if (not_present)
-        {
-          supp_page_map_entry (entry);
-          return;
-        }
+      thread_exit ();
+    }
+
+  if (entry != NULL && user && not_present) //TODO: Remove entry != NULL after.
+    {
+      supp_page_map_entry (entry);
+      return;
     }
 #endif
 
