@@ -24,12 +24,6 @@
 
 #define ABNORMAL_EXIT_STATUS -1
 
-/* The lock for the below hash table */
-static struct lock process_info_lock;
-/* Maps pids to process_infos. Also serves to keep track of all
-   processes that exist. */
-static struct hash process_info_table;
-
 /* Used for allocating pids. */
 static struct lock next_pid_lock;
 
@@ -39,30 +33,25 @@ static unsigned OPEN_FILE_LIMIT = 128;
 /* Lock used to synchronise filesystem operations in process.c and syscall.c. */
 static struct lock filesys_access;
 
-static void process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED);
-static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
-static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
-static void process_info_free (process_info *info);
+static thread_func start_process NO_RETURN;
 
 static child_info *create_child_info (process_info *p_info);
 static pid_t allocate_pid (void);
-static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
+static void process_info_free (process_info *info);
 static process_info *process_create_process_info_reply (struct lock *lock);
-static unsigned process_info_hash_func (const struct hash_elem *e, void *aux);
-static bool process_info_less_func (const struct hash_elem *a,
-                                    const struct hash_elem *b,
-                                    void *aux);
 
 /* fd_file hash related funcitons */
 static unsigned fd_hash_func (const struct hash_elem*, void*);
+static void fd_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static bool fd_less_func (const struct hash_elem *a,
                           const struct hash_elem *b,
                           void *aux UNUSED);
 
 /* children hash related funcitons */
 static unsigned children_hash_func (const struct hash_elem*, void*);
+static void children_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 static bool children_less_func (const struct hash_elem *a,
                           const struct hash_elem *b,
                           void *aux UNUSED);
@@ -73,13 +62,8 @@ static void print_exit_message (const char *file_name, int status);
 void
 process_info_init (void)
 {
-  lock_init (&process_info_lock);
   lock_init (&filesys_access);
   lock_init (&next_pid_lock);
-  lock_acquire (&process_info_lock);
-  hash_init (&process_info_table, process_info_hash_func,
-             process_info_less_func, NULL);
-  lock_release (&process_info_lock);
 }
 
 /* Struct for linking files to fds. */
@@ -224,11 +208,6 @@ process_create_process_info_reply (struct lock *lock)
   info->fd_counter = 2; /* 0 and 1 are reserved for stdin and stdout. */
   hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
 
-  /* Add process_info to process_info_table. */
-  lock_acquire (&process_info_lock);
-  hash_insert (&process_info_table, &info->process_elem);
-  lock_release (&process_info_lock);
-
   return info;
 }
 
@@ -362,10 +341,6 @@ process_exit (void)
           lock_release (&p_c_info->child_lock);
         }
 
-      lock_acquire (&process_info_lock);
-      /* Remove process from process_info_table hashtable. */
-      hash_delete (&process_info_table, &proc->process_elem);
-      lock_release (&process_info_lock);
       /* Orphan all children, free all child_infos and destroy the children and fd
          hashtable. Also free the process_info itself. */
       process_info_free (proc);
@@ -831,17 +806,6 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
-/* Gets the process_info corresponding to a given pid_t. */
-process_info *
-process_get_info (pid_t pid)
-{
-  process_info info;
-  info.pid = pid;
-
-  struct hash_elem *e = hash_find (&process_info_table, &info.process_elem);
-  return e != NULL ? hash_entry (e, process_info, process_elem) : NULL;
-}
-
 /* Acquires lock over filesystem. */
 void
 process_acquire_filesys_lock (void)
@@ -854,43 +818,6 @@ void
 process_release_filesys_lock (void)
 {
   lock_release (&filesys_access);
-}
-
-/* This hash_func simply returns the process_info's pid */
-static unsigned
-process_info_hash_func (const struct hash_elem *e, void *aux UNUSED)
-{
-  process_info *info = hash_entry (e, process_info, process_elem);
-  return (unsigned)info->pid;
-}
-
-/* Returns whether a's pid is less than b's pid. */
-static bool
-process_info_less_func (const struct hash_elem *a,
-                        const struct hash_elem *b,
-                        void *aux UNUSED)
-{
-  return process_info_hash_func (a, NULL) <
-    process_info_hash_func (b, NULL);
-}
-
-/* Clears the entire process info hashtable and
-   frees all the process info structs. */
-void
-process_info_free_all (void)
-{
-  lock_acquire (&process_info_lock);
-  hash_destroy (&process_info_table, process_info_hash_destroy);
-  lock_release (&process_info_lock);
-}
-
-/* Destroy an info_hash element by removing it from the hash,
-   destroying its children and fds. */
-static void
-process_info_hash_destroy (struct hash_elem *e, void *aux UNUSED)
-{
-  process_info *info = hash_entry (e, process_info, process_elem);
-  process_info_free (info);
 }
 
 /* Frees the process info struct, destroys its children and fd hashes. */
