@@ -8,6 +8,7 @@
 #include "synch.h"
 #ifdef USERPROG
 #include <user/syscall.h>
+#include "userprog/process.h"
 #endif
 
 /* States in a thread's life cycle. */
@@ -127,7 +128,7 @@ struct thread
 
 #ifdef USERPROG
     /* The pid of the process owning this thread. */
-    pid_t owning_pid;
+    process_info *p_info;
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif

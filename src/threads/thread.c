@@ -178,7 +178,7 @@ thread_print_stats (void)
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3.
 
-   This will initialize the thread's owning_pid to PID_ERROR. */
+   This will initialize the thread's p_info to the given p_info (can be NULL).*/
 tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
@@ -687,15 +687,7 @@ init_thread (struct thread *t, const char *name, int priority,
   t->type = NONE;
 
 #ifdef USERPROG
-  if (p_info == NULL)
-    {
-      t->owning_pid = PID_ERROR;
-    }
-  else
-    {
-      t->owning_pid = p_info->pid;
-      p_info->tid = t->tid;
-    }
+  t->p_info = p_info;
 #endif
 
   t->magic = THREAD_MAGIC;

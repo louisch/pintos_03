@@ -50,7 +50,6 @@ static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
 static process_info *process_create_process_info_reply (struct lock *lock);
-static process_info *process_get_process_info (pid_t lookup_pid);
 static unsigned process_info_hash_func (const struct hash_elem *e, void *aux);
 static bool process_info_less_func (const struct hash_elem *a,
                                     const struct hash_elem *b,
@@ -91,18 +90,6 @@ struct file_fd
     struct hash_elem elem;
   };
 
-
-/* Starts a new thread running a user program loaded from
-   FILENAME.  The new thread may be scheduled (and may even exit)
-   before process_execute() returns.  Returns the new process's
-   thread id, or TID_ERROR if the thread cannot be created. */
-tid_t
-process_execute (const char *file_name)
-{
-  process_info *p_info = process_execute_aux (file_name, NULL);
-  return p_info == NULL ? TID_ERROR : p_info->tid;
-}
-
 /* Same as process_execute, but returns a pid_t instead.
    This will be PID_ERROR if a thread could not be created.
    This pid can be used to access the process_info attached to
@@ -114,26 +101,12 @@ process_execute_pid (const char *file_name)
   return p_info == NULL ? PID_ERROR : p_info->pid;
 }
 
-/* Return info on the currently running process. */
+/* Return info on the currently running process.
+   Returns NULL if no p_info is present (PID_ERROR). */
 process_info *
 process_current (void)
 {
-  return process_get_process_info (thread_current ()->owning_pid);
-}
-
-static process_info *
-process_get_process_info (pid_t lookup_pid)
-{
-  process_info lookup;
-  lookup.pid = lookup_pid;
-
-  lock_acquire (&process_info_lock);
-  struct hash_elem *current_process_elem =
-    hash_find (&process_info_table, &lookup.process_elem);
-  lock_release (&process_info_lock);
-
-  return current_process_elem != NULL ?
-    hash_entry (current_process_elem, process_info, process_elem) : NULL;
+  return thread_current ()->p_info;
 }
 
 /* Performs the work of the process_execute functions, returning
@@ -228,13 +201,11 @@ static process_info *
 process_create_process_info_reply (struct lock *lock)
 {
   process_info *info = calloc (1, sizeof *info);
-  ASSERT (info != NULL);
+  if (info == NULL) thread_exit ();
 
   info->exit_status = ABNORMAL_EXIT_STATUS;
 
   info->pid = allocate_pid ();
-  /* Set by thread_create. */
-  info->tid = TID_ERROR;
 
   /* Cond var to signal spawner thread that loading process finished. */
   if (lock != NULL)
@@ -367,34 +338,38 @@ void
 process_exit (void)
 {
   process_info *proc = process_current ();
-  int exit_status = proc->exit_status;
-  /* If process_current still has a parent, send it status information and
-     unblock it if necessary. */
-  child_info *p_c_info = proc->parent_child_info;
-
-  if (p_c_info != NULL)
+  int exit_status = ABNORMAL_EXIT_STATUS;
+  if (proc != NULL)
     {
-      lock_acquire (&p_c_info->child_lock);
+      exit_status = proc->exit_status;
+      /* If process_current still has a parent, send it status information and
+         unblock it if necessary. */
+      child_info *p_c_info = proc->parent_child_info;
 
-      p_c_info->exit_status = exit_status;
-      p_c_info->running = false;
-
-      struct semaphore *p_sema = p_c_info->parent_wait_sema;
-      if (p_sema != NULL)
+      if (p_c_info != NULL)
         {
-          sema_up (p_sema);
+          lock_acquire (&p_c_info->child_lock);
+
+          p_c_info->exit_status = exit_status;
+          p_c_info->running = false;
+
+          struct semaphore *p_sema = p_c_info->parent_wait_sema;
+          if (p_sema != NULL)
+            {
+              sema_up (p_sema);
+            }
+
+          lock_release (&p_c_info->child_lock);
         }
 
-      lock_release (&p_c_info->child_lock);
+      lock_acquire (&process_info_lock);
+      /* Remove process from process_info_table hashtable. */
+      hash_delete (&process_info_table, &proc->process_elem);
+      lock_release (&process_info_lock);
+      /* Orphan all children, free all child_infos and destroy the children and fd
+         hashtable. Also free the process_info itself. */
+      process_info_free (proc);
     }
-
-  lock_acquire (&process_info_lock);
-  /* Remove process from process_info_table hashtable. */
-  hash_delete (&process_info_table, &proc->process_elem);
-  lock_release (&process_info_lock);
-  /* Orphan all children, free all child_infos and destroy the children and fd
-     hashtable. Also free the process_info itself. */
-  process_info_free (proc);
 
   struct thread *cur = thread_current ();
   uint32_t *pd;

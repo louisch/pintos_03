@@ -290,8 +290,7 @@ run_task (char **argv)
   /* Set these manually. Normally, this is done from process_execute, but as
      this root process is not started by process_execute, it must be done
      manually.*/
-  p_info->tid = thread_current ()->tid;
-  thread_current ()->owning_pid = p_info->pid;
+  thread_current ()->p_info = p_info;
 
   process_wait (process_execute_pid (task));
 #else

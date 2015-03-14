@@ -187,7 +187,6 @@ get_arg (struct intr_frame *frame, int offset)
 static void
 syscall_halt (void)
 {
-  process_info_free_all ();
   shutdown_power_off ();
   NOT_REACHED ();
 }

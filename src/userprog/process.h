@@ -4,7 +4,6 @@
 #include <kernel/list.h>
 #include <kernel/hash.h>
 #include <user/syscall.h>
-#include "threads/thread.h"
 #include "filesys/file.h"
 #include "threads/synch.h"
 
@@ -13,8 +12,6 @@ typedef struct process_info
 {
   /* Process ID. */
   pid_t pid;
-  /* ID of the thread owned by the process. */
-  tid_t tid;
 
   /* Exit status of process. */
   int exit_status;
@@ -72,9 +69,8 @@ struct file* process_remove_file (int fd);
 
 void process_info_init (void);
 process_info *process_create_process_info (void);
-tid_t process_execute (const char *file_name);
 pid_t process_execute_pid (const char *file_name);
-int process_wait (tid_t);
+int process_wait (pid_t);
 void process_exit (void);
 void process_activate (void);
 
