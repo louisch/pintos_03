@@ -79,6 +79,7 @@ supp_page_map_entry (struct supp_page_entry *entry)
       if (!read_page (kpage, entry->file, entry->page_read_bytes,
                       entry->page_zero_bytes))
         {
+          // TODO: fix (free all the thread's frames, somehow)
           free_frame (kpage);
           thread_exit ();
         }
