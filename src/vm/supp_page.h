@@ -54,7 +54,7 @@ struct supp_page_entry *supp_page_set_file_data (struct supp_page_entry *entry,
                                                  struct file *file,
                                                  size_t page_read_bytes,
                                                  size_t page_zero_bytes);
-void *supp_page_map_entry (uint32_t *pd, struct supp_page_entry *entry);
+void *supp_page_map_entry (struct supp_page_entry *entry);
 struct supp_page_entry *supp_page_lookup (struct supp_page_table *supp_page_table,
                                           void *uaddr);
 

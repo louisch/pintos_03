@@ -59,7 +59,7 @@ supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
 
 /* Try to get a frame and map entry->upage to this frame in the page table. */
 void *
-supp_page_map_entry (uint32_t *pd, struct supp_page_entry *entry)
+supp_page_map_entry (struct supp_page_entry *entry)
 {
   ASSERT (entry != NULL);
 

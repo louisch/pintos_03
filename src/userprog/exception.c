@@ -160,7 +160,7 @@ page_fault (struct intr_frame *f)
     {
       if (not_present)
         {
-          supp_page_map_entry (t->pagedir, entry);
+          supp_page_map_entry (entry);
           return;
         }
     }
