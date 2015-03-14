@@ -1,11 +1,12 @@
+#include <vm/frame.h>
+
+#include <debug.h>
 #include <stdint.h>
 
 #include <lib/kernel/hash.h>
 #include <threads/malloc.h>
 #include <threads/palloc.h>
 #include <threads/synch.h>
-
-#include <vm/frame.h>
 
 /* Meta-data about a frame. A frame is a physical storage unit in memory,
    page-aligned, and page-sized. Pages are stored in frames, though their
@@ -44,6 +45,10 @@ request_frame (enum palloc_flags additional_flags)
      be fetched. TODO: Implement eviction so this doesn't
      need to happen. */
   void *page = palloc_get_page (additional_flags | PAL_USER | PAL_ASSERT);
+  if (page == NULL)
+    {
+      PANIC ("Could not get page");
+    }
 
   struct frame *frame = calloc (1, sizeof *frame);
   frame->kpage = page;
@@ -90,10 +95,10 @@ allocated_find_frame (void *kpage)
 static unsigned
 allocated_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  uint32_t *kpage = (uint32_t *)frame_from_elem (e)->kpage;
+  void *kpage = frame_from_elem (e)->kpage;
   /* sizeof returns how many bytes kpage, the pointer itself (not what it is
      pointing to), takes up. */
-  return hash_bytes (kpage, sizeof kpage);
+  return hash_bytes (&kpage, sizeof kpage);
 }
 
 /* allocated less than function */
@@ -101,8 +106,8 @@ static bool
 allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
                      void *aux UNUSED)
 {
-  uint32_t *kpage_a = (uint32_t *)frame_from_elem (a)->kpage;
-  uint32_t *kpage_b = (uint32_t *)frame_from_elem (b)->kpage;
+  void *kpage_a = frame_from_elem (a)->kpage;
+  void *kpage_b = frame_from_elem (b)->kpage;
   return kpage_a < kpage_b;
 }
 
@@ -110,7 +115,6 @@ allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
 static struct frame *
 frame_from_elem (const struct hash_elem *e)
 {
-  ASSERT(e != NULL);
-
+  ASSERT (e != NULL);
   return hash_entry (e, struct frame, frame_elem);
 }

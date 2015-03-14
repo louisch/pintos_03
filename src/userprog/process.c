@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,8 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/read_page.h"
+#include "userprog/install_page.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -22,6 +25,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "vm/frame.h"
+#include "vm/supp_page.h"
 
 #define ABNORMAL_EXIT_STATUS -1
 
@@ -177,6 +181,11 @@ process_execute_aux (const char *file_name, struct lock *lock)
 static void
 start_process (void *file_name_)
 {
+  struct thread *t = thread_current ();
+#ifdef VM
+  supp_page_table_init (&t->supp_page_table);
+#endif
+
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -197,11 +206,11 @@ start_process (void *file_name_)
       lock_release (reply_lock);
     }
 
-  struct thread *t = thread_current ();
   strlcpy (t->name, file_name, sizeof t->name);
   /* If load failed, quit. */
   /* This file_name is allocated above in process_execute_aux. */
   palloc_free_page (file_name);
+
   if (!success)
     thread_exit ();
 
@@ -712,8 +721,6 @@ put_args_on_stack (void **esp, const char *arg_string, int arg_length)
 
 /* load() helpers. */
 
-static bool install_page (void *upage, void *kpage, bool writable);
-
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool
@@ -781,6 +788,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+#ifdef VM
+  int pages_read = 0;
+#endif
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
@@ -793,35 +803,29 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Get a page of memory. */
 #ifndef VM
       uint8_t *kpage = palloc_get_page (PAL_USER);
-#else
-      /* TODO: Change this entire function to lazy load pages */
-      uint8_t *kpage = request_frame (PAL_NONE);
-#endif
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+      if (!read_page (kpage, file, page_read_bytes, page_zero_bytes))
         {
-#ifndef VM
-          palloc_free_page (kpage);
-#else
-          free_frame (kpage);
-#endif
           return false;
         }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable))
         {
-#ifndef VM
           palloc_free_page (kpage);
-#else
-          free_frame (kpage);
-#endif
           return false;
         }
+#else
+      struct thread *t = thread_current ();
+      supp_page_set_file_data (supp_page_create_entry (&t->supp_page_table, upage,
+                                                       writable),
+                               file, ofs + pages_read * PGSIZE,
+                               page_read_bytes, page_zero_bytes);
+      pages_read++;
+#endif
 
       /* Advance. */
       read_bytes -= page_read_bytes;
@@ -864,26 +868,6 @@ setup_stack (void **esp)
         }
     }
   return success;
-}
-
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
 /* Gets the process_info corresponding to a given pid_t. */

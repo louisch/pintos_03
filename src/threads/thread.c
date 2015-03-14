@@ -348,7 +348,7 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current()->allelem);
   struct list_elem *e;
-  for (e = list_begin (&thread_current ()->locks); 
+  for (e = list_begin (&thread_current ()->locks);
        e != list_end (&thread_current ()->locks);
        e = list_next (e))
     {
