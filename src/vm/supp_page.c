@@ -66,12 +66,15 @@ supp_page_map_entry (struct supp_page_entry *entry)
   ASSERT (entry->file != NULL);
   ASSERT (entry->page_read_bytes + entry->page_zero_bytes == PGSIZE);
 
+  /* Try to get a frame from the frame table. */
   void *kpage = request_frame (PAL_NONE);
   if (kpage == NULL)
     {
       /* This should never happen. */
       PANIC ("Was not able to retrieve frame.");
     }
+
+  /* Read file into page */
   file_seek (entry->file, entry->offset);
   if (!read_page (kpage, entry->file, entry->page_read_bytes,
                   entry->page_zero_bytes))
@@ -80,6 +83,7 @@ supp_page_map_entry (struct supp_page_entry *entry)
       thread_exit ();
     }
 
+  /* Map the user address to the frame. */
   if (!install_page (entry->uaddr, kpage, entry->writable))
     {
       free_frame (kpage);
