@@ -161,7 +161,6 @@ start_process (void *file_name_)
 
   sema_up (&persistent_info->wait_sema);
 
-  struct thread *t = thread_current ();
   strlcpy (t->name, file_name, sizeof t->name);
   /* If load failed, quit. */
   /* This file_name is allocated above in process_execute_aux. */
@@ -734,10 +733,10 @@ setup_stack (void **esp)
 {
   uint8_t *kpage;
 
-  const bool WRITABLE = true;
   void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
 
 #ifndef VM
+  const bool WRITABLE = true;
   bool success = false;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
@@ -755,16 +754,20 @@ setup_stack (void **esp)
     }
   return success;
 #else
+  *esp = PHYS_BASE;
   stack_growth_init ();
   /* Create the page right now instead of waiting for it to fault,
      as some kernel code needs it set up anyway. */
+  struct supp_page_entry *entry =
+    supp_page_lookup (&thread_current ()->supp_page_table, upage);
   kpage = supp_page_map_entry (entry);
+  thread_current ()->mapped_stack_top = upage;
   if (kpage == NULL)
     {
+      free_frame (kpage);
       return false;
     }
 
-  *esp = PHYS_BASE;
   return true;
 #endif
 }

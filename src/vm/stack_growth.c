@@ -14,9 +14,8 @@ stack_growth_init (void)
   uint8_t *entry_position = ((uint8_t *)PHYS_BASE - STACK_SIZE);
   while (entry_position != PHYS_BASE)
     {
-      struct supp_page_entry *entry =
-        supp_page_create_entry (&t->supp_page_table,
-                                entry_position, WRITABLE);
+      supp_page_create_entry (&thread_current ()->supp_page_table,
+                              entry_position, WRITABLE);
       entry_position += PGSIZE;
     }
 }
@@ -40,12 +39,13 @@ grow_stack (void *fault_addr, void *esp)
   /* Get the entries up to the smaller of fault_addr and esp. */
   void *alloc_up_to = fault_addr < esp ? fault_addr : esp;
   unsigned num_to_allocate = ((t->mapped_stack_top - alloc_up_to) / PGSIZE) + 1;
-  struct supp_page_entry entry_buffer[num_to_allocate];
-  supp_page_lookup_range (t->pagedir, alloc_up_to, entry_buffer, num_to_allocate);
+  struct supp_page_entry *entry_buffer[num_to_allocate];
+  supp_page_lookup_range (&t->supp_page_table, alloc_up_to,
+                          entry_buffer, num_to_allocate);
 
   /* Map all the entries. */
   supp_page_map_entries (entry_buffer, num_to_allocate);
-  t->num_pages_in_stack += num_to_allocate;
+  t->mapped_stack_top += PGSIZE;
 }
 
 /* Returns an address to a position some pages into unallocated stack space.
@@ -54,5 +54,5 @@ grow_stack (void *fault_addr, void *esp)
 static void *
 stack_position_for (unsigned pages)
 {
-  return PHYS_BASE - (thread_current ()->num_pages_in_stack + pages) * PGSIZE;
+  return thread_current ()->mapped_stack_top - (pages * PGSIZE);
 }

@@ -9,6 +9,6 @@
 
 void stack_growth_init (void);
 bool stack_should_grow (void* esp, void* fault_addr);
-void grow_stack (void *esp);
+void grow_stack (void *fault_addr, void *esp);
 
 #endif

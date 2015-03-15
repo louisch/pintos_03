@@ -37,6 +37,11 @@ supp_page_create_entry (struct supp_page_table *supp_page_table,
                         void *uaddr, bool writable)
 {
   struct supp_page_entry *entry = calloc (1, sizeof *entry);
+  if (entry == NULL)
+    {
+      printf ("Could not allocate memory for supplementary page table entry.\n");
+      thread_exit ();
+    }
   entry->uaddr = uaddr;
   entry->file = NULL;
   entry->offset = 0;
@@ -105,12 +110,12 @@ supp_page_map_entry (struct supp_page_entry *entry)
 }
 
 void
-supp_page_map_entries (struct supp_page_entry *entry_array, unsigned num_of_entries)
+supp_page_map_entries (struct supp_page_entry **entry_array, unsigned num_of_entries)
 {
-  int index;
-  for (index = 0; index < num_to_entries; index++)
+  unsigned index;
+  for (index = 0; index < num_of_entries; index++)
     {
-      supp_page_map_entry (entry_buffer[index]);
+      supp_page_map_entry (entry_array[index]);
     }
 }
 
@@ -126,13 +131,13 @@ supp_page_lookup (struct supp_page_table *supp_page_table, void *uaddr)
   return found == NULL ? NULL : supp_page_from_elem (found);
 }
 
-struct supp_page_entry *
+struct supp_page_entry **
 supp_page_lookup_range (struct supp_page_table *supp_page_table, void *base_addr,
-                        struct supp_page_entry *buffer, unsigned number)
+                        struct supp_page_entry **buffer, unsigned number)
 {
   ASSERT (buffer != NULL);
 
-  int index = 0;
+  unsigned index = 0;
   while (index != number)
     {
       buffer[index] = supp_page_lookup (supp_page_table,
