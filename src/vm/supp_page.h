@@ -56,7 +56,13 @@ struct supp_page_entry *supp_page_set_file_data (struct supp_page_entry *entry,
                                                  size_t page_read_bytes,
                                                  size_t page_zero_bytes);
 void *supp_page_map_entry (struct supp_page_entry *entry);
+void supp_page_map_entries (struct supp_page_entry *entry_array,
+                            unsigned num_of_entries);
 struct supp_page_entry *supp_page_lookup (struct supp_page_table *supp_page_table,
                                           void *uaddr);
+struct supp_page_entry *supp_page_lookup_range (struct supp_page_table *supp_page_table,
+                                                void *base_addr,
+                                                struct supp_page_entry *buffer,
+                                                unsigned number);
 
 #endif

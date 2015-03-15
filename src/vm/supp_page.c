@@ -104,6 +104,16 @@ supp_page_map_entry (struct supp_page_entry *entry)
   return kpage;
 }
 
+void
+supp_page_map_entries (struct supp_page_entry *entry_array, unsigned num_of_entries)
+{
+  int index;
+  for (index = 0; index < num_to_entries; index++)
+    {
+      supp_page_map_entry (entry_buffer[index]);
+    }
+}
+
 /* Looks up a user virtual address in the supplementary page table.
    Returns NULL if no entry can be found. */
 struct supp_page_entry *
@@ -114,6 +124,22 @@ supp_page_lookup (struct supp_page_table *supp_page_table, void *uaddr)
   struct hash_elem *found = hash_find (&supp_page_table->table,
                                        &for_hashing.supp_elem);
   return found == NULL ? NULL : supp_page_from_elem (found);
+}
+
+struct supp_page_entry *
+supp_page_lookup_range (struct supp_page_table *supp_page_table, void *base_addr,
+                        struct supp_page_entry *buffer, unsigned number)
+{
+  ASSERT (buffer != NULL);
+
+  int index = 0;
+  while (index != number)
+    {
+      buffer[index] = supp_page_lookup (supp_page_table,
+                                        (uint8_t *)base_addr + index * PGSIZE);
+      index++;
+    }
+  return buffer;
 }
 
 /* Used for setting up the hash table. Gets hash value for hash elements. */
