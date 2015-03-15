@@ -8,6 +8,7 @@
 #include "synch.h"
 #ifdef USERPROG
 #include <user/syscall.h>
+#include "userprog/process.h"
 #endif
 #ifdef VM
 #include <vm/supp_page.h>
@@ -130,7 +131,7 @@ struct thread
 
 #ifdef USERPROG
     /* The pid of the process owning this thread. */
-    pid_t owning_pid;
+    process_info p_info;
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
@@ -158,13 +159,12 @@ void thread_print_stats (void);
 /* Predeclarations of structs from process.h, which needs to include this
    file, but will not then recursively include process.h again. */
 typedef struct process_info process_info;
-typedef struct child_info child_info;
+typedef struct persistent_info persistent_info;
 
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
-tid_t thread_create_with_infos (const char *name, int priority,
-                                thread_func *function, void *aux,
-                                process_info *p_info);
+persistent_info *thread_create_thread (const char *name, int priority,
+                            thread_func *function, void *aux);
 
 void thread_give_way (struct thread *t);
 void thread_block (void);
