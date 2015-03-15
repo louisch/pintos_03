@@ -167,9 +167,9 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
-  child_info *c_info = thread_create_thread (name, priority, function, aux);
+  persistent_info *c_info = thread_create_thread (name, priority, function, aux);
 
-  return c_info == NULL ? TID_ERROR : c_info->tid;
+  return c_info == NULL ? TID_ERROR : c_info->pid;
 }
 
 /* Creates a new kernel thread named NAME with the given initial
@@ -189,7 +189,7 @@ thread_create (const char *name, int priority,
    Priority scheduling is the goal of Problem 1-3.
 
    This will initialize the thread's p_info if USERPROG is defined. */
-struct child_info*
+struct persistent_info*
 thread_create_thread (const char *name, int priority,
                       thread_func *function, void *aux)
 {
@@ -229,7 +229,7 @@ thread_create_thread (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  child_info *c_info = t->p_info.parent_child_info;
+  persistent_info *c_info = t->p_info.persistent;
 
   /* Add to run queue. */
   thread_unblock (t);

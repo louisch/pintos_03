@@ -211,10 +211,7 @@ syscall_exec (const char *cmd_line)
       return PID_ERROR;
     }
 
-  child_info *c_info = process_execute_aux (cmd_line);
-  /* Wait for child if it hasn't loaded, or unblocks immediately if child has
-     loaded (and thus called sema_up). */
-  sema_down (&c_info->parent_wait_sema);
+  persistent_info *c_info = process_execute_aux (cmd_line);
 
   /* Note that child info persists even if child process already exited. */
   return c_info->pid;
@@ -341,7 +338,7 @@ syscall_write (int fd, const void *buffer, unsigned size)
       struct file *file = process_fetch_file (fd);
       if (file == NULL) /* File not found. */
         {
-          return 0;
+          return ABNORMAL_IO_VALUE;
         }
       process_acquire_filesys_lock ();
       written = file_write_at (file, buffer, size, file_tell (file));

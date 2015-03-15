@@ -23,9 +23,7 @@
 #include "threads/vaddr.h"
 
 #define ABNORMAL_EXIT_STATUS -1
-
-/* Used for allocating pids. */
-static struct lock next_pid_lock;
+#define EXEC_FILE 2
 
 /* Maximum number of allowed open files per process. */
 static unsigned OPEN_FILE_LIMIT = 128;
@@ -35,8 +33,7 @@ static struct lock filesys_access;
 
 static thread_func start_process NO_RETURN;
 
-static child_info *create_child_info (struct thread *t);
-// static pid_t allocate_pid (void); USELSS HAXX
+static persistent_info *create_persistent_info (struct process_info *p_info);
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
 static void process_info_free (process_info *info);
@@ -59,10 +56,9 @@ static void print_exit_message (const char *file_name, int status);
 
 /* Initializes the process_info system. */
 void
-process_info_init (void)
+process_init_filesys_lock (void)
 {
   lock_init (&filesys_access);
-  lock_init (&next_pid_lock);
 }
 
 /* Struct for linking files to fds. */
@@ -80,7 +76,7 @@ struct file_fd
 pid_t
 process_execute_pid (const char *file_name)
 {
-  child_info *c_info = process_execute_aux (file_name);
+  persistent_info *c_info = process_execute_aux (file_name);
   return c_info == NULL ? PID_ERROR : c_info->pid;
 }
 
@@ -94,7 +90,7 @@ process_current (void)
 
 /* Performs the work of the process_execute functions, returning
    the process_info created. */
-child_info *
+persistent_info *
 process_execute_aux (const char *file_name)
 {
   char *fn_copy;
@@ -106,14 +102,18 @@ process_execute_aux (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  child_info *c_info = thread_create_thread (file_name, PRI_DEFAULT,
+  persistent_info *c_info = thread_create_thread (file_name, PRI_DEFAULT,
                                              start_process, fn_copy);
 
-  if (c_info == NULL || c_info->tid == TID_ERROR)
+  if (c_info == NULL || c_info->pid == TID_ERROR)
     {
       palloc_free_page (fn_copy);
       // HAXX WHAT DO
     }
+
+  /* Wait for child if it hasn't loaded, or unblocks immediately if child has
+     loaded (and thus called sema_up). */
+  sema_down (&c_info->wait_sema);
 
   return c_info;
 }
@@ -132,13 +132,13 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-  child_info *c_info = process_current ()->parent_child_info;
+  persistent_info *c_info = process_current ()->persistent;
   if (!success)
     {
       c_info->pid = ABNORMAL_EXIT_STATUS;
     }
 
-  sema_up (&c_info->parent_wait_sema);
+  sema_up (&c_info->wait_sema);
 
   struct thread *t = thread_current ();
   strlcpy (t->name, file_name, sizeof t->name);
@@ -159,66 +159,47 @@ start_process (void *file_name_)
 
 /* Creates a process_info from a thread and adds it to the hash table.
    If a TID_ERROR is passed in, then the pid will be set to PID_ERROR,
-   and the tid set to TID_ERROR. Also, other fields will not be
+   and the pid set to TID_ERROR. Also, other fields will not be
    initialized. The process_info will also not be added to the hash
    table. */
 void
 process_create_process_info (struct thread *t)
 {
-  process_info *info = &t->p_info;
-
+  struct process_info *info = &t->p_info;
   info->exit_status = ABNORMAL_EXIT_STATUS;
   info->pid = t->tid;
   /* Init children hashtable. */
-  lock_init (&info->children_lock);
   hash_init (&info->children, children_hash_func, children_less_func, NULL);
   /* Init open_files hashtable. */
   info->fd_counter = 2; /* 0 and 1 are reserved for stdin and stdout. */
   hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
   /* Add information for process waiting: */
-  /* Create child_info struct. */
-  child_info *c_info = create_child_info (t);
-  /* Point the child's process_info at its parent's child_info. */
-  info->parent_child_info = c_info;
-  /* Add child_info to the parent's chidren hash. Surprisingly there are no
-     concurrency issues here; if the child terminates before its child_info is
+  /* Create persistent_info struct. */
+  persistent_info *c_info = create_persistent_info (info);
+  /* Point the child's process_info at its parent's persistent_info. */
+  info->persistent = c_info;
+  /* Add persistent_info to the parent's chidren hash. Surprisingly there are no
+     concurrency issues here; if the child terminates before its persistent_info is
      added to the parent's hash, the correct information will still be added. */
   hash_insert (&process_current ()->children, &c_info->child_elem);
 }
 
-static child_info *
-create_child_info (struct thread *t)
+static persistent_info *
+create_persistent_info (struct process_info *p_info)
 {
-  process_info *p_info = &t->p_info;
-
-  child_info *c_info = calloc (1, sizeof *c_info);
+  persistent_info *c_info = calloc (1, sizeof *c_info);
   if (c_info == NULL) thread_exit ();
 
 
   c_info->pid = p_info->pid;
-  c_info->tid = t->tid;
   c_info->running = true;
-  c_info->child_process_info = p_info;
+  c_info->process_info = p_info;
 
   lock_init (&c_info->child_lock);
-  sema_init (&c_info->parent_wait_sema, 0);
+  sema_init (&c_info->wait_sema, 0);
 
   return c_info;
 }
-
-// USELESS HAXX
-// static pid_t
-// allocate_pid (void)
-// {
-//   static pid_t next_pid = 0;
-
-//   lock_acquire (&next_pid_lock);
-//   pid_t allocated = next_pid;
-//   next_pid++;
-//   lock_release (&next_pid_lock);
-
-//   return allocated;
-// }
 
 /* Waits for thread TID to die and returns its exit status.  If it was
    terminated by the kernel (i.e. killed due to an exception), returns
@@ -230,34 +211,28 @@ int
 process_wait (pid_t child_pid)
 {
   /* Hashtable retrieval related things. */
-  child_info c_info_temp;
+  persistent_info c_info_temp;
   c_info_temp.pid = child_pid;
   struct hash_elem *child_hash_elem;
 
-  struct lock *c_lock = &process_current ()->children_lock;
-
-  /* Search children hashtable for a child_info with child_pid, storing the
+  /* Search children hashtable for a persistent_info with child_pid, storing the
      result in child_hash_elem. */
-  lock_acquire (c_lock);
   child_hash_elem = hash_find (&process_current ()->children,
                                &c_info_temp.child_elem);
-  lock_release (c_lock);
 
   if (child_hash_elem != NULL)
     {
-      child_info *c_info = hash_entry (child_hash_elem, child_info, child_elem);
+      persistent_info *c_info = hash_entry (child_hash_elem, persistent_info, child_elem);
 
       /* If the process is still running, we block.
          If the process has exited, the semaphore will already be upped.
          So we can down it either way. */
-      sema_down (&c_info->parent_wait_sema);
+      sema_down (&c_info->wait_sema);
 
       int status = c_info->exit_status;
 
-      /* Remove child_info from hash so it cannot be waited on again. */
-      lock_acquire (c_lock);
+      /* Remove persistent_info from hash so it cannot be waited on again. */
       hash_delete (&process_current ()->children, child_hash_elem);
-      lock_release (c_lock);
 
       /* Free its memory. */
       free (c_info);
@@ -286,7 +261,7 @@ process_exit (void)
   int exit_status = proc->exit_status;
   /* If process_current still has a parent, send it status information and
      unblock it if necessary. */
-  child_info *p_c_info = proc->parent_child_info;
+  persistent_info *p_c_info = proc->persistent;
 
   if (p_c_info != NULL)
     {
@@ -298,12 +273,12 @@ process_exit (void)
 
       /* Just up the sema: if parent is waiting, it is unblocked.
          If parent wants to wait in future, parent immediately unblocks. */
-      sema_up (&p_c_info->parent_wait_sema);
+      sema_up (&p_c_info->wait_sema);
 
       lock_release (&p_c_info->child_lock);
     }
 
-  /* Orphan all children, free all child_infos and destroy the children and fd
+  /* Orphan all children, free all persistent_infos and destroy the children and fd
      hashtable. Also free the process_info itself. */
   process_info_free (proc);
 
@@ -786,12 +761,8 @@ static void
 process_info_free (process_info *info)
 {
   hash_destroy (&info->open_files, fd_hash_destroy);
-
   /* Frees all children_info and destroys children hashtable. */
-  struct lock *c_lock = &info->children_lock;
-  lock_acquire (c_lock);
   hash_destroy (&info->children, children_hash_destroy);
-  lock_release (c_lock);
 }
 
 /* Adds file to open_files hash. Returns the fd it generates. */
@@ -874,8 +845,8 @@ fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
   struct file_fd *file_fd = hash_entry (e, struct file_fd, elem);
 
   /* Allow writes on the process's file so other processes can write to it. */
-  if (file_fd->fd == 2)
-    { // MAGIC NUMBER HAXX
+  if (file_fd->fd == EXEC_FILE)
+    {
       file_allow_write (file_fd->file);
     }
 
@@ -883,37 +854,37 @@ fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
   free (file_fd);
 }
 
-/* Hashes child_info by pid. */
+/* Hashes persistent_info by pid. */
 static unsigned
 children_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  unsigned hash = (unsigned) hash_entry (e, child_info, child_elem)->pid;
+  unsigned hash = (unsigned) hash_entry (e, persistent_info, child_elem)->pid;
   return hash;
 }
 
-/* Compares two child_info structs by tid. */
+/* Compares two persistent_info structs by pid. */
 static bool
 children_less_func (const struct hash_elem *a,
               const struct hash_elem *b,
               void *aux UNUSED)
 {
-  return hash_entry (a, child_info, child_elem)->pid
-         < hash_entry (b, child_info, child_elem)->pid;
+  return hash_entry (a, persistent_info, child_elem)->pid
+         < hash_entry (b, persistent_info, child_elem)->pid;
 }
 
 /* Destroys children hash elements by setting them free. */
 static void
 children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
-  child_info *c_info = hash_entry (e, child_info, child_elem);
+  persistent_info *c_info = hash_entry (e, persistent_info, child_elem);
 
-  /* If the child is still running, tell it that its child_info no longer exists
+  /* If the child is still running, tell it that its persistent_info no longer exists
      as its parent no longer exists. We acquire child_lock to ensure the child
      cannot interrupt and exit before we set its process_info. */
   lock_acquire (&c_info->child_lock);
   if (c_info->running)
     {
-      c_info->child_process_info->parent_child_info = NULL;
+      c_info->process_info->persistent = NULL;
     }
   lock_release (&c_info->child_lock);
   free (c_info);

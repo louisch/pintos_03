@@ -98,7 +98,7 @@ main (void)
   palloc_init (user_page_limit);
   malloc_init ();
   paging_init ();
-  process_create_process_info (thread_current ());
+
 
   /* Segmentation. */
 #ifdef USERPROG
@@ -113,7 +113,8 @@ main (void)
   input_init ();
 #ifdef USERPROG
   exception_init ();
-  process_info_init ();
+  process_init_filesys_lock ();
+  process_create_process_info (thread_current ());
   syscall_init ();
 #endif
 
