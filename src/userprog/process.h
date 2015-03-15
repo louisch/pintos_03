@@ -10,11 +10,6 @@
 /* Data for a process used for syscalls. */
 typedef struct process_info
 {
-  /* Process ID. */
-  pid_t pid;
-
-  /* Exit status of process. */
-  int exit_status;
   /* Tracks the process's children, running or terminated,
      which have not been waited on. */
   struct hash children;
@@ -38,19 +33,20 @@ typedef struct persistent_info
 {
   /* Child process's ID, used when checking if a child belongs to a parent. */
   pid_t pid;
-
   /* Exit status of thread. */
   int exit_status;
   /* Indicates whether the child process is still running. */
   bool running;
+  /* Reference counter. */
+  int reference_counter;
   /* Lock to synchronise reads/writes to the persistent_info's fields. */
-  struct lock child_lock;
+  struct lock persistent_info_lock;
   /* Semaphore used by parents to wait on children. */
   struct semaphore wait_sema;
   /* Pointer to child process_info. */
   process_info *process_info;
   /* Hash elem to be placed into process_info's children hash. */
-  struct hash_elem child_elem;
+  struct hash_elem persistent_elem;
 
 } persistent_info;
 

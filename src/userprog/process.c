@@ -33,7 +33,7 @@ static struct lock filesys_access;
 
 static thread_func start_process NO_RETURN;
 
-static persistent_info *create_persistent_info (struct process_info *p_info);
+static persistent_info *create_persistent_info (struct thread *t);
 static bool load (char *cmdline, void (**eip) (void), void **esp);
 
 static void process_info_free (process_info *info);
@@ -53,6 +53,13 @@ static bool children_less_func (const struct hash_elem *a,
                           void *aux UNUSED);
 
 static void print_exit_message (const char *file_name, int status);
+
+enum process_status
+  {
+    NO_REFERENCES,
+    RUNNING_WITH_PARENT = 2
+  };
+static void process_persistent_info_counter_decrement (persistent_info *info);
 
 /* Initializes the process_info system. */
 void
@@ -76,8 +83,8 @@ struct file_fd
 pid_t
 process_execute_pid (const char *file_name)
 {
-  persistent_info *c_info = process_execute_aux (file_name);
-  return c_info == NULL ? PID_ERROR : c_info->pid;
+  persistent_info *persistent_c_info = process_execute_aux (file_name);
+  return persistent_c_info == NULL ? PID_ERROR : persistent_c_info->pid;
 }
 
 /* Return info on the currently running process.
@@ -102,10 +109,10 @@ process_execute_aux (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  persistent_info *c_info = thread_create_thread (file_name, PRI_DEFAULT,
+  persistent_info *child_info = thread_create_thread (file_name, PRI_DEFAULT,
                                              start_process, fn_copy);
 
-  if (c_info == NULL || c_info->pid == TID_ERROR)
+  if (child_info == NULL || child_info->pid == TID_ERROR)
     {
       palloc_free_page (fn_copy);
       // HAXX WHAT DO
@@ -113,9 +120,9 @@ process_execute_aux (const char *file_name)
 
   /* Wait for child if it hasn't loaded, or unblocks immediately if child has
      loaded (and thus called sema_up). */
-  sema_down (&c_info->wait_sema);
+  sema_down (&child_info->wait_sema);
 
-  return c_info;
+  return child_info;
 }
 
 /* A thread function that loads a user process and starts it
@@ -132,13 +139,13 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-  persistent_info *c_info = process_current ()->persistent;
+  persistent_info *persistent_info = process_current ()->persistent;
   if (!success)
     {
-      c_info->pid = ABNORMAL_EXIT_STATUS;
+      persistent_info->pid = ABNORMAL_EXIT_STATUS;
     }
 
-  sema_up (&c_info->wait_sema);
+  sema_up (&persistent_info->wait_sema);
 
   struct thread *t = thread_current ();
   strlcpy (t->name, file_name, sizeof t->name);
@@ -166,8 +173,6 @@ void
 process_create_process_info (struct thread *t)
 {
   struct process_info *info = &t->p_info;
-  info->exit_status = ABNORMAL_EXIT_STATUS;
-  info->pid = t->tid;
   /* Init children hashtable. */
   hash_init (&info->children, children_hash_func, children_less_func, NULL);
   /* Init open_files hashtable. */
@@ -175,30 +180,32 @@ process_create_process_info (struct thread *t)
   hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
   /* Add information for process waiting: */
   /* Create persistent_info struct. */
-  persistent_info *c_info = create_persistent_info (info);
+  persistent_info *persistent_info = create_persistent_info (t);
   /* Point the child's process_info at its parent's persistent_info. */
-  info->persistent = c_info;
+  info->persistent = persistent_info;
   /* Add persistent_info to the parent's chidren hash. Surprisingly there are no
      concurrency issues here; if the child terminates before its persistent_info is
      added to the parent's hash, the correct information will still be added. */
-  hash_insert (&process_current ()->children, &c_info->child_elem);
+  hash_insert (&process_current ()->children, &persistent_info->persistent_elem);
 }
 
 static persistent_info *
-create_persistent_info (struct process_info *p_info)
+create_persistent_info (struct thread *t)
 {
-  persistent_info *c_info = calloc (1, sizeof *c_info);
-  if (c_info == NULL) thread_exit ();
+  struct process_info *p_info = &t->p_info;
+  persistent_info *persistent_info = calloc (1, sizeof *persistent_info);
+  if (persistent_info == NULL) thread_exit ();
 
 
-  c_info->pid = p_info->pid;
-  c_info->running = true;
-  c_info->process_info = p_info;
+  persistent_info->pid = t->tid;
+  persistent_info->exit_status = ABNORMAL_EXIT_STATUS;
+  persistent_info->reference_counter = RUNNING_WITH_PARENT;
+  persistent_info->process_info = p_info;
 
-  lock_init (&c_info->child_lock);
-  sema_init (&c_info->wait_sema, 0);
+  lock_init (&persistent_info->persistent_info_lock);
+  sema_init (&persistent_info->wait_sema, 0);
 
-  return c_info;
+  return persistent_info;
 }
 
 /* Waits for thread TID to die and returns its exit status.  If it was
@@ -211,31 +218,30 @@ int
 process_wait (pid_t child_pid)
 {
   /* Hashtable retrieval related things. */
-  persistent_info c_info_temp;
-  c_info_temp.pid = child_pid;
+  persistent_info temp_child_info;
+  temp_child_info.pid = child_pid;
   struct hash_elem *child_hash_elem;
 
   /* Search children hashtable for a persistent_info with child_pid, storing the
      result in child_hash_elem. */
   child_hash_elem = hash_find (&process_current ()->children,
-                               &c_info_temp.child_elem);
+                               &temp_child_info.persistent_elem);
 
   if (child_hash_elem != NULL)
     {
-      persistent_info *c_info = hash_entry (child_hash_elem, persistent_info, child_elem);
+      persistent_info *child_info = hash_entry (child_hash_elem, persistent_info, persistent_elem);
 
       /* If the process is still running, we block.
          If the process has exited, the semaphore will already be upped.
          So we can down it either way. */
-      sema_down (&c_info->wait_sema);
+      sema_down (&child_info->wait_sema);
 
-      int status = c_info->exit_status;
+      int status = child_info->exit_status;
 
       /* Remove persistent_info from hash so it cannot be waited on again. */
       hash_delete (&process_current ()->children, child_hash_elem);
-
-      /* Free its memory. */
-      free (c_info);
+      /* Decrement child's persistent data counter. */
+      process_persistent_info_counter_decrement (child_info);
       return status;
     }
   else
@@ -257,30 +263,25 @@ print_exit_message (const char *file_name, int status)
 void
 process_exit (void)
 {
-  process_info *proc = process_current ();
-  int exit_status = proc->exit_status;
+  process_info *process = process_current ();
   /* If process_current still has a parent, send it status information and
      unblock it if necessary. */
-  persistent_info *p_c_info = proc->persistent;
+  persistent_info *persistent_info = process->persistent;
+  lock_acquire (&persistent_info->persistent_info_lock);
 
-  if (p_c_info != NULL)
-    {
-      // SYNCH HAXXX
-      lock_acquire (&p_c_info->child_lock);
+  int exit_status = persistent_info->exit_status;
 
-      p_c_info->exit_status = exit_status;
-      p_c_info->running = false;
+  /* Just up the sema: if parent is waiting, it is unblocked.
+     If parent wants to wait in future, parent immediately unblocks. */
+  sema_up (&persistent_info->wait_sema);
 
-      /* Just up the sema: if parent is waiting, it is unblocked.
-         If parent wants to wait in future, parent immediately unblocks. */
-      sema_up (&p_c_info->wait_sema);
-
-      lock_release (&p_c_info->child_lock);
-    }
+  lock_release (&persistent_info->persistent_info_lock);
+  /* Decrement counter of persistent info and free it if no references exist. */
+  process_persistent_info_counter_decrement (persistent_info);
 
   /* Orphan all children, free all persistent_infos and destroy the children and fd
      hashtable. Also free the process_info itself. */
-  process_info_free (proc);
+  process_info_free (process);
 
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -854,11 +855,27 @@ fd_hash_destroy (struct hash_elem *e, void *aux UNUSED)
   free (file_fd);
 }
 
+/* Decrements counter of persistent info object.
+   When counter reaches 0, the object is freed. */
+static void
+process_persistent_info_counter_decrement (persistent_info *info)
+{
+  lock_acquire (&info->persistent_info_lock);
+  int value = --info->reference_counter;
+  lock_release (&info->persistent_info_lock);
+  ASSERT (value >= NO_REFERENCES);
+  if (value == NO_REFERENCES)
+    {
+      free (info);
+    }
+}
+
 /* Hashes persistent_info by pid. */
 static unsigned
 children_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  unsigned hash = (unsigned) hash_entry (e, persistent_info, child_elem)->pid;
+  unsigned hash =
+    (unsigned) hash_entry (e, persistent_info, persistent_elem)->pid;
   return hash;
 }
 
@@ -868,24 +885,16 @@ children_less_func (const struct hash_elem *a,
               const struct hash_elem *b,
               void *aux UNUSED)
 {
-  return hash_entry (a, persistent_info, child_elem)->pid
-         < hash_entry (b, persistent_info, child_elem)->pid;
+  return hash_entry (a, persistent_info, persistent_elem)->pid
+         < hash_entry (b, persistent_info, persistent_elem)->pid;
 }
 
 /* Destroys children hash elements by setting them free. */
 static void
 children_hash_destroy (struct hash_elem *e, void *aux UNUSED)
 {
-  persistent_info *c_info = hash_entry (e, persistent_info, child_elem);
-
-  /* If the child is still running, tell it that its persistent_info no longer exists
-     as its parent no longer exists. We acquire child_lock to ensure the child
-     cannot interrupt and exit before we set its process_info. */
-  lock_acquire (&c_info->child_lock);
-  if (c_info->running)
-    {
-      c_info->process_info->persistent = NULL;
-    }
-  lock_release (&c_info->child_lock);
-  free (c_info);
+  persistent_info *pers_info =
+    hash_entry (e, persistent_info, persistent_elem);
+  /* Decrement counter of persistent info and free it if no references exist. */
+  process_persistent_info_counter_decrement (pers_info);
 }

@@ -196,7 +196,7 @@ syscall_halt (void)
 static void
 syscall_exit (int status)
 {
-  process_current ()->exit_status = status;
+  process_current ()->persistent->exit_status = status;
   thread_exit ();
   NOT_REACHED ();
 }
