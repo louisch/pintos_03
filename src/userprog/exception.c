@@ -156,14 +156,24 @@ page_fault (struct intr_frame *f)
 #ifdef VM
   struct thread *t = thread_current ();
 
-  struct supp_page_entry *entry = supp_page_lookup (&t->supp_page_table, fault_addr);
-  if (entry != NULL && //TODO : Check entry is null (Used currently for debugging)
-      (is_kernel_vaddr (entry->uaddr) || (write && !entry->writable)))
+  /* Check access is not to kernel space. */
+  if (is_kernel_vaddr (fault_addr) )
     {
       thread_exit ();
     }
 
-  if (entry != NULL && user && not_present) //TODO: Remove entry != NULL after.
+  /* Try to find faulting address in supplementary page table. */
+  struct supp_page_entry *entry = supp_page_lookup (&t->supp_page_table, fault_addr);
+  /* Check that entry is valid. */
+  /* TODO : Check entry is null (Used currently for debugging) */
+  if (entry != NULL && (write && !entry->writable))
+    {
+      thread_exit ();
+    }
+
+
+  /* Map the entry if this is part of a file segment. */
+  if (entry != NULL && entry->file != NULL && user && not_present) //TODO: Remove entry != NULL after.
     {
       supp_page_map_entry (entry);
       return;
