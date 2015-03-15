@@ -24,8 +24,12 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "vm/frame.h"
-#include "vm/supp_page.h"
+
+#ifdef VM
+#include <vm/frame.h>
+#include <vm/stack_growth.h>
+#include <vm/supp_page.h>
+#endif
 
 #define ABNORMAL_EXIT_STATUS -1
 
@@ -863,9 +867,7 @@ setup_stack (void **esp)
     }
   return success;
 #else
-  struct supp_page_entry *entry =
-    supp_page_create_entry (&thread_current ()->supp_page_table,
-                            upage, WRITABLE);
+  stack_growth_init ();
   /* Create the page right now instead of waiting for it to fault,
      as some kernel code needs it set up anyway. */
   kpage = supp_page_map_entry (entry);

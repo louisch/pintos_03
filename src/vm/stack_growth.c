@@ -4,44 +4,55 @@
 #include <threads/vaddr.h>
 #include <vm/supp_page.h>
 
-static void *next_alloc_position (unsigned pages_to_alloc);
+static void *stack_position_for (unsigned pages);
 
-#define MAX_PAGES_TO_ALLOC 1
-
-bool
-stack_should_grow (void *esp, void *fault_addr)
-{
-	return esp == fault_addr &&
-    fault_addr < PHYS_BASE && 
-    fault_addr > PHYS_BASE - STACK_SIZE && 
-    fault_addr > next_alloc_position (MAX_PAGES_TO_ALLOC);
-}
-
+/* Initiate the stack growth system, adding entries to the supplementary page table. */
 void
-grow_stack (void *esp)
+stack_growth_init (void)
 {
   bool WRITABLE = true;
-  struct thread *t = thread_current ();
-
-  while (next_alloc_position (1) - PGSIZE < esp)
+  uint8_t *entry_position = ((uint8_t *)PHYS_BASE - STACK_SIZE);
+  while (entry_position != PHYS_BASE)
     {
-      if (next_alloc_position (1) < PHYS_BASE - STACK_SIZE)
-        {
-          thread_exit ();
-        }
       struct supp_page_entry *entry =
-        supp_page_create_entry (&t->supp_page_table, 
-                                next_alloc_position (1), WRITABLE);
-      /* Create the page right now instead of waiting for it to fault,
-         as some kernel code needs it set up anyway. */
-      supp_page_map_entry (entry);
-
-      t->num_pages_in_stack++;
+        supp_page_create_entry (&t->supp_page_table,
+                                entry_position, WRITABLE);
+      entry_position += PGSIZE;
     }
 }
 
-static void *
-next_alloc_position (unsigned pages_to_alloc)
+/* Heuristic for determining whether the stack should grow. */
+bool
+stack_should_grow (void *fault_addr, void *esp)
 {
-  return PHYS_BASE - (thread_current ()->num_pages_in_stack + pages_to_alloc) * PGSIZE;
+	return fault_addr > stack_position_for (MAX_PAGES_TO_ALLOC) &&
+    esp > stack_position_for (MAX_PAGES_TO_ALLOC);
+}
+
+/* Grow the stack up to the given stack pointer.
+   This does no checking, assuming that the conditions for growing
+   the stack have been passed already. */
+void
+grow_stack (void *fault_addr, void *esp)
+{
+  struct thread *t = thread_current ();
+
+  /* Get the entries up to the smaller of fault_addr and esp. */
+  void *alloc_up_to = fault_addr < esp ? fault_addr : esp;
+  unsigned num_to_allocate = ((t->mapped_stack_top - alloc_up_to) / PGSIZE) + 1;
+  struct supp_page_entry entry_buffer[num_to_allocate];
+  supp_page_lookup_range (t->pagedir, alloc_up_to, entry_buffer, num_to_allocate);
+
+  /* Map all the entries. */
+  supp_page_map_entries (entry_buffer, num_to_allocate);
+  t->num_pages_in_stack += num_to_allocate;
+}
+
+/* Returns an address to a position some pages into unallocated stack space.
+   For example, if 3 pages have been allocated, then calling this function with
+   an argument of 2 would return the address 5 pages down from PHYS_BASE. */
+static void *
+stack_position_for (unsigned pages)
+{
+  return PHYS_BASE - (thread_current ()->num_pages_in_stack + pages) * PGSIZE;
 }

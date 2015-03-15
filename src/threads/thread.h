@@ -135,9 +135,9 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 #ifdef VM
-    struct supp_page_table supp_page_table;
-
-    unsigned num_pages_in_stack;
+    struct supp_page_table supp_page_table; /* Supplementary Page Table. */
+    void *mapped_stack_top; /* Address of page at top of allocated stack. */
+    void *esp_before_intr; /* The esp before switching into interrupt handler. */
 #endif
 
     /* Owned by thread.c. */

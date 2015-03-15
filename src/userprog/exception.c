@@ -8,6 +8,7 @@
 #ifdef VM
 #include <threads/vaddr.h>
 #include <vm/supp_page.h>
+#include <vm/stack_growth.h>
 #endif
 
 /* Number of page faults processed. */
@@ -171,6 +172,12 @@ page_fault (struct intr_frame *f)
       thread_exit ();
     }
 
+  /* Grow the stack if this is a stack access. */
+  if (stack_should_grow (fault_addr, f->esp))
+    {
+      grow_stack (fault_addr, f->esp);
+      return;
+    }
 
   /* Map the entry if this is part of a file segment. */
   if (entry != NULL && entry->file != NULL && user && not_present) //TODO: Remove entry != NULL after.
