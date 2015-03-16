@@ -160,7 +160,6 @@ page_fault (struct intr_frame *f)
   /* Check access is not to kernel space. */
   if (user && is_kernel_vaddr (fault_addr))
     {
-      printf ("User is attempting to write to kernel space.\n");
       thread_exit ();
     }
 
@@ -170,8 +169,6 @@ page_fault (struct intr_frame *f)
   /* TODO : Check entry is null (Used currently for debugging) */
   if (entry != NULL && (write && !entry->writable))
     {
-      printf ("Attempt to write to non-writable memory at %p in %s context.\n",
-              fault_addr, user ? "user" : "kernel");
       thread_exit ();
     }
 
@@ -183,10 +180,6 @@ page_fault (struct intr_frame *f)
           grow_stack (fault_addr, f->esp);
           return;
         }
-      printf ("Attempted invalid stack access at %p. Stack pointer is at %p\n"
-              "Stack ends at %p. This access is %s the stack space.\n",
-              fault_addr, f->esp, maximum_stack_addr (),
-              (uint8_t *)fault_addr < maximum_stack_addr () ? "below" : "within");
       thread_exit ();
     }
   /* Map the entry if this is part of a file segment. */
