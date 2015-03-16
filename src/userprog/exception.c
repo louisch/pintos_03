@@ -173,12 +173,19 @@ page_fault (struct intr_frame *f)
     }
 
   /* Grow the stack if this is a stack access. */
-  if (stack_should_grow (fault_addr, f->esp))
+  if (is_stack_access (fault_addr))
     {
-      grow_stack (fault_addr, f->esp);
-      return;
+      if (stack_should_grow (fault_addr, f->esp))
+        {
+          grow_stack (fault_addr, f->esp);
+          return;
+        }
+      printf ("Attempted invalid stack access at %p. Stack pointer is at %p\n"
+              "Stack ends at %p. This access is %s the stack space.\n",
+              fault_addr, f->esp, maximum_stack_addr (),
+              (uint8_t *)fault_addr < maximum_stack_addr () ? "below" : "within");
+      thread_exit ();
     }
-
   /* Map the entry if this is part of a file segment. */
   if (entry != NULL && entry->file != NULL && user && not_present) //TODO: Remove entry != NULL after.
     {
