@@ -106,6 +106,7 @@ main (void)
   paging_init ();
 #ifdef VM
   frame_init ();
+  // swap_init (); WHAT DO HAXX
 #endif
 
 

@@ -64,10 +64,11 @@ userprog_SRC += userprog/tss.c		# TSS management.
 userprog_SRC += userprog/read_page.c # Read a page from file
 userprog_SRC += userprog/install_page.c # Install a page into thread's pagedir
 
-# No virtual memory code yet.
+# Virtual memory code.
 vm_SRC  = vm/frame.c        # Frame table.
-vm_SRC += vm/supp_page.c    # Supplementary Page Table
-vm_SRC += vm/stack_growth.c # Stack Grower
+vm_SRC += vm/supp_page.c    # Supplementary page table.
+vm_SRC += vm/stack_growth.c # Stack grower.
+vm_SRC += vm/swap.c         # Swap table.
 
 # Filesystem code.
 filesys_SRC  = filesys/filesys.c	# Filesystem core.
