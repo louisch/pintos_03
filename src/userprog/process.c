@@ -223,11 +223,11 @@ create_persistent_info (struct thread *t)
   return persistent_info;
 }
 
-/* Waits for thread TID to die and returns its exit status.  If it was
+/* Waits for process PID to die and returns its exit status.  If it was
    terminated by the kernel (i.e. killed due to an exception), returns
-   ABNORMAL_EXIT_STATUS.  If TID is invalid or if it was not a child of the
+   ABNORMAL_EXIT_STATUS.  If PID is invalid or if it was not a child of the
    calling process, or if process_wait() has already been successfully called
-   for the given TID, returns ABNORMAL_EXIT_STATUS immediately, without
+   for the given PID, returns ABNORMAL_EXIT_STATUS immediately, without
    waiting. */
 int
 process_wait (pid_t child_pid)
