@@ -20,7 +20,7 @@
    This supplementary page table provides the data for that functionality. */
 struct supp_page_table
 {
-  struct hash table; /* The internal hash table. */
+  struct hash hash; /* The internal hash table. */
 };
 
 /* An entry in the supplementary page table.

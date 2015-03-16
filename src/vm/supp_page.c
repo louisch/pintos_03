@@ -27,7 +27,7 @@ static struct supp_page_entry *supp_page_from_elem (const struct hash_elem *e);
 void
 supp_page_table_init (struct supp_page_table *supp_page_table)
 {
-  hash_init (&supp_page_table->table, supp_page_hash_func,
+  hash_init (&supp_page_table->hash, supp_page_hash_func,
              supp_page_less_func, NULL);
 }
 
@@ -47,7 +47,7 @@ supp_page_create_entry (struct supp_page_table *supp_page_table,
   entry->offset = 0;
   entry->writable = writable;
 
-  hash_insert (&supp_page_table->table, &entry->supp_elem);
+  hash_insert (&supp_page_table->hash, &entry->supp_elem);
   return entry;
 }
 
@@ -126,7 +126,7 @@ supp_page_lookup (struct supp_page_table *supp_page_table, void *uaddr)
 {
   struct supp_page_entry for_hashing;
   for_hashing.uaddr = pg_round_down (uaddr);
-  struct hash_elem *found = hash_find (&supp_page_table->table,
+  struct hash_elem *found = hash_find (&supp_page_table->hash,
                                        &for_hashing.supp_elem);
   return found == NULL ? NULL : supp_page_from_elem (found);
 }
