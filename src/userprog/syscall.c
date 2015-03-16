@@ -20,6 +20,10 @@
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 
+#ifdef VM
+#include <vm/supp_page.h>
+#endif
+
 #define ABNORMAL_IO_VALUE -1
 #define STDIN 0
 #define STDOUT 1
@@ -151,6 +155,7 @@ check_pointer (const uint32_t *uaddr, size_t size)
   uint8_t *next = start;
   for (; next < start + size; ++next)
     {
+#ifndef VM
       if (!is_user_vaddr (start)
           || (pagedir_get_page (thread_current ()->pagedir, start) == NULL))
         {
@@ -158,6 +163,13 @@ check_pointer (const uint32_t *uaddr, size_t size)
           thread_exit ();
           /* Release other syscall-related resources here. */
         }
+#else
+      if (!is_user_vaddr (start)
+          || (supp_page_lookup (&thread_current ()->supp_page_table, start) == NULL))
+        {
+          thread_exit ();
+        }
+#endif
     }
   /* uaddr is safe (points to mapped user virtual memory). */
   return uaddr;
