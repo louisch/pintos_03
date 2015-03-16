@@ -158,8 +158,9 @@ page_fault (struct intr_frame *f)
   struct thread *t = thread_current ();
 
   /* Check access is not to kernel space. */
-  if (is_kernel_vaddr (fault_addr) )
+  if (user && is_kernel_vaddr (fault_addr))
     {
+      printf ("User is attempting to write to kernel space.\n");
       thread_exit ();
     }
 
@@ -169,6 +170,8 @@ page_fault (struct intr_frame *f)
   /* TODO : Check entry is null (Used currently for debugging) */
   if (entry != NULL && (write && !entry->writable))
     {
+      printf ("Attempt to write to non-writable memory at %p in %s context.\n",
+              fault_addr, user ? "user" : "kernel");
       thread_exit ();
     }
 
@@ -187,7 +190,8 @@ page_fault (struct intr_frame *f)
       thread_exit ();
     }
   /* Map the entry if this is part of a file segment. */
-  if (entry != NULL && entry->file != NULL && user && not_present) //TODO: Remove entry != NULL after.
+  /* TODO: Remove entry != NULL after. */
+  else if (entry != NULL && entry->file != NULL && user && not_present)
     {
       supp_page_map_entry (entry);
       return;
