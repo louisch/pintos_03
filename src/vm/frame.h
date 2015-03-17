@@ -20,4 +20,4 @@ void frame_init (void);
 void *request_frame (enum palloc_flags additional_flags);
 void free_frame (void *kpage);
 
-#endif
+#endif /* vm/frame.h */

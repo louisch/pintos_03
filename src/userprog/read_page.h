@@ -7,4 +7,4 @@
 bool read_page (void *kpage, struct file *file,
                 size_t page_read_bytes, size_t read_zero_bytes);
 
-#endif
+#endif /* userprog/read_page.h */

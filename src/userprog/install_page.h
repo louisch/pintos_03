@@ -5,4 +5,4 @@
 
 bool install_page (void *upage, void *kpage, bool writable);
 
-#endif
+#endif /* userprog/install_page.h */

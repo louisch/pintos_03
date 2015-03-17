@@ -65,4 +65,4 @@ struct supp_page_entry **supp_page_lookup_range (struct supp_page_table *supp_pa
                                                  struct supp_page_entry **buffer,
                                                  unsigned number);
 
-#endif
+#endif  /* vm/supp_page.h */
