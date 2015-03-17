@@ -43,8 +43,7 @@ supp_page_create_entry (struct supp_page_table *supp_page_table,
       thread_exit ();
     }
   entry->uaddr = uaddr;
-  entry->file = NULL;
-  entry->offset = 0;
+  entry->file_data = NULL;
   entry->writable = writable;
 
   hash_insert (&supp_page_table->hash, &entry->supp_elem);
@@ -56,16 +55,18 @@ struct supp_page_entry *
 supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
                          off_t offset, size_t page_read_bytes, size_t page_zero_bytes)
 {
-  entry->file = file;
-  entry->offset = offset;
-  entry->page_read_bytes = page_read_bytes;
-  entry->page_zero_bytes = page_zero_bytes;
+  struct supp_page_file_data *file_data = calloc (1, sizeof *file_data);
+  file_data->file = file;
+  file_data->offset = offset;
+  file_data->page_read_bytes = page_read_bytes;
+  file_data->page_zero_bytes = page_zero_bytes;
+  entry->file_data = file_data;
   return entry;
 }
 
 /* Try to get a frame and map entry->upage to this frame in the page table.
    Non-file pages will simply be zeroed out. File pages will have their data
-   read from the file that entry->file points to. */
+   read from the file that entry->file_data->file points to. */
 void *
 supp_page_map_entry (struct supp_page_entry *entry)
 {
@@ -75,14 +76,15 @@ supp_page_map_entry (struct supp_page_entry *entry)
   void *kpage = NULL;
   /* if this is not NULL, it represents a page that needs to be read from a
      file. */
-  if (entry->file != NULL)
+  struct supp_page_file_data *file_data = entry->file_data;
+  if (file_data != NULL)
     {
-      ASSERT (entry->page_read_bytes + entry->page_zero_bytes == PGSIZE);
+      ASSERT (file_data->page_read_bytes + file_data->page_zero_bytes == PGSIZE);
       /* Try to get a frame from the frame table. */
       kpage = request_frame (PAL_NONE);
-      file_seek (entry->file, entry->offset);
-      if (!read_page (kpage, entry->file, entry->page_read_bytes,
-                      entry->page_zero_bytes))
+      file_seek (file_data->file, file_data->offset);
+      if (!read_page (kpage, file_data->file, file_data->page_read_bytes,
+                      file_data->page_zero_bytes))
         {
           // TODO: fix (free all the thread's frames, somehow)
           free_frame (kpage);

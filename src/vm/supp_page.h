@@ -29,22 +29,27 @@ struct supp_page_table
    stored.
 
    Pages may have originated from a file (they are read from a file into
-   memory). If they did not, then the file field will be set to NULL. */
+   memory). If they did not, then the file_data field will be set to NULL. */
 struct supp_page_entry
 {
   struct hash_elem supp_elem; /* For placing this into a supp_page_table. */
   void *uaddr; /* The virtual user address of this page. */
 
-  /* File data fields */
+  struct supp_page_file_data *file_data; /* File data */
+
+  /* Other properties */
+  bool writable; /* Whether this page is writable or not. */
+};
+
+/* Data pertaining to a page that is read from a file. */
+struct supp_page_file_data
+{
   struct file *file; /* The file that this page is read from. NULL if not a file. */
   off_t offset; /* Offset amount into the file that this page starts at. */
   /* We will read PAGE_READ_BYTES bytes from FILE
      and zero the final PAGE_ZERO_BYTES bytes. */
   size_t page_read_bytes;
   size_t page_zero_bytes;
-
-  /* Other properties */
-  bool writable; /* Whether this page is writable or not. */
 };
 
 void supp_page_table_init (struct supp_page_table *supp_page_table);

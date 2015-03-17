@@ -184,7 +184,7 @@ page_fault (struct intr_frame *f)
     }
   /* Map the entry if this is part of a file segment. */
   /* TODO: Remove entry != NULL after. */
-  else if (entry != NULL && entry->file != NULL && not_present)
+  else if (entry != NULL && entry->file_data != NULL && not_present)
     {
       supp_page_map_entry (entry);
       return;
