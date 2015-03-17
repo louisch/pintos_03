@@ -63,6 +63,11 @@ request_frame (enum palloc_flags additional_flags)
 void
 free_frame (void *kpage)
 {
+  if (kpage == NULL)
+    {
+      return;
+    }
+
   struct frame *frame = allocated_find_frame (kpage);
   if (frame != NULL)
     {
