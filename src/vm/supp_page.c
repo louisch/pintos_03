@@ -17,6 +17,7 @@
 #include <userprog/install_page.h>
 #include <vm/frame.h>
 
+static void supp_page_free (struct hash_elem *entry_elem, void *aux UNUSED);
 static unsigned supp_page_hash_func (const struct hash_elem *e, void *aux UNUSED);
 static bool supp_page_less_func (const struct hash_elem *a,
                                  const struct hash_elem *b,
@@ -108,9 +109,11 @@ supp_page_map_entry (struct supp_page_entry *entry)
       free_frame (kpage);
       thread_exit ();
     }
+
+  entry->mapped = true;
   return kpage;
 }
- 
+
 /* Like supp_page_map, but works on an array of entries. */
 void
 supp_page_map_entries (struct supp_page_entry **entry_array, unsigned num_of_entries)
@@ -149,6 +152,29 @@ supp_page_lookup_range (struct supp_page_table *supp_page_table, void *base_addr
       index++;
     }
   return buffer;
+}
+
+/* Frees all the memory used by a particular supplementary page table in a
+   thread. */
+void
+supp_page_free_all (struct supp_page_table *supp_page_table,
+                    uint32_t *pagedir)
+{
+  supp_page_table->hash.aux = pagedir;
+  hash_destroy (&supp_page_table->hash, supp_page_free);
+}
+
+/* Used as a hash_action_func for hash_destroy in supp_page_free_all.
+   Frees the page corresponding to a single hash_elem. */
+static void
+supp_page_free (struct hash_elem *entry_elem, void *pagedir_)
+{
+  struct supp_page_entry *entry = supp_page_from_elem (entry_elem);
+  uint32_t *pagedir = (uint32_t *)pagedir_;
+  free_frame (pagedir_get_page (pagedir, entry->uaddr));
+  pagedir_clear_page (pagedir, entry->uaddr);
+  free (entry->file_data);
+  free (entry);
 }
 
 /* Used for setting up the hash table. Gets hash value for hash elements. */

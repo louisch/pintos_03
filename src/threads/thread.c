@@ -18,6 +18,9 @@
 #include <user/syscall.h>
 #include "userprog/process.h"
 #endif
+#ifdef VM
+#include <vm/supp_page.h>
+#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -341,6 +344,10 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
+#ifdef VM
+  supp_page_free_all (&thread_current ()->supp_page_table,
+                      thread_current ()->pagedir);
+#endif
 #ifdef USERPROG
   process_exit ();
 #endif

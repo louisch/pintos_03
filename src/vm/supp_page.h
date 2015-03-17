@@ -2,6 +2,7 @@
 #define VM_SUPP_PAGE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <lib/kernel/hash.h>
 
 #include <filesys/file.h>
@@ -39,6 +40,7 @@ struct supp_page_entry
 
   /* Other properties */
   bool writable; /* Whether this page is writable or not. */
+  bool mapped; /* Whether this page has been mapped or not. */
 };
 
 /* Data pertaining to a page that is read from a file. */
@@ -69,5 +71,7 @@ struct supp_page_entry **supp_page_lookup_range (struct supp_page_table *supp_pa
                                                  void *base_addr,
                                                  struct supp_page_entry **buffer,
                                                  unsigned number);
+void supp_page_free_all (struct supp_page_table *supp_page_table,
+                         uint32_t *pagedir);
 
 #endif  /* vm/supp_page.h */
