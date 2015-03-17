@@ -1,0 +1,60 @@
+\part{Paging To and From Disk}
+
+\section{Data Structures}
+
+% Copy here the declaration of each new or changed `struct' or
+% `struct' member, global or static variable, `typedef', or
+% enumeration.  Identify the purpose of each in 25 words or less.
+
+\section{Algorithms}
+
+% When a frame is required but none is free, some frame must be
+% evicted.  Describe your code for choosing a frame to evict.
+
+% When a process P obtains a frame that was previously used by a
+% process Q, how do you adjust the page table (and any other data
+% structures) to reflect the frame Q no longer has?
+
+We simply clear the page table's mapping of process Q's user virtual address.
+% TODO: Add a note here explaining how the supplementary page table is told
+% if a page is in swap.
+
+% Explain your heuristic for deciding whether a page fault for an
+% invalid virtual address should cause the stack to be extended into
+% the page that faulted.
+
+We calculate the difference between the stack pointer and the invalid virtual
+address, and see if it is larger than some limit. If it exceeds this limit, then
+the user program is deemed to be buggy, and we terminate the thread.
+
+\section{Synchronization}
+
+% Explain the basics of your VM synchronization design.  In
+% particular, explain how it prevents deadlock.  (Refer to the
+% textbook for an explanation of the necessary conditions for
+% deadlock.)
+
+% A page fault in process P can cause another process Q's frame
+% to be evicted.  How do you ensure that Q cannot access or modify
+% the page during the eviction process?  How do you avoid a race
+% between P evicting Q's frame and Q faulting the page back in?
+
+% Suppose a page fault in process P causes a page to be read from
+% the file system or swap.  How do you ensure that a second process Q
+% cannot interfere by e.g. attempting to evict the frame while it is
+% still being read in?
+
+% Explain how you handle access to paged-out pages that occur
+% during system calls.  Do you use page faults to bring in pages (as
+% in user programs), or do you have a mechanism for "locking" frames
+% into physical memory, or do you use some other design?  How do you
+% gracefully handle attempted accesses to invalid virtual addresses?
+
+\section{Rationale}
+
+% A single lock for the whole VM system would make
+% synchronization easy, but limit parallelism.  On the other hand,
+% using many locks complicates synchronization and raises the
+% possibility for deadlock but allows for high parallelism.  Explain
+% where your design falls along this continuum and why you chose to
+% design it this way.
