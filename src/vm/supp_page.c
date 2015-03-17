@@ -80,7 +80,7 @@ supp_page_map_entry (struct supp_page_entry *entry)
   if (file_data != NULL)
     {
       /* Try to get a frame from the frame table. */
-      kpage = request_frame (PAL_NONE);
+      kpage = request_frame (PAL_NONE, entry->uaddr);
       file_seek (file_data->file, file_data->offset);
       if (!read_page (kpage, file_data->file, file_data->page_read_bytes,
                       PGSIZE - file_data->page_read_bytes))
@@ -92,7 +92,7 @@ supp_page_map_entry (struct supp_page_entry *entry)
     }
   else
     {
-      kpage = request_frame (PAL_ZERO);
+      kpage = request_frame (PAL_ZERO, entry->uaddr);
     }
 
   if (kpage == NULL)
