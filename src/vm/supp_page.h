@@ -40,19 +40,17 @@ struct supp_page_entry
 
     /* Other properties */
     bool writable; /* Whether this page is writable or not. */
-    bool mapped; /* Whether this page has been mapped or not. */
-  };
+};
 
 /* Data pertaining to a page that is read from a file. */
 struct supp_page_file_data
-  {
-    struct file *file; /* The file that this page is read from. NULL if not a file. */
-    off_t offset; /* Offset amount into the file that this page starts at. */
-    /* We will read PAGE_READ_BYTES bytes from FILE
-       and zero the final PAGE_ZERO_BYTES bytes. */
-    size_t page_read_bytes;
-    size_t page_zero_bytes;
-  };
+{
+  struct file *file; /* The file that this page is read from. NULL if not a file. */
+  off_t offset; /* Offset amount into the file that this page starts at. */
+  /* We will read PAGE_READ_BYTES bytes from FILE
+     and zero the remaining bytes. */
+  size_t page_read_bytes;
+};
 
 void supp_page_table_init (struct supp_page_table *supp_page_table);
 struct supp_page_entry *supp_page_create_entry (struct supp_page_table *supp_page_table,
@@ -60,8 +58,7 @@ struct supp_page_entry *supp_page_create_entry (struct supp_page_table *supp_pag
 struct supp_page_entry *supp_page_set_file_data (struct supp_page_entry *entry,
                                                  struct file *file,
                                                  off_t offset,
-                                                 size_t page_read_bytes,
-                                                 size_t page_zero_bytes);
+                                                 size_t page_read_bytes);
 void *supp_page_map_entry (struct supp_page_entry *entry);
 void supp_page_map_entries (struct supp_page_entry **entry_array,
                             unsigned num_of_entries);

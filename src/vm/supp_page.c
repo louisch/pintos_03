@@ -54,13 +54,12 @@ supp_page_create_entry (struct supp_page_table *supp_page_table,
 /* Sets data for a page that is read from a file. */
 struct supp_page_entry *
 supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
-                         off_t offset, size_t page_read_bytes, size_t page_zero_bytes)
+                         off_t offset, size_t page_read_bytes)
 {
   struct supp_page_file_data *file_data = calloc (1, sizeof *file_data);
   file_data->file = file;
   file_data->offset = offset;
   file_data->page_read_bytes = page_read_bytes;
-  file_data->page_zero_bytes = page_zero_bytes;
   entry->file_data = file_data;
   return entry;
 }
@@ -80,12 +79,11 @@ supp_page_map_entry (struct supp_page_entry *entry)
   struct supp_page_file_data *file_data = entry->file_data;
   if (file_data != NULL)
     {
-      ASSERT (file_data->page_read_bytes + file_data->page_zero_bytes == PGSIZE);
       /* Try to get a frame from the frame table. */
       kpage = request_frame (PAL_NONE);
       file_seek (file_data->file, file_data->offset);
       if (!read_page (kpage, file_data->file, file_data->page_read_bytes,
-                      file_data->page_zero_bytes))
+                      PGSIZE - file_data->page_read_bytes))
         {
           // TODO: fix (free all the thread's frames, somehow)
           free_frame (kpage);
@@ -110,7 +108,6 @@ supp_page_map_entry (struct supp_page_entry *entry)
       thread_exit ();
     }
 
-  entry->mapped = true;
   return kpage;
 }
 

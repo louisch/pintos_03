@@ -691,8 +691,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
 #ifndef VM
+      /* Get a page of memory. */
       uint8_t *kpage = palloc_get_page (PAL_USER);
       if (kpage == NULL)
         return false;
@@ -713,8 +713,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       struct thread *t = thread_current ();
       supp_page_set_file_data (supp_page_create_entry (&t->supp_page_table, upage,
                                                        writable),
-                               file, ofs + pages_read * PGSIZE,
-                               page_read_bytes, page_zero_bytes);
+                               file, ofs + pages_read * PGSIZE, page_read_bytes);
       pages_read++;
 #endif
 
