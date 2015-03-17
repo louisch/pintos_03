@@ -11,10 +11,10 @@
    It also provides automatic eviction of an already allocated frame
    if no frames are available. */
 struct frame_table
-{
-  struct lock table_lock; /* Synchronizes table between threads. */
-  struct hash allocated; /* Frames which have been allocated already. */
-};
+  {
+    struct lock table_lock; /* Synchronizes table between threads. */
+    struct hash allocated; /* Frames which have been allocated already. */
+  };
 
 void frame_init (void);
 void *request_frame (enum palloc_flags additional_flags);
