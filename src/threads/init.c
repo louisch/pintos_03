@@ -24,6 +24,7 @@
 #include "threads/thread.h"
 
 #ifdef USERPROG
+#include "filesys/filesys_lock.h"
 #include "userprog/process.h"
 #include "userprog/exception.h"
 #include "userprog/gdt.h"
@@ -119,7 +120,7 @@ main (void)
   input_init ();
 #ifdef USERPROG
   exception_init ();
-  process_init_filesys_lock ();
+  filesys_lock_init ();
   process_create_process_info (thread_current ());
   syscall_init ();
 #endif

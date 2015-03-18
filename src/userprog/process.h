@@ -52,15 +52,12 @@ typedef struct persistent_info
 
 persistent_info *process_execute_aux (const char *file_name);
 
-void process_acquire_filesys_lock (void);
-void process_release_filesys_lock (void);
 int process_add_file (struct file *);
 struct file* process_fetch_file (int fd);
 struct file* process_remove_file (int fd);
 
 void process_create_process_info (struct thread *);
 pid_t process_execute_pid (const char *file_name);
-void process_init_filesys_lock (void);
 int process_wait (pid_t);
 void process_exit (void);
 void process_activate (void);

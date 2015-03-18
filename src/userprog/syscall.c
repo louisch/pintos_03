@@ -12,6 +12,7 @@
 #include "lib/hash_f.h"
 
 /* Syscall required imports. */
+#include "filesys/filesys_lock.h"
 /* halt */
 #include "devices/shutdown.h"
 /* write */
@@ -244,9 +245,9 @@ syscall_create (const char *file, unsigned initial_size)
 {
   check_filename (file);
   bool success = false;
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   success = filesys_create (file, initial_size);
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return success;
 }
 
@@ -257,9 +258,9 @@ syscall_remove (const char *file)
 {
   check_filename (file);
   bool success = false;
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   success = filesys_remove (file);
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return success;
 }
 
@@ -269,9 +270,9 @@ static int
 syscall_open (const char *file)
 {
   check_filename (file);
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *open_file = filesys_open (file);
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   if (open_file == NULL) /* File not found. */
     {
       return ABNORMAL_IO_VALUE;
@@ -285,14 +286,14 @@ static int
 syscall_filesize (int fd)
 {
   int size = ABNORMAL_IO_VALUE; /* File not found default value. */
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     {
       size = file_length (file);
     }
 
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return size;
 }
 
@@ -308,14 +309,14 @@ syscall_read (int fd, void *buffer, unsigned size)
       return ret; /* Bad fd. */
     }
 
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File not found. */
     {
       ret = file_read_at (file, buffer, size, file_tell (file));
       file_seek (file, file_tell (file) + ret);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return ret;
 }
 
@@ -352,10 +353,10 @@ syscall_write (int fd, const void *buffer, unsigned size)
         {
           return ABNORMAL_IO_VALUE;
         }
-      process_acquire_filesys_lock ();
+      filesys_lock_acquire ();
       written = file_write_at (file, buffer, size, file_tell (file));
       file_seek (file, file_tell (file) + written);
-      process_release_filesys_lock ();
+      filesys_lock_release ();
     }
 
   return written;
@@ -366,13 +367,13 @@ syscall_write (int fd, const void *buffer, unsigned size)
 static void
 syscall_seek (int fd, unsigned position)
 {
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     {
       file_seek (file, position);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
 }
 
 /* Returns the position of the next byte to be read or written in open file fd,
@@ -382,13 +383,13 @@ static unsigned
 syscall_tell (int fd)
 {
   unsigned pos = ABNORMAL_IO_VALUE; /* Default file-not-found position. */
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     {
       pos = file_tell (file);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return pos;
 }
 
@@ -396,11 +397,11 @@ syscall_tell (int fd)
 static void
 syscall_close (int fd)
 {
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_remove_file (fd);
   if (file != NULL) /* File found. */
     {
       file_close (file);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
 }

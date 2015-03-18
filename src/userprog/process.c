@@ -17,6 +17,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "filesys/filesys_lock.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
@@ -36,9 +37,6 @@
 
 /* Maximum number of allowed open files per process. */
 static unsigned OPEN_FILE_LIMIT = 128;
-
-/* Lock used to synchronise filesystem operations in process.c and syscall.c. */
-static struct lock filesys_access;
 
 static thread_func start_process NO_RETURN;
 
@@ -69,13 +67,6 @@ enum process_status
     RUNNING_WITH_PARENT = 2
   };
 static void process_persistent_info_counter_decrement (persistent_info *info);
-
-/* Initializes the process_info system. */
-void
-process_init_filesys_lock (void)
-{
-  lock_init (&filesys_access);
-}
 
 /* Struct for linking files to fds. */
 struct file_fd
@@ -432,19 +423,19 @@ load (char *fn_args, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Lock filesystem to deny write to file that is being read. */
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL)
     {
-      process_release_filesys_lock ();
+      filesys_lock_release ();
       printf ("load: %s: open failed\n", file_name);
       goto done;
     }
   /* Deny write to opened executables. */
   file_deny_write (file);
   process_add_file (file);
-  process_release_filesys_lock ();
+  filesys_lock_release ();
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -769,20 +760,6 @@ setup_stack (void **esp)
 
   return true;
 #endif
-}
-
-/* Acquires lock over filesystem. */
-void
-process_acquire_filesys_lock (void)
-{
-  lock_acquire (&filesys_access);
-}
-
-/* Releases lock over filesystem. */
-void
-process_release_filesys_lock (void)
-{
-  lock_release (&filesys_access);
 }
 
 /* Frees the process info struct, destroys its children and fd hashes. */
