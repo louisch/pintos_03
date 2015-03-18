@@ -35,6 +35,7 @@
 
 #ifdef VM
 #include <vm/frame.h>
+#include <vm/swap.h>
 #endif
 
 #ifdef FILESYS
@@ -106,7 +107,7 @@ main (void)
   paging_init ();
 #ifdef VM
   frame_init ();
-  // swap_init (); WHAT DO HAXX
+  swap_init ();
 #endif
 
 
