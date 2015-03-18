@@ -7,6 +7,7 @@
 #include <lib/kernel/hash.h>
 
 #include <filesys/file.h>
+#include <filesys/filesys_lock.h>
 #include <filesys/off_t.h>
 #include <threads/malloc.h>
 #include <threads/palloc.h>
@@ -81,14 +82,17 @@ supp_page_map_entry (struct supp_page_entry *entry)
     {
       /* Try to get a frame from the frame table. */
       kpage = request_frame (PAL_NONE, entry->uaddr);
+      filesys_lock_acquire ();
       file_seek (file_data->file, file_data->offset);
       if (!read_page (kpage, file_data->file, file_data->page_read_bytes,
                       PGSIZE - file_data->page_read_bytes))
         {
+          filesys_lock_release ();
           // TODO: fix (free all the thread's frames, somehow)
           free_frame (kpage);
           thread_exit ();
         }
+      filesys_lock_release ();
     }
   else
     {
