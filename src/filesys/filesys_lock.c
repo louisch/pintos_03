@@ -12,6 +12,12 @@ filesys_lock_init (void)
   lock_init (&filesys_access);
 }
 
+bool
+filesys_lock_held (void)
+{
+  return lock_held_by_current_thread (&filesys_access);
+}
+
 /* Acquires lock over filesystem. */
 void
 filesys_lock_acquire (void)
