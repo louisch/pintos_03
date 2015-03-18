@@ -5,7 +5,7 @@
 typedef int slot_no;
 
 void swap_init (void);
-void swap_insert (void *);
-void free_used_frames (void); // ARG HAXX
+// void swap_insert (void *);
+// void free_used_frames (void); // ARG HAXX
 
 #endif /* vm/swap.h */
