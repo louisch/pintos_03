@@ -7,6 +7,10 @@
 #include "filesys/file.h"
 #include "threads/synch.h"
 
+#define STDIN 0
+#define STDOUT 1
+
+
 /* Data for a process used for syscalls. */
 typedef struct process_info
 {
@@ -23,6 +27,11 @@ typedef struct process_info
   unsigned fd_counter;
   /* Hash used to remember files open by process by their fd. */
   struct hash open_files;
+
+  /* Hash used to for mapping ids to files */
+  struct hash mapped_files
+  /* Provides unique map ids for process */
+  unsigned mapid_counter;
 
 } process_info;
 
