@@ -15,6 +15,9 @@
 % kernel and user virtual addresses that alias a single frame, or
 % alternatively how do you avoid the issue?
 
+We simply check the accessed and dirty bits of both, summing the number of bits
+set for all aliases of a frame.
+
 \section{Synchronization}
 
 % When two user processes both need a new frame at the same time,
