@@ -186,7 +186,7 @@ page_fault (struct intr_frame *f)
   /* TODO: Remove entry != NULL after. */
   else if (entry != NULL && entry->file_data != NULL && not_present)
     {
-      supp_page_map_entry (entry);
+      supp_page_map_entry (entry, fault_addr);
       return;
     }
 #endif

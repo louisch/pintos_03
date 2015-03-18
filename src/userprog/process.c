@@ -435,10 +435,12 @@ load (char *fn_args, void (**eip) (void), void **esp)
   /* Deny write to opened executables. */
   file_deny_write (file);
   process_add_file (file);
-  filesys_lock_release ();
 
   /* Read and verify executable header. */
-  if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
+  off_t bytes_read = file_read (file, &ehdr, sizeof ehdr);
+  filesys_lock_release ();
+
+  if (bytes_read != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
       || ehdr.e_type != 2
       || ehdr.e_machine != 3
@@ -456,12 +458,21 @@ load (char *fn_args, void (**eip) (void), void **esp)
     {
       struct Elf32_Phdr phdr;
 
+      filesys_lock_acquire ();
       if (file_ofs < 0 || file_ofs > file_length (file))
-        goto done;
+        {
+          filesys_lock_release ();
+          goto done;
+        }
       file_seek (file, file_ofs);
 
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
-        goto done;
+        {
+          filesys_lock_release ();
+          goto done;
+        }
+      filesys_lock_release ();
+
       file_ofs += sizeof phdr;
       switch (phdr.p_type)
         {

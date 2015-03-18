@@ -18,12 +18,9 @@
 #include <userprog/install_page.h>
 #include <vm/frame.h>
 
-static void supp_page_free (struct hash_elem *entry_elem, void *aux UNUSED);
-static unsigned supp_page_hash_func (const struct hash_elem *e, void *aux UNUSED);
-static bool supp_page_less_func (const struct hash_elem *a,
-                                 const struct hash_elem *b,
-                                 void *aux UNUSED);
 static struct supp_page_entry *supp_page_from_elem (const struct hash_elem *e);
+static bool supp_page_entry_contains (struct supp_page_entry *entry, void *uaddr);
+static void supp_page_free (struct hash_elem *entry_elem, void *aux UNUSED);
 
 /* Initialize the given supplementary page table with the given page table. */
 void
@@ -36,7 +33,7 @@ supp_page_table_init (struct supp_page_table *supp_page_table)
 /* Allocates a new supplementary page table entry, and insert it into the hash. */
 struct supp_page_entry *
 supp_page_create_entry (struct supp_page_table *supp_page_table,
-                        void *uaddr, bool writable)
+                        void *uaddr, bool writable, uint32_t size)
 {
   struct supp_page_entry *entry = calloc (1, sizeof *entry);
   if (entry == NULL)
@@ -47,6 +44,7 @@ supp_page_create_entry (struct supp_page_table *supp_page_table,
   entry->uaddr = uaddr;
   entry->file_data = NULL;
   entry->writable = writable;
+  entry->size = size;
 
   hash_insert (&supp_page_table->hash, &entry->supp_elem);
   return entry;
@@ -55,48 +53,105 @@ supp_page_create_entry (struct supp_page_table *supp_page_table,
 /* Sets data for a page that is read from a file. */
 struct supp_page_entry *
 supp_page_set_file_data (struct supp_page_entry *entry, struct file *file,
-                         off_t offset, size_t page_read_bytes)
+                         uint32_t offset, uint32_t read_bytes)
 {
   struct supp_page_file_data *file_data = calloc (1, sizeof *file_data);
   file_data->file = file;
   file_data->offset = offset;
-  file_data->page_read_bytes = page_read_bytes;
+  file_data->read_bytes = read_bytes;
   entry->file_data = file_data;
   return entry;
 }
 
-/* Try to get a frame and map entry->upage to this frame in the page table.
-   Non-file pages will simply be zeroed out. File pages will have their data
-   read from the file that entry->file_data->file points to. */
+/* Looks up a user virtual address in the supplementary page table.
+   Returns NULL if no entry can be found. */
+struct supp_page_entry *
+supp_page_lookup (struct supp_page_table *supp_page_table, void *uaddr)
+{
+  struct supp_page_entry *found_entry = NULL;
+  struct list_elem *current = list_begin (&supp_page_table->entries);
+  while (current != list_end (&supp_page_table->entries))
+    {
+      struct supp_page_entry *entry = supp_page_from_elem (current);
+      if (supp_page_entry_contains (entry, uaddr))
+        {
+          found_entry = entry;
+          break;
+        }
+      current = list_next (current);
+    }
+  return found_entry;
+}
+
+/* Like supp_page_lookup, but works on a range of addresses. */
+struct supp_page_entry **
+supp_page_lookup_range (struct supp_page_table *supp_page_table, void *base_addr,
+                        struct supp_page_entry **buffer, unsigned number)
+{
+  ASSERT (buffer != NULL);
+
+  unsigned index = 0;
+  while (index != number)
+    {
+      buffer[index] = supp_page_lookup (supp_page_table,
+                                        (uint8_t *)base_addr + index * PGSIZE);
+      index++;
+    }
+  return buffer;
+}
+
+/* Tries to get a frame and map the faulting page inside entry to this frame. */
 void *
-supp_page_map_entry (struct supp_page_entry *entry)
+supp_page_map_entry (struct supp_page_entry *entry, void *uaddr)
 {
   ASSERT (entry != NULL);
 
   /* Try to get a frame and read the right data into it. */
   void *kpage = NULL;
+  /* Calculate the offset from entry->uaddr to the page that uaddr is in. */
+  uint32_t offset_to_page = ((uint32_t)pg_round_down (uaddr) - (uint32_t)entry->uaddr);
+  void *uaddr = (uint8_t *)entry->uaddr + offset_to_page;
+
   /* if this is not NULL, it represents a page that needs to be read from a
      file. */
   struct supp_page_file_data *file_data = entry->file_data;
   if (file_data != NULL)
     {
       /* Try to get a frame from the frame table. */
-      kpage = request_frame (PAL_NONE, entry->uaddr);
-      filesys_lock_acquire ();
-      file_seek (file_data->file, file_data->offset);
-      if (!read_page (kpage, file_data->file, file_data->page_read_bytes,
-                      PGSIZE - file_data->page_read_bytes))
+      kpage = request_frame (PAL_NONE, uaddr);
+
+      /* Calculate how many bytes of the file we are reading, and the offset into
+         the file to seek to. */
+      uint32_t page_read_size = offset_to_page < file_data->read_bytes ?
+        file_data->read_bytes - offset_to_page : 0;
+      page_read_size = page_read_size > PGSIZE ? PGSIZE : page_read_size;
+
+      bool acquired_lock = false;
+      if (!filesys_lock_held ())
         {
-          filesys_lock_release ();
-          // TODO: fix (free all the thread's frames, somehow)
+          acquired_lock = true;
+          filesys_lock_acquire ();
+        }
+
+      file_seek (file_data->file, file_data->offset + offset_to_page);
+      if (!read_page (kpage, file_data->file, page_read_size,
+                      PGSIZE - page_read_size))
+        {
+          if (acquired_lock)
+            {
+              filesys_lock_release ();
+            }
           free_frame (kpage);
           thread_exit ();
         }
-      filesys_lock_release ();
+      if (acquired_lock)
+        {
+          filesys_lock_release ();
+        }
     }
   else
     {
-      kpage = request_frame (PAL_ZERO, entry->uaddr);
+      kpage = request_frame (PAL_ZERO, );
     }
 
   if (kpage == NULL)
@@ -126,35 +181,6 @@ supp_page_map_entries (struct supp_page_entry **entry_array, unsigned num_of_ent
     }
 }
 
-/* Looks up a user virtual address in the supplementary page table.
-   Returns NULL if no entry can be found. */
-struct supp_page_entry *
-supp_page_lookup (struct supp_page_table *supp_page_table, void *uaddr)
-{
-  struct supp_page_entry for_hashing;
-  for_hashing.uaddr = pg_round_down (uaddr);
-  struct hash_elem *found = hash_find (&supp_page_table->hash,
-                                       &for_hashing.supp_elem);
-  return found == NULL ? NULL : supp_page_from_elem (found);
-}
-
-/* Like supp_page_lookup, but works on a range of addresses. */
-struct supp_page_entry **
-supp_page_lookup_range (struct supp_page_table *supp_page_table, void *base_addr,
-                        struct supp_page_entry **buffer, unsigned number)
-{
-  ASSERT (buffer != NULL);
-
-  unsigned index = 0;
-  while (index != number)
-    {
-      buffer[index] = supp_page_lookup (supp_page_table,
-                                        (uint8_t *)base_addr + index * PGSIZE);
-      index++;
-    }
-  return buffer;
-}
-
 /* Frees all the memory used by a particular supplementary page table in a
    thread. */
 void
@@ -163,6 +189,21 @@ supp_page_free_all (struct supp_page_table *supp_page_table,
 {
   supp_page_table->hash.aux = pagedir;
   hash_destroy (&supp_page_table->hash, supp_page_free);
+}
+
+/* Get the supp_page_entry wrapping a supp_elem. */
+static struct supp_page_entry *
+supp_page_from_elem (const struct list_elem *e)
+{
+  ASSERT (e != NULL);
+  return list_entry (e, struct supp_page_entry, supp_elem);
+}
+
+static bool
+supp_page_entry_contains (struct supp_page_entry *entry, void *uaddr)
+{
+  return entry->uaddr <= uaddr &&
+    (uint8_t *)uaddr <= (uint8_t *)entry->uaddr + size;
 }
 
 /* Used as a hash_action_func for hash_destroy in supp_page_free_all.
@@ -176,32 +217,4 @@ supp_page_free (struct hash_elem *entry_elem, void *pagedir_)
   pagedir_clear_page (pagedir, entry->uaddr);
   free (entry->file_data);
   free (entry);
-}
-
-/* Used for setting up the hash table. Gets hash value for hash elements. */
-static unsigned
-supp_page_hash_func (const struct hash_elem *e, void *aux UNUSED)
-{
-  void *uaddr = supp_page_from_elem (e)->uaddr;
-  /* sizeof returns how many bytes uaddr, the pointer itself (not what it is
-     pointing to), takes up. */
-  return hash_bytes (&uaddr, sizeof uaddr);
-}
-
-/* Used for setting up hash table. Orders hash elements. */
-static bool
-supp_page_less_func (const struct hash_elem *a, const struct hash_elem *b,
-                     void *aux UNUSED)
-{
-  void *upage_a = supp_page_from_elem (a)->uaddr;
-  void *upage_b = supp_page_from_elem (b)->uaddr;
-  return upage_a < upage_b;
-}
-
-/* Get the supp_page_entry wrapping a supp_elem. */
-static struct supp_page_entry *
-supp_page_from_elem (const struct hash_elem *e)
-{
-  ASSERT (e != NULL);
-  return hash_entry (e, struct supp_page_entry, supp_elem);
 }
