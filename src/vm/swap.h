@@ -2,10 +2,12 @@
 #define VM_SWAP_H
 
 /* Type for swap slot numbers. */
-typedef int slot_no;
+typedef uint32_t slot_no;
 
 void swap_init (void);
-// void swap_insert (void *);
+slot_no swap_write (void *);
+// void swap_retrieve (slot_no, void *);
+// void swap_free_page (slot_no slot);
 // void free_used_frames (void); // ARG HAXX
 
 #endif /* vm/swap.h */
