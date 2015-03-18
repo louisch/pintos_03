@@ -18,6 +18,7 @@ const uint32_t SECTORS_PER_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
 struct list free_slot_list;
 struct block *swap_block;
 
+static block_sector_t convert_slot_to_sector (slot_no);
 static slot_no get_next_free_page (void);
 // static void free_page_slot (slot_no);
 static bool range_lt (const struct list_elem *new_elem,
@@ -42,30 +43,39 @@ swap_init (void)
 slot_no
 swap_write (void *kpage)
 {
-  uint8_t *buffer = kpage;
   slot_no slot = get_next_free_page ();
-  block_sector_t sector_no = slot * SECTORS_PER_PAGE;
+
+  uint8_t *buffer = kpage;
+  block_sector_t sector = convert_slot_to_sector (slot);
 
   int i;
   for (i = 0; i < BLOCK_SECTOR_SIZE; i++)
     {
-      block_write (swap_block, (sector_no + i), (buffer+i));
+      block_write (swap_block, (sector + i), (buffer+i));
     }
   return slot;
 }
 
-// /* Retrieves a page from swap by copying the page at slot_no into page. Also
-//    frees the slot. */
-// void swap_retrieve (slot_no slot, void *kpage)
-// {
+/* Retrieves a page from swap by copying the page at slot_no into page. Also
+   frees the slot. */
+void swap_retrieve (slot_no slot, void *kpage)
+{
+  uint8_t *buffer = kpage;
+  block_sector_t sector = convert_slot_to_sector (slot);
 
-// }
+  int i;
+  for (i = 0; i < BLOCK_SECTOR_SIZE; i++)
+    {
+      block_read (swap_block, (sector + i), (buffer+i));
+    }
+  swap_free_slot (slot);
+}
 
-// /* Marks a page as free in free_slot_list. */
-// void swap_free_page (slot_no slot)
-// {
+/* Marks a page as free in free_slot_list. */
+void swap_free_slot (slot_no slot)
+{
 
-// }
+}
 
 // /* Frees all the swap slots occupied by the array of pages passed in. */
 // void
@@ -73,6 +83,12 @@ swap_write (void *kpage)
 // {
 //   return NULL; // RETURN HAXX
 // }
+
+static block_sector_t
+convert_slot_to_sector (slot_no slot)
+{
+  return slot * SECTORS_PER_PAGE;
+}
 
 static slot_no
 get_next_free_page (void)
