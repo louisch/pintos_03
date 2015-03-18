@@ -25,7 +25,7 @@ static bool range_lt (const struct list_elem *new_elem,
                       const struct list_elem *ori_elem,
                       void *aux UNUSED);
 
-/* Initialise swap table. N.B. This assumes pages divide evenly into pages. */
+/* Initialise swap table. N.B. This assumes pages divide evenly into sectors. */
 void
 swap_init (void)
 {
