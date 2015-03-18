@@ -29,6 +29,7 @@
 #include <vm/frame.h>
 #include <vm/stack_growth.h>
 #include <vm/supp_page.h>
+#include <vm/mapped_files.h>
 #endif
 
 #define ABNORMAL_EXIT_STATUS -1
@@ -193,6 +194,11 @@ process_create_process_info (struct thread *t)
   /* Init open_files hashtable. */
   info->fd_counter = 2; /* 0 and 1 are reserved for stdin and stdout. */
   hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
+
+#ifdef VM
+  info->mapid_counter = -1;
+  hash_init (&info->mapped_files, mapid_hash_func, mapid_less_func, NULL);
+#endif
   /* Add information for process waiting: */
   /* Create persistent_info struct. */
   persistent_info *persistent_info = create_persistent_info (t);
@@ -802,9 +808,13 @@ process_add_file (struct file *file)
   int fd = process->fd_counter++;
   struct hash *open_files = &process->open_files;
   struct file_fd *file_fd = malloc (sizeof(struct file_fd));
-  if (file_fd == NULL || hash_size (open_files) > OPEN_FILE_LIMIT)
-    return -1; /* File not found or too many files open. */
-
+  if (file_fd == NULL) /* File not found or too many files open. */
+    return ABNORMAL_EXIT_STATUS;
+  if (hash_size (open_files) > OPEN_FILE_LIMIT)
+    {
+      free (file_fd);
+      return ABNORMAL_EXIT_STATUS;
+    }
   file_fd->fd = fd;
   file_fd->file = file;
   hash_insert (open_files, &file_fd->elem);
