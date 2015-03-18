@@ -29,7 +29,7 @@
 #define STDOUT 1
 
 /* Max buffer size for reasonable console writes. */
-static unsigned console_write_size = 256;
+static const unsigned CONSOLE_WRITE_SIZE = 256;
 
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
@@ -337,8 +337,8 @@ syscall_write (int fd, const void *buffer, unsigned size)
     {
       char *buff = (char *) buffer;
       while (size > 0)
-        { /* Writes to console buffer in chunks of console_write_size bytes. */
-          unsigned write = size >= console_write_size ? console_write_size : size;
+        { /* Writes to console buffer in chunks of CONSOLE_WRITE_SIZE bytes. */
+          unsigned write = size >= CONSOLE_WRITE_SIZE ? CONSOLE_WRITE_SIZE : size;
           putbuf (buff, write);
           buff += write;
           size -= write;
