@@ -892,7 +892,7 @@ process_persistent_info_counter_decrement (persistent_info *info)
   int value = --info->reference_counter;
   lock_release (&info->persistent_info_lock);
   ASSERT (value >= NO_REFERENCES);
-  if (value == NO_REFERENCES)
+  if (value <= NO_REFERENCES)
     {
       free (info);
     }
