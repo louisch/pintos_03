@@ -5,6 +5,15 @@
 #include "swap.h"
 #include "threads/vaddr.h"
 
+#define block_do(KPAGE, SLOT, FUNC)                              \
+  int i;                                                         \
+  for (i = 0; i < BLOCK_SECTOR_SIZE; i++)                        \
+    {                                                            \
+      FUNC (swap_block,                                          \
+            (convert_slot_to_sector (SLOT) + i),                 \
+            (((uint8_t*) KPAGE) + i));                           \
+    }
+
 /* Struct inserted into the list of free ranges,
    marks start (inclusive) and end of range (exclusive). */
 struct range
@@ -44,15 +53,7 @@ slot_no
 swap_write (void *kpage)
 {
   slot_no slot = get_next_free_page ();
-
-  uint8_t *buffer = kpage;
-  block_sector_t sector = convert_slot_to_sector (slot);
-
-  int i;
-  for (i = 0; i < BLOCK_SECTOR_SIZE; i++)
-    {
-      block_write (swap_block, (sector + i), (buffer+i));
-    }
+  block_do (kpage, slot, block_write);
   return slot;
 }
 
@@ -60,21 +61,20 @@ swap_write (void *kpage)
    frees the slot. */
 void swap_retrieve (slot_no slot, void *kpage)
 {
-  uint8_t *buffer = kpage;
-  block_sector_t sector = convert_slot_to_sector (slot);
-
-  int i;
-  for (i = 0; i < BLOCK_SECTOR_SIZE; i++)
-    {
-      block_read (swap_block, (sector + i), (buffer+i));
-    }
+  block_do (kpage, slot, block_read);
   swap_free_slot (slot);
 }
 
-/* Marks a page as free in free_slot_list. */
+/* Reinserts a free slot into free_slot_list.
+   May create, extend or merge ranges. */
 void swap_free_slot (slot_no slot)
 {
+  slot_no start = slot;
+  slot_no end  = slot + 1;
 
+  /* Iterate through free_slot_list and find the immediately smaller range. */
+  // struct list_elem *e;
+  // for (e = list_begin(&free_slot_list), e != list_end)
 }
 
 // /* Frees all the swap slots occupied by the array of pages passed in. */
@@ -110,13 +110,6 @@ get_next_free_page (void)
   }
   return ret;
 }
-
-// /* Frees a page slot belonging to a file and combines ranges when necessary. */
-// static void
-// free_page_slot (slot_no slot) // ARG(H) HAXX
-// {
-//   return NULL; // RETURN HAXX
-// }
 
 /* list_less_func for comparing thread priority. Note that here, A
    is the element to be inserted and B is the element in the list. */
