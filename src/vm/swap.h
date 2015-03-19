@@ -1,6 +1,10 @@
 #ifndef VM_SWAP_H
 #define VM_SWAP_H
 
+#include <stdint.h>
+
+#define NOT_SWAP INT32_MAX
+
 /* Type for swap slot numbers. */
 typedef uint32_t slot_no;
 
