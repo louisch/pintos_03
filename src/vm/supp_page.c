@@ -50,12 +50,7 @@ struct supp_page_segment *
 supp_page_create_segment (struct supp_page_table *supp_page_table,
                           void *addr, bool writable, uint32_t size)
 {
-  struct supp_page_segment *segment = calloc (1, sizeof *segment);
-  if (segment == NULL)
-    {
-      printf ("Could not allocate memory for supplementary page table segment.\n");
-      thread_exit ();
-    }
+  struct supp_page_segment *segment = try_calloc (1, sizeof *segment);
   segment->addr = addr;
   segment->file_data = NULL;
   hash_init (&segment->mapped_pages, mapped_hash_func, mapped_less_func, NULL);
@@ -71,7 +66,7 @@ struct supp_page_segment *
 supp_page_set_file_data (struct supp_page_segment *segment, struct file *file,
                          uint32_t offset, uint32_t read_bytes)
 {
-  struct supp_page_file_data *file_data = calloc (1, sizeof *file_data);
+  struct supp_page_file_data *file_data = try_calloc (1, sizeof *file_data);
   file_data->file = file;
   file_data->offset = offset;
   file_data->read_bytes = read_bytes;
@@ -231,7 +226,7 @@ static void
 supp_page_install_page (void *uaddr, void *kpage,
                         struct supp_page_segment *segment)
 {
-  struct supp_page_mapped *mapped = calloc (1, sizeof *mapped);
+  struct supp_page_mapped *mapped = try_calloc (1, sizeof *mapped);
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
   /* TODO: Need to lock this. Otherwise eviction could mess things up */
