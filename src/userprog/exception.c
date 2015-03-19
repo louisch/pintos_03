@@ -163,30 +163,14 @@ page_fault (struct intr_frame *f)
       thread_exit ();
     }
 
-  /* Try to find faulting address in supplementary page table. */
-  struct supp_page_entry *entry = supp_page_lookup (&t->supp_page_table, fault_addr);
-  /* Check that entry is valid. */
-  /* TODO : Check entry is null (Used currently for debugging) */
-  if (entry != NULL && (write && !entry->writable))
+  if (not_present)
     {
-      thread_exit ();
-    }
-
-  /* Grow the stack if this is a stack access. */
-  if (is_stack_access (fault_addr))
-    {
-      if (stack_should_grow (fault_addr, f->esp))
+      /* If this is a stack access, check its validity with a heuristic. */
+      if (is_stack_access (fault_addr) && !is_valid_stack_access (fault_addr, f->esp))
         {
-          grow_stack (fault_addr, f->esp);
-          return;
+          thread_exit ();
         }
-      thread_exit ();
-    }
-  /* Map the entry if this is part of a file segment. */
-  /* TODO: Remove entry != NULL after. */
-  else if (entry != NULL && entry->file_data != NULL && not_present)
-    {
-      supp_page_map_entry (entry, fault_addr);
+      supp_page_map_addr (&t->supp_page_table, fault_addr);
       return;
     }
 #endif
