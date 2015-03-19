@@ -5,13 +5,13 @@
 #include "swap.h"
 #include "threads/vaddr.h"
 
-#define block_do(KPAGE, SLOT, FUNC)                              \
-  int i;                                                         \
-  for (i = 0; i < BLOCK_SECTOR_SIZE; i++)                        \
-    {                                                            \
-      FUNC (swap_block,                                          \
-            (convert_slot_to_sector (SLOT) + i),                 \
-            (((uint8_t*) KPAGE) + i));                           \
+#define block_do(KPAGE, SLOT, FUNC)              \
+  int i;                                         \
+  for (i = 0; i < BLOCK_SECTOR_SIZE; i++)        \
+    {                                            \
+      FUNC (swap_block,                          \
+            (convert_slot_to_sector (SLOT) + i), \
+            (((uint8_t*) KPAGE) + i));           \
     }
 
 /* Struct inserted into the list of free ranges,
@@ -26,6 +26,7 @@ struct range
 const uint32_t SECTORS_PER_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
 struct list free_slot_list;
 struct block *swap_block;
+struct lock free_slot_list_lock;
 
 static block_sector_t convert_slot_to_sector (slot_no);
 static slot_no get_next_free_page (void);
@@ -40,6 +41,7 @@ swap_init (void)
 {
   list_init (&free_slot_list);
   swap_block = block_get_role (BLOCK_SWAP);
+  lock_init (&free_slot_list_lock);
 
   /* Create initial free range and set to whole of swap space. */
   struct range *initial_range = malloc (sizeof *initial_range);
@@ -69,6 +71,7 @@ void swap_retrieve (slot_no slot, void *kpage)
    May create, extend or merge ranges. */
 void swap_free_slot (slot_no slot)
 {
+  lock_acquire (&free_slot_list_lock);
   // slot_no start = slot;
   // slot_no end  = slot + 1;
 
@@ -81,6 +84,11 @@ void swap_free_slot (slot_no slot)
   /* Iterate through free_slot_list and find the immediately smaller range. */
   // struct list_elem *e;
   // for (e = list_begin(&free_slot_list), e != list_end)
+  //   {
+
+  //   }
+
+  lock_release (&free_slot_list_lock);
 }
 
 // /* Frees all the swap slots occupied by the array of pages passed in. */
@@ -99,6 +107,7 @@ convert_slot_to_sector (slot_no slot)
 static slot_no
 get_next_free_page (void)
 {
+  lock_acquire (&free_slot_list_lock);
   struct list_elem *free_range_elem = list_begin (&free_slot_list);
   if (free_range_elem == list_tail (&free_slot_list))
     {
@@ -114,6 +123,8 @@ get_next_free_page (void)
   if (free_range->start == free_range->end) {
     list_remove (&free_range->elem);
   }
+
+  lock_release (&free_slot_list_lock);
   return ret;
 }
 
