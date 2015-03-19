@@ -69,8 +69,14 @@ void swap_retrieve (slot_no slot, void *kpage)
    May create, extend or merge ranges. */
 void swap_free_slot (slot_no slot)
 {
-  slot_no start = slot;
-  slot_no end  = slot + 1;
+  // slot_no start = slot;
+  // slot_no end  = slot + 1;
+
+  // TERRIBLE EFFICIENCY HAXX
+  struct range *new_range = malloc (sizeof *new_range);
+  new_range->start = slot;
+  new_range->end = slot + 1;
+  list_insert_ordered (&free_slot_list, &new_range->elem, range_lt, NULL);
 
   /* Iterate through free_slot_list and find the immediately smaller range. */
   // struct list_elem *e;
