@@ -681,9 +681,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
-#ifdef VM
-  int pages_read = 0;
-#endif
+#ifndef VM
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
@@ -693,7 +691,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-#ifndef VM
       /* Get a page of memory. */
       uint8_t *kpage = palloc_get_page (PAL_USER);
       if (kpage == NULL)
@@ -714,19 +711,21 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
           palloc_free_page (kpage);
           return false;
         }
-#else
-      struct thread *t = thread_current ();
-      supp_page_set_file_data (supp_page_create_entry (&t->supp_page_table, upage,
-                                                       writable),
-                               file, ofs + pages_read * PGSIZE, page_read_bytes);
-      pages_read++;
-#endif
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
+#else
+#ifdef VM
+#endif
+  struct thread *t = thread_current ();
+  supp_page_set_file_data (supp_page_create_segment (&t->supp_page_table, upage,
+                                                     writable, read_bytes + zero_bytes),
+                           file, ofs, read_bytes);
+#endif
+
   return true;
 }
 
@@ -735,11 +734,10 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp)
 {
-  uint8_t *kpage;
-
   void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
 
 #ifndef VM
+  uint8_t *kpage;
   const bool WRITABLE = true;
   bool success = false;
 
@@ -762,15 +760,7 @@ setup_stack (void **esp)
   stack_growth_init ();
   /* Create the page right now instead of waiting for it to fault,
      as some kernel code needs it set up anyway. */
-  struct supp_page_entry *entry =
-    supp_page_lookup (&thread_current ()->supp_page_table, upage);
-  kpage = supp_page_map_entry (entry);
-  thread_current ()->mapped_stack_top = upage;
-  if (kpage == NULL)
-    {
-      free_frame (kpage);
-      return false;
-    }
+  supp_page_map_addr (&thread_current ()->supp_page_table, upage);
 
   return true;
 #endif

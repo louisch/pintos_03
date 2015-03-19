@@ -166,7 +166,8 @@ check_pointer (const uint32_t *uaddr, size_t size)
         }
 #else
       if (!is_user_vaddr (start)
-          || (supp_page_lookup (&thread_current ()->supp_page_table, start) == NULL))
+          || (supp_page_lookup_segment (&thread_current ()->supp_page_table,
+                                        start) == NULL))
         {
           thread_exit ();
         }
