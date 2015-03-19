@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "threads/malloc.h"
 #include "userprog/mapped_files.h"
@@ -31,6 +32,7 @@ syscall_mmap (int fd, void *addr)
 	int num_of_pages = (size % PGSIZE != 0) ? 
 					   size / PGSIZE + 1 : 
 					   size / PGSIZE;
+  int size_data = num_of_pages * PGSIZE;
 
   process_info *process = process_current ();
   int id = process->mapid_counter;
@@ -41,17 +43,11 @@ syscall_mmap (int fd, void *addr)
     return -1;
 
   bool writable = true;
-  int index = 0;
-  int offset = 0;
-  size_t remaining_bytes = size;
-  while (index != num_of_pages)
-    {
-      offset = index * PGSIZE;
-      struct supp_page_entry *entry = supp_page_create_entry (&t->supp_page_table, addr + offset, writable);
-      supp_page_set_file_data (entry, file, offset, 
-        remaining_bytes - (num_of_pages - index + 1)*PGSIZE);
-      index++;
-    }
+
+  // printf("Got here in mmap\n");
+  struct supp_page_segment *segment = 
+    supp_page_create_segment (&t->supp_page_table, addr, writable, size_data);
+  supp_page_set_file_data (segment, file, 0, size_data);
 	mapid->mapid = id;
 	mapid->file = file;
 	hash_insert (mapped_files, &mapid->elem);
@@ -60,7 +56,15 @@ syscall_mmap (int fd, void *addr)
 
 void 
 syscall_munmap (mapid_t mapping){
+  process_info *process = process_current ();
+  struct mapid mapid;
+  struct hash_elem *e;
 
+  mapid.mapid = mapping;
+  e = hash_find (&process->mapped_files, &mapid.elem);
+  struct mapid *actual_mapid = hash_entry (e, struct mapid, elem);
+  hash_delete (&process->mapped_files, &mapid.elem);
+  free (actual_mapid);
 }
 
 
