@@ -29,7 +29,7 @@ typedef struct process_info
   struct hash open_files;
 
   /* Hash used to for mapping ids to files */
-  struct hash mapped_files
+  struct hash mapped_files;
   /* Provides unique map ids for process */
   unsigned mapid_counter;
 
