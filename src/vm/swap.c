@@ -123,6 +123,7 @@ get_next_free_page (void)
   /* Remove the range if it's empty. */
   if (free_range->start == free_range->end) {
     list_remove (&free_range->elem);
+    free (free_range);
   }
 
   lock_release (&free_slot_list_lock);
