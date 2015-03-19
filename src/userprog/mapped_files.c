@@ -1,5 +1,8 @@
 #include <stdbool.h>
+<<<<<<< HEAD
 #include <stdio.h>
+=======
+>>>>>>> ad43f775cbaea8fd9b3583b5804a8867fef10579
 
 #include "threads/malloc.h"
 #include "userprog/mapped_files.h"
@@ -32,6 +35,7 @@ syscall_mmap (int fd, void *addr)
 	int num_of_pages = (size % PGSIZE != 0) ? 
 					   size / PGSIZE + 1 : 
 					   size / PGSIZE;
+             
   int size_data = num_of_pages * PGSIZE;
 
   process_info *process = process_current ();
@@ -43,11 +47,11 @@ syscall_mmap (int fd, void *addr)
     return -1;
 
   bool writable = true;
-
   // printf("Got here in mmap\n");
   struct supp_page_segment *segment = 
     supp_page_create_segment (&t->supp_page_table, addr, writable, size_data);
   supp_page_set_file_data (segment, file, 0, size_data);
+
 	mapid->mapid = id;
 	mapid->file = file;
 	hash_insert (mapped_files, &mapid->elem);
