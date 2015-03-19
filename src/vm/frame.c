@@ -11,6 +11,7 @@
 #include <threads/synch.h>
 #include <threads/thread.h>
 
+#include "vm/swap.h"
 #include "userprog/pagedir.h"
 
 /* The frame table allows requesting frames for mapping to virtual
@@ -163,7 +164,8 @@ evict_frame (void)
 
   pagedir_clear_page (f->pd, f->upage);
   void *page = f->kpage;
-  // SWAPP HAXX
+  swap_no swap = swap_write (page);
+  //SWAP HAXX
   free_frame_stat (f);
 
   return page;
