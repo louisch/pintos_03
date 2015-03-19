@@ -12,6 +12,7 @@
 void stack_growth_init (void);
 bool is_stack_access (void *fault_addr);
 bool is_valid_stack_access (void *fault_addr, void *esp);
+void grow_stack (void *fault_addr, void *esp);
 uint8_t *maximum_stack_addr (void);
 
 #endif /* vm/stack_growth.h */

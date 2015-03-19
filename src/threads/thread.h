@@ -137,6 +137,7 @@ struct thread
 #endif
 #ifdef VM
     struct supp_page_table supp_page_table; /* Supplementary Page Table. */
+    void *stack_bottom; /* Address of page at bottom of allocated stack. */
 #endif
 
     /* Owned by thread.c. */
