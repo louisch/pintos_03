@@ -29,7 +29,7 @@
 #include <vm/frame.h>
 #include <vm/stack_growth.h>
 #include <vm/supp_page.h>
-#include <vm/mapped_files.h>
+#include <userprog/mapped_files.h>
 #endif
 
 #define ABNORMAL_EXIT_STATUS -1
