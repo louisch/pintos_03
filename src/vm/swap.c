@@ -3,6 +3,7 @@
 
 #include "devices/block.h"
 #include "swap.h"
+#include "threads/synch.h"
 #include "threads/vaddr.h"
 
 #define block_do(KPAGE, SLOT, FUNC)              \
