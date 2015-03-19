@@ -22,6 +22,8 @@ struct frame_table
 {
   struct lock table_lock; /* Synchronizes table between threads. */
   struct hash allocated;  /* Frames which have been allocated already. */
+  struct condition wait_unpin;
+  unsigned pinned_frames;
   struct list eviction_queue; /* List facilitating eviction. */
 };
 
@@ -32,6 +34,7 @@ struct frame
 {
   struct hash_elem frame_elem; /* For placing frames inside frame_tables. */
   struct list_elem eviction_elem;
+  bool pinned;
   uint32_t *pd; /* The owner thread's page directory. */
   void *upage;  /* The user virtual address of the frame. */
   void *kpage;  /* The kernel virtual address of the frame. */
@@ -56,6 +59,8 @@ frame_init (void)
   lock_acquire (&frames.table_lock);
   hash_init (&frames.allocated, allocated_hash_func, allocated_less_func, NULL);
   list_init (&frames.eviction_queue);
+  cond_init (&frames.wait_unpin);
+  frames.pinned_frames = 0;
   lock_release (&frames.table_lock);
 }
 
@@ -67,14 +72,22 @@ request_frame (enum palloc_flags additional_flags, void *upage)
 {
   lock_acquire (&frames.table_lock);
   /* For now, evict pages out of the system. */
-  void *page = palloc_get_page (additional_flags | PAL_USER);
-  if (page == NULL)
+  void *page;
+  do
     {
-      printf ("#Evicting frames out of a window!\n░░░░░░░░▄▀▀████████▀██████▄▄▄▄▄▄░░░░░░\n░░░░░░▄▀░▄▀░░▄▄▄▄▄░▀▄▄▄▄▄▄▀▀▀▄▄░▀▄░░░░\n░░░░▄▀░░▀░▄▄▀░░░░░▀█▄░░░▄▀▀▀▀▄▀▀░░█░░░\n░░░▄▀░░░░▄▀░▄███▀▀▄░▀░░█░▄▄▄▄▄░░▄▄█▄░░\n░▄▀░░▄▀▀▄░░▀▀░▄▀▀▀██░░░██▀▀▀░▀▀░▀▀▀██▄\n█░░▄▀░▄▄░▀▀░▀▀░░▄░▄▄░░░░█▄░░▄▄▀▀▀█▄░██\n█░░█░▀█░▀█▄▄▄▄▄▀░█░▄▄▄░░░▀██▄░░░▄░░▄██\n█░░░▀░░█▄▄█░░▀▀▀█▄▄░░▀░▀▀▀▀░░▄▄▀▀█░█▀░\n░▀▄░░░░░▀▄▀█▀█▄▄█▄░▀▀█▀▀█▀▀▀█░▄████▀░░\n░░▀▄░░░░░▄▀█▄░▀████████████████████░░░\n░░░░▀▄▄░░░▀▄▀▀▄█░░░░░█░░█░░█░█░▄▀░█▄░░\n░░░░░░░▀▄░░░▀▄▄░▀▀▄▄█▀▀▀▀▀▀▀▀▀▀▄░░░█▄░\n░░░░░░░░░▀▀▄▄░░▀▀▄▄░░░▄▄▄▄▄▄▄░▀▄▄░░░█░\n░░░░░░░░░░░░░▀▀▀▄▄▄▀▀▀▀▀▀▀▀▀▀▀▀▀░░▄▀░░\n░░░░░░░░░░░░░░░░░░░▀▀▄▄▄▄▄▄▄▄▄▄▄▄▀░░░░\n");
-      page = evict_frame ();
-    }
+      page = palloc_get_page (additional_flags | PAL_USER);
+      if (page == NULL)
+        {
+          printf ("#Evicting frames out of a window!\n");
+          page = evict_frame ();
+        }
+    } while (page == NULL);
 
   struct frame *frame = calloc (1, sizeof *frame);
+  ASSERT (frame != NULL);
+  if (frame == NULL) thread_exit ();
+  frame->pinned = true;
+  ++frames.pinned_frames;
   frame->kpage = page;
   frame->upage = upage;
   frame->pd = thread_current ()->pagedir;
@@ -85,25 +98,68 @@ request_frame (enum palloc_flags additional_flags, void *upage)
   return frame->kpage;
 }
 
+/* Pins the frame in the frame table corresponding to the kpage. */
+void
+pin_frame (void *kpage)
+{
+  lock_acquire (&frames.table_lock);
+  struct frame *frame = allocated_find_frame (kpage);
+  if (frame != NULL && !frame->pinned)
+    {
+      frame->pinned = true;
+      ++frames.pinned_frames;
+    }
+  lock_release(&frames.table_lock);
+}
+
+/* Unpins the frame in the frame table corresponding to the kpage. */
+void
+unpin_frame (void *kpage)
+{
+  lock_acquire (&frames.table_lock);
+  struct frame *frame = allocated_find_frame (kpage);
+  if (frame != NULL && frame->pinned)
+    {
+      frame->pinned = false;
+      --frames.pinned_frames;
+      cond_signal (&frames.wait_unpin, &frames.table_lock);
+    }
+  lock_release(&frames.table_lock);
+}
+
 /* #TROLL HAXX */
 /* Selects a frame from frames and evicts it to oblivion
    using the second chance algorithm. */
 static void *
 evict_frame (void)
 {
-  ASSERT (list_empty (&frames.eviction_queue));
+  ASSERT (!list_empty (&frames.eviction_queue));
 
   struct list_elem *e = list_front(&frames.eviction_queue);
   struct frame *f = frame_from_eviction_elem (e);
+  unsigned found_pinned = 0;
+
   while (e != list_end (&frames.eviction_queue)
-         && !pagedir_is_accessed (f->pd, f->upage))
-  {
-    pagedir_set_accessed (f->pd, f->upage, false);
-    e = list_next (e);
-    f = frame_from_eviction_elem (e);
-    list_push_back (&frames.eviction_queue,
-                     list_pop_front (&frames.eviction_queue));
-  }
+         && (pagedir_is_accessed (f->pd, f->upage)
+             || f->pinned))
+    {
+      pagedir_set_accessed (f->pd, f->upage, false);
+      if (f->pinned)
+        {
+          ++found_pinned;
+        }
+      if (found_pinned >= frames.pinned_frames)
+        {
+          /* Wait for the table situation to change,
+             then restart request process.*/
+          cond_wait (&frames.wait_unpin, &frames.table_lock);
+          return NULL;
+        }
+      e = list_next (e);
+      f = frame_from_eviction_elem (e);
+      list_push_back (&frames.eviction_queue,
+                       list_pop_front (&frames.eviction_queue));
+    }
 
   pagedir_clear_page (f->pd, f->upage);
   void *page = f->kpage;
@@ -124,6 +180,7 @@ free_frame (void *kpage)
   lock_acquire (&frames.table_lock);
   struct frame *frame = allocated_find_frame (kpage);
   free_frame_stat (frame);
+  cond_signal (&frames.wait_unpin, &frames.table_lock);
   lock_release (&frames.table_lock);
 }
 
