@@ -30,11 +30,11 @@ struct block *swap_block;
 struct lock free_slot_list_lock;
 
 static block_sector_t convert_slot_to_sector (slot_no);
+static struct range *create_slot (slot_no, slot_no);
 static slot_no get_next_free_page (void);
 // static void free_page_slot (slot_no);
-static bool range_lt (const struct list_elem *new_elem,
-                      const struct list_elem *ori_elem,
-                      void *aux UNUSED);
+static bool range_lt (const struct list_elem *, const struct list_elem *,
+                      void *);
 
 /* Initialise swap table. N.B. This assumes pages divide evenly into sectors. */
 void
@@ -45,9 +45,8 @@ swap_init (void)
   lock_init (&free_slot_list_lock);
 
   /* Create initial free range and set to whole of swap space. */
-  struct range *initial_range = malloc (sizeof *initial_range);
-  initial_range->start = 0;
-  initial_range->end = block_size (swap_block) / SECTORS_PER_PAGE;
+  struct range *initial_range
+    = create_slot (0, block_size (swap_block) / SECTORS_PER_PAGE);
   list_insert_ordered (&free_slot_list, &initial_range->elem, range_lt, NULL);
 }
 
@@ -76,19 +75,29 @@ void swap_free_slot (slot_no slot)
   // slot_no start = slot;
   // slot_no end  = slot + 1;
 
-  // TERRIBLE EFFICIENCY HAXX
-  struct range *new_range = malloc (sizeof *new_range);
-  new_range->start = slot;
-  new_range->end = slot + 1;
-  list_insert_ordered (&free_slot_list, &new_range->elem, range_lt, NULL);
+  /* Find the first range with a start point greater than slot. */
+  struct list_elem *e = list_begin (&free_slot_list);
+  while (e != list_tail (&free_slot_list))
+    {
+      struct range *free_range = list_entry (e, struct range, elem);
+      ASSERT (free_range->start != slot); /* slot should not be free yet! */
+      if (free_range->start > slot) {
+        break;
+      }
+    }
 
-  /* Iterate through free_slot_list and find the immediately smaller range. */
-  // struct list_elem *e;
-  // for (e = list_begin(&free_slot_list), e != list_end)
-  //   {
+  if (e == list_tail (&free_slot_list))
+    { /* slot is greater than any range. */
+      if (list_prev (e) == list_head (&free_slot_list))
+        { /* Super edge case where list is empty. */
+          struct range *n_range = create_slot (slot, slot + 1);
+          list_insert_ordered (&free_slot_list, &n_range->elem, range_lt, NULL);
+        }
+    }
+  else
+    {
 
-  //   }
-
+    }
   lock_release (&free_slot_list_lock);
 }
 
@@ -103,6 +112,14 @@ static block_sector_t
 convert_slot_to_sector (slot_no slot)
 {
   return slot * SECTORS_PER_PAGE;
+}
+
+static struct range *create_slot (slot_no start, slot_no end)
+{
+  struct range *new_range = malloc (sizeof *new_range);
+  new_range->start = start;
+  new_range->end = end;
+  return new_range;
 }
 
 static slot_no
