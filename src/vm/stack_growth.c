@@ -49,8 +49,8 @@ grow_stack (void *fault_addr, void *esp)
   /* Map all the entries. */
   while (t->stack_bottom > alloc_up_to)
     {
+      supp_page_map_addr (&t->supp_page_table, t->stack_bottom - PGSIZE);
       t->stack_bottom -= PGSIZE;
-      supp_page_map_addr (&t->supp_page_table, t->stack_bottom);
     }
 }
 
