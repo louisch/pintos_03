@@ -17,7 +17,7 @@ syscall_mmap (int fd, void *addr)
     }
 
 	struct thread *t = thread_current ();
-	struct file *file = process_fetch_file (fd);
+	struct file *file = file_reopen (process_fetch_file (fd));
   if (file == NULL)
     {
       return MAP_FAILED;
@@ -62,6 +62,7 @@ syscall_munmap (mapid_t mapping)
   mapid.mapid = mapping;
   e = hash_find (&process->mapped_files, &mapid.elem);
   struct mapid *actual_mapid = hash_entry (e, struct mapid, elem);
+  file_close (actual_mapid->file);
   hash_delete (&process->mapped_files, &mapid.elem);
   free (actual_mapid);
 }
