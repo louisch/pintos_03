@@ -138,25 +138,21 @@ evict_frame (void)
 
   struct list_elem *e = list_front(&frames.eviction_queue);
   struct frame *f = frame_from_eviction_elem (e);
-  unsigned found_pinned = 0;
+
+  if (frames.pinned_frames >= hash_size (&frames.allocated))
+    {
+      ASSERT (frames.pinned_frames == hash_size (&frames.allocated));
+      /* If all frames are pinned, we cannot evict any of them; we must wait for
+         a frame to be either unpinned or removed. */
+      cond_wait (&frames.wait_unpin, &frames.table_lock);
+      return NULL; 
+    }
 
   while (e != list_end (&frames.eviction_queue)
          && (pagedir_is_accessed (f->pd, f->mapped->uaddr)
              || f->pinned))
     {
       pagedir_set_accessed (f->pd, f->mapped->uaddr, false);
-      if (f->pinned)
-        {
-          ++found_pinned;
-        }
-      if (found_pinned >= frames.pinned_frames)
-        {
-          ASSERT (found_pinned == frames.pinned_frames);
-          /* Wait for the table situation to change,
-             then restart request process.*/
-          cond_wait (&frames.wait_unpin, &frames.table_lock);
-          return NULL;
-        }
       e = list_next (e);
       f = frame_from_eviction_elem (e);
       list_push_back (&frames.eviction_queue,
@@ -182,6 +178,10 @@ free_frame (void *kpage)
     }
   lock_acquire (&frames.table_lock);
   struct frame *frame = allocated_find_frame (kpage);
+  if (frame->pinned)
+    {
+      --frames.pinned_frames;
+    }
   free_frame_stat (frame);
   cond_signal (&frames.wait_unpin, &frames.table_lock);
   lock_release (&frames.table_lock);
