@@ -30,12 +30,12 @@ syscall_mmap (int fd, void *addr)
     }
 
   int num_of_pages = (size % PGSIZE != 0) ?
-           size / PGSIZE + 1 :
-           size / PGSIZE;  
+    size / PGSIZE + 1 :
+    size / PGSIZE;
 
   int index = 0;
   while (index != num_of_pages)
-    { 
+    {
       if (supp_page_lookup_segment(&t->supp_page_table, addr + index*PGSIZE) != NULL)
         {
           return MAP_FAILED;

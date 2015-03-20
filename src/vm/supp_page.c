@@ -147,7 +147,7 @@ supp_page_free_all (struct supp_page_table *supp_page_table,
   while (!list_empty (&supp_page_table->segments))
     {
       struct supp_page_segment *segment =
-        segment_from_elem (list_pop_front (&supp_page_table->segments));
+        segment_from_elem (list_begin (&supp_page_table->segments));
       supp_page_free_segment (segment, pagedir);
     }
 }
@@ -156,6 +156,7 @@ void
 supp_page_free_segment (struct supp_page_segment *segment,
                         uint32_t *pagedir)
 {
+  list_remove (&segment->supp_elem);
   segment->mapped_pages.aux = pagedir;
   hash_destroy (&segment->mapped_pages, supp_page_free_mapped);
 
