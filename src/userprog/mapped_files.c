@@ -36,10 +36,11 @@ syscall_mmap (int fd, void *addr)
   int index = 0;
   while (index != num_of_pages)
     {
-      if (supp_page_lookup_segment(&t->supp_page_table, addr + index*PGSIZE) != NULL)
+      if (supp_page_lookup_segment (&t->supp_page_table, addr + index*PGSIZE) != NULL)
         {
           return MAP_FAILED;
         }
+      index++;
     }
 
   int size_data = num_of_pages * PGSIZE;
