@@ -82,19 +82,17 @@ supp_page_set_file_data (struct supp_page_segment *segment, struct file *file,
 struct supp_page_segment *
 supp_page_lookup_segment (struct supp_page_table *supp_page_table, void *fault_addr)
 {
-  struct supp_page_segment *found_segment = NULL;
   struct list_elem *current = list_begin (&supp_page_table->segments);
   while (current != list_end (&supp_page_table->segments))
     {
       struct supp_page_segment *segment = segment_from_elem (current);
       if (supp_page_segment_contains (segment, fault_addr))
         {
-          found_segment = segment;
-          break;
+          return segment;
         }
       current = list_next (current);
     }
-  return found_segment;
+  return NULL;
 }
 
 /* Tries to get a frame and map the faulting page inside segment to this frame. */
