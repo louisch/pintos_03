@@ -270,6 +270,15 @@ static void
 supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
 {
   struct supp_page_mapped *mapped = mapped_from_mapped_elem (mapped_elem);
+  if (mapped->segment->file_data->is_mmapped &&
+      (uint8_t *)mapped->uaddr < (uint8_t *)mapped->segment->addr + read_bytes)
+    {
+      uint32_t page_read_bytes =
+        get_page_read_bytes (segment->addr, mapped->uaddr,
+                             segment->file_data->read_bytes);
+      file_seek (file, (uint32_t)mapped_uaddr - (uint32_t)segment->addr);
+      file_write (file, mapped->uaddr, page_read_bytes);
+    }
   uint32_t *pagedir = (uint32_t *)pagedir_;
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));
   pagedir_clear_page (pagedir, mapped->uaddr);
