@@ -279,8 +279,10 @@ supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
       uint32_t page_read_bytes =
         get_page_read_bytes (segment->addr, mapped->uaddr,
                              segment->file_data->read_bytes);
+      filesys_lock_acquire ();
       file_seek (file, (uint32_t)mapped_uaddr - (uint32_t)segment->addr);
       file_write (file, mapped->uaddr, page_read_bytes);
+      filesys_lock_release ();
     }
   uint32_t *pagedir = (uint32_t *)pagedir_;
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));
