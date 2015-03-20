@@ -12,9 +12,10 @@ struct mapid
   {
     mapid_t mapid;
     struct file *file;
+    struct supp_page_segment *segment;
     struct hash_elem elem;
   };
-  
+
 /* Mapid hash related functions */
 unsigned mapid_hash_func (const struct hash_elem *e, void *aux UNUSED);
 void mapid_hash_destroy (struct hash_elem *e, void *aux UNUSED);

@@ -36,6 +36,8 @@ static bool mapped_less_func (const struct hash_elem *a,
                               void *aux UNUSED);
 static void supp_page_free_mapped (struct hash_elem *mapped_elem,
                                    void *pagedir_);
+static uint32_t get_page_read_bytes (void *segment_addr, void *uaddr,
+                                     uint32_t segment_read_bytes);
 
 
 /* Initialize the given supplementary page table with the given page table. */
@@ -64,12 +66,13 @@ supp_page_create_segment (struct supp_page_table *supp_page_table,
 /* Sets data for a segment that is read from a file. */
 struct supp_page_segment *
 supp_page_set_file_data (struct supp_page_segment *segment, struct file *file,
-                         uint32_t offset, uint32_t read_bytes)
+                         uint32_t offset, uint32_t read_bytes, bool is_mmapped)
 {
   struct supp_page_file_data *file_data = try_calloc (1, sizeof *file_data);
   file_data->file = file;
   file_data->offset = offset;
   file_data->read_bytes = read_bytes;
+  file_data->is_mmapped = is_mmapped;
   segment->file_data = file_data;
   return segment;
 }
@@ -141,21 +144,23 @@ void
 supp_page_free_all (struct supp_page_table *supp_page_table,
                     uint32_t *pagedir)
 {
-  struct list_elem *current = list_begin (&supp_page_table->segments);
-  while (current != list_end (&supp_page_table->segments))
-    {
-      struct supp_page_segment *segment = segment_from_elem (current);
-      segment->mapped_pages.aux = pagedir;
-      hash_destroy (&segment->mapped_pages, supp_page_free_mapped);
-      current = list_next (current);
-    }
   while (!list_empty (&supp_page_table->segments))
     {
       struct supp_page_segment *segment =
         segment_from_elem (list_pop_front (&supp_page_table->segments));
-      free (segment->file_data);
-      free (segment);
+      supp_page_free_segment (segment, pagedir);
     }
+}
+
+void
+supp_page_free_segment (struct supp_page_segment *segment,
+                        uint32_t *pagedir)
+{
+  segment->mapped_pages.aux = pagedir;
+  hash_destroy (&segment->mapped_pages, supp_page_free_mapped);
+
+  free (segment->file_data);
+  free (segment);
 }
 
 /* Get the supp_page_segment wrapping a supp_elem. */
@@ -179,17 +184,8 @@ static void
 setup_file_page (void *uaddr, void *kpage, struct supp_page_segment *segment)
 {
   struct supp_page_file_data *file_data = segment->file_data;
-  /* Calculate the bytes we have to read from the particular page at uaddr in
-     the segment. */
-  uint32_t page_read_bytes = 0;
-  uint8_t *end_of_read_bytes = (uint8_t *)segment->addr + file_data->read_bytes;
-  /* We only have to read if the uaddr is within the part of the segment where we
-     have to read from. */
-  if ((uint8_t *)uaddr < end_of_read_bytes)
-    {
-      page_read_bytes = (uint32_t)end_of_read_bytes - (uint32_t)uaddr;
-      page_read_bytes = page_read_bytes > PGSIZE ? PGSIZE : page_read_bytes;
-    }
+  uint32_t page_read_bytes = get_page_read_bytes (segment->addr, uaddr,
+                                                  file_data->read_bytes);
 
   uint32_t offset_to_page = file_data->offset +
     ((uint32_t)uaddr - (uint32_t)segment->addr);
@@ -227,6 +223,7 @@ supp_page_install_page (void *uaddr, void *kpage,
                         struct supp_page_segment *segment)
 {
   struct supp_page_mapped *mapped = try_calloc (1, sizeof *mapped);
+  mapped->segment = segment;
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
   /* TODO: Need to lock this. Otherwise eviction could mess things up */
@@ -275,8 +272,42 @@ static void
 supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
 {
   struct supp_page_mapped *mapped = mapped_from_mapped_elem (mapped_elem);
+  struct supp_page_segment *segment = mapped->segment;
+  if (segment->file_data != NULL)
+    {
+      struct supp_page_file_data *file_data = segment->file_data;
+      if (file_data->is_mmapped &&
+          (uint8_t *)mapped->uaddr < (uint8_t *)segment->addr + file_data->read_bytes)
+        {
+          uint32_t page_read_bytes =
+            get_page_read_bytes (segment->addr, mapped->uaddr,
+                                 segment->file_data->read_bytes);
+          filesys_lock_acquire ();
+          file_seek (file_data->file, (uint32_t)mapped->uaddr - (uint32_t)segment->addr);
+          file_write (file_data->file, mapped->uaddr, page_read_bytes);
+          filesys_lock_release ();
+        }
+    }
   uint32_t *pagedir = (uint32_t *)pagedir_;
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));
   pagedir_clear_page (pagedir, mapped->uaddr);
   free (mapped);
+}
+
+static uint32_t
+get_page_read_bytes (void *segment_addr, void *uaddr, uint32_t segment_read_bytes)
+{
+  /* Calculate the bytes we have to read from the particular page at uaddr in
+     the segment. */
+  uint32_t page_read_bytes = 0;
+  uint8_t *end_of_read_bytes = (uint8_t *)segment_addr + segment_read_bytes;
+  /* We only have to read if the uaddr is within the part of the segment where we
+     have to read from. */
+  if ((uint8_t *)uaddr < end_of_read_bytes)
+    {
+      page_read_bytes = (uint32_t)end_of_read_bytes - (uint32_t)uaddr;
+      page_read_bytes = page_read_bytes > PGSIZE ? PGSIZE : page_read_bytes;
+    }
+
+  return page_read_bytes;
 }
