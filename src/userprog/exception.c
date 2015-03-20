@@ -180,6 +180,7 @@ page_fault (struct intr_frame *f)
               thread_exit ();
             }
           grow_stack (fault_addr, f->esp);
+          return;
         }
       supp_page_map_addr (&t->supp_page_table, fault_addr);
       return;
