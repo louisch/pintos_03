@@ -64,6 +64,7 @@ struct supp_page_file_data
        remaining bytes are zeroed out. (Of course, this is all read lazily, page
        by page, in whatever order the user decides to access the data). */
     uint32_t read_bytes;
+    bool is_mmapped;
   };
 
 /* Represents a page that has been mapped already in the pagedir. */
@@ -81,7 +82,8 @@ struct supp_page_segment *supp_page_create_segment (struct supp_page_table *supp
 struct supp_page_segment *supp_page_set_file_data (struct supp_page_segment *segment,
                                                    struct file *file,
                                                    uint32_t offset,
-                                                   uint32_t read_bytes);
+                                                   uint32_t read_bytes,
+                                                   bool is_mmapped);
 struct supp_page_segment *supp_page_lookup_segment (struct supp_page_table *supp_page_table,
                                                     void *uaddr);
 void *supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr);

@@ -64,12 +64,13 @@ supp_page_create_segment (struct supp_page_table *supp_page_table,
 /* Sets data for a segment that is read from a file. */
 struct supp_page_segment *
 supp_page_set_file_data (struct supp_page_segment *segment, struct file *file,
-                         uint32_t offset, uint32_t read_bytes)
+                         uint32_t offset, uint32_t read_bytes, bool is_mmapped)
 {
   struct supp_page_file_data *file_data = try_calloc (1, sizeof *file_data);
   file_data->file = file;
   file_data->offset = offset;
   file_data->read_bytes = read_bytes;
+  file_data->is_mmapped = is_mmapped;
   segment->file_data = file_data;
   return segment;
 }
