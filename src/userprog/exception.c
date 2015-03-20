@@ -170,13 +170,6 @@ page_fault (struct intr_frame *f)
         {
           if (!is_valid_stack_access (fault_addr, f->esp))
             {
-              printf ("Invalid %s access with esp %p, fault_addr %p.\n"
-                      "Divergence: %i\n",
-                      user ? "user" : "kernel",
-                      f->esp, fault_addr,
-                      fault_addr > f->esp ?
-                      (unsigned)fault_addr - (unsigned)f->esp :
-                      (unsigned)f->esp - (unsigned)fault_addr);
               thread_exit ();
             }
           grow_stack (fault_addr, f->esp);
