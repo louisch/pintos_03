@@ -29,6 +29,11 @@ syscall_mmap (int fd, void *addr)
       return MAP_FAILED;
     }
 
+  if (supp_page_lookup_segment (&t->supp_page_table, addr) != NULL)
+    {
+      return MAP_FAILED; 
+    }
+
 	int num_of_pages = (size % PGSIZE != 0) ?
 					   size / PGSIZE + 1 :
 					   size / PGSIZE;
