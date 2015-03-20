@@ -53,7 +53,8 @@ syscall_mmap (int fd, void *addr)
 
   mapid->mapid = id;
 	mapid->file = file;
-	hash_insert (mapped_files, &mapid->elem);
+  mapid->segment = segment;
+  hash_insert (mapped_files, &mapid->elem);
   return id;
 }
 
