@@ -12,6 +12,7 @@
 #include <threads/thread.h>
 
 #include "vm/swap.h"
+#include "vm/supp_page.h"
 #include "userprog/pagedir.h"
 
 /* The frame table allows requesting frames for mapping to virtual
@@ -37,7 +38,7 @@ struct frame
   struct list_elem eviction_elem;
   bool pinned;
   uint32_t *pd; /* The owner thread's page directory. */
-  void *upage;  /* The user virtual address of the frame. */
+  struct supp_page_mapped *mapped;
   void *kpage;  /* The kernel virtual address of the frame. */
 };
 
@@ -69,7 +70,8 @@ frame_init (void)
    Returns the kernel virtual address of the frame. A user virtual address can
    be mapped to this address in the page table. */
 void *
-request_frame (enum palloc_flags additional_flags, void *upage)
+request_frame (enum palloc_flags additional_flags,
+               struct supp_page_mapped *mapped)
 {
   lock_acquire (&frames.table_lock);
   /* For now, evict pages out of the system. */
@@ -84,13 +86,11 @@ request_frame (enum palloc_flags additional_flags, void *upage)
         }
     } while (page == NULL);
 
-  struct frame *frame = calloc (1, sizeof *frame);
-  ASSERT (frame != NULL);
-  if (frame == NULL) thread_exit ();
+  struct frame *frame = try_calloc (1, sizeof *frame);
   frame->pinned = true;
   ++frames.pinned_frames;
   frame->kpage = page;
-  frame->upage = upage;
+  frame->mapped = mapped;
   frame->pd = thread_current ()->pagedir;
   hash_insert (&frames.allocated, &frame->frame_elem);
   list_push_back (&frames.eviction_queue, &frame->eviction_elem);
@@ -141,16 +141,17 @@ evict_frame (void)
   unsigned found_pinned = 0;
 
   while (e != list_end (&frames.eviction_queue)
-         && (pagedir_is_accessed (f->pd, f->upage)
+         && (pagedir_is_accessed (f->pd, f->mapped->uaddr)
              || f->pinned))
     {
-      pagedir_set_accessed (f->pd, f->upage, false);
+      pagedir_set_accessed (f->pd, f->mapped->uaddr, false);
       if (f->pinned)
         {
           ++found_pinned;
         }
       if (found_pinned >= frames.pinned_frames)
         {
+          ASSERT (found_pinned == frames.pinned_frames);
           /* Wait for the table situation to change,
              then restart request process.*/
           cond_wait (&frames.wait_unpin, &frames.table_lock);
@@ -162,10 +163,10 @@ evict_frame (void)
                        list_pop_front (&frames.eviction_queue));
     }
 
-  pagedir_clear_page (f->pd, f->upage);
+  pagedir_clear_page (f->pd, f->mapped->uaddr);
   void *page = f->kpage;
-  swap_no swap = swap_write (page);
-  //SWAP HAXX
+  // check if page is mapped or something
+  f->mapped->swap_slot_no = swap_write (page);
   free_frame_stat (f);
 
   return page;

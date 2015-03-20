@@ -112,8 +112,13 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
   /* Calculate the address of the page that fault_addr is inside. */
   void *uaddr = pg_round_down (fault_addr);
 
+  struct supp_page_mapped *mapped = try_calloc (1, sizeof *mapped);
+  mapped->uaddr = uaddr;
+  mapped->swap_slot_no = NOT_SWAP;
+  hash_insert (&segment->mapped_pages, &mapped->mapped_elem);
+
   /* Try to get a frame from the frame table. */
-  void *kpage = request_frame (PAL_NONE, uaddr);
+  void *kpage = request_frame (PAL_NONE, mapped);
   if (kpage == NULL)
     {
       /* This should never happen. */
@@ -253,11 +258,8 @@ supp_page_install_page (void *uaddr, void *kpage,
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
   /* TODO: Need to lock this. Otherwise eviction could mess things up */
-  hash_insert (&segment->mapped_pages, &mapped->mapped_elem);
   if (!install_page (uaddr, kpage, segment->writable))
     {
-      hash_delete (&segment->mapped_pages, &mapped->mapped_elem);
-      free (mapped);
       free_frame (kpage);
       thread_exit ();
     }
