@@ -228,6 +228,7 @@ supp_page_install_page (void *uaddr, void *kpage,
                         struct supp_page_segment *segment)
 {
   struct supp_page_mapped *mapped = try_calloc (1, sizeof *mapped);
+  mapped->segment = segment;
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
   /* TODO: Need to lock this. Otherwise eviction could mess things up */

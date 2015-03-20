@@ -71,6 +71,7 @@ struct supp_page_file_data
 struct supp_page_mapped
   {
     struct hash_elem mapped_elem; /* For placing this in supp_page_segment. */
+    struct supp_page_segment *segment; /* A pointer back to the segment that contains this. */
     void *uaddr; /* The virtual user address this page begins at. */
     slot_no swap_slot_no; /* Slot number of this page in swap, if it lies in swap. */
   };
