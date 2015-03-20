@@ -187,7 +187,7 @@ process_create_process_info (struct thread *t)
   hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
 
 #ifdef VM
-  info->mapid_counter = -1;
+  info->mapid_counter = 0;
   hash_init (&info->mapped_files, mapid_hash_func, mapid_less_func, NULL);
 #endif
   /* Add information for process waiting: */
