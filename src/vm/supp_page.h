@@ -90,8 +90,7 @@ struct supp_page_segment *supp_page_lookup_segment (struct supp_page_table *supp
 void *supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr);
 void supp_page_free_all (struct supp_page_table *supp_page_table,
                          uint32_t *pagedir);
-void supp_page_free_segment (struct supp_page_table *supp_page_table,
-                             struct supp_page_segment *segment,
+void supp_page_free_segment (struct supp_page_segment *segment,
                              uint32_t *pagedir);
 
 #endif  /* vm/supp_page.h */

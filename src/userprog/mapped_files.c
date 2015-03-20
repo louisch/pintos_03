@@ -49,7 +49,7 @@ syscall_mmap (int fd, void *addr)
   bool writable = true;
   struct supp_page_segment *segment =
     supp_page_create_segment (&t->supp_page_table, addr, writable, size_data);
-  supp_page_set_file_data (segment, file, 0, size);
+  supp_page_set_file_data (segment, file, 0, size, true);
 
   mapid->mapid = id;
 	mapid->file = file;
@@ -61,17 +61,17 @@ syscall_mmap (int fd, void *addr)
 void
 syscall_munmap (mapid_t mapping)
 {
-  struct thread *t = thread_current ();
   process_info *process = process_current ();
   struct mapid mapid;
   struct hash_elem *e;
 
   mapid.mapid = mapping;
   e = hash_find (&process->mapped_files, &mapid.elem);
+
   struct mapid *actual_mapid = hash_entry (e, struct mapid, elem);
-  file_close (actual_mapid->file);
   hash_delete (&process->mapped_files, &mapid.elem);
-  supp_page_free_segment (t->supp_page_table, actual_mapid->segment, t->pagedir);
+  supp_page_free_segment (actual_mapid->segment, thread_current ()->pagedir);
+  file_close (actual_mapid->file);
   free (actual_mapid);
 }
 

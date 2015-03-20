@@ -148,13 +148,12 @@ supp_page_free_all (struct supp_page_table *supp_page_table,
     {
       struct supp_page_segment *segment =
         segment_from_elem (list_pop_front (&supp_page_table->segments));
-      supp_page_free_segment (supp_page_table, segment, pagedir);
+      supp_page_free_segment (segment, pagedir);
     }
 }
 
 void
-supp_page_free_segment (struct supp_page_table *supp_page_table,
-                        struct supp_page_segment *segment,
+supp_page_free_segment (struct supp_page_segment *segment,
                         uint32_t *pagedir)
 {
   segment->mapped_pages.aux = pagedir;
@@ -273,16 +272,21 @@ static void
 supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
 {
   struct supp_page_mapped *mapped = mapped_from_mapped_elem (mapped_elem);
-  if (mapped->segment->file_data->is_mmapped &&
-      (uint8_t *)mapped->uaddr < (uint8_t *)mapped->segment->addr + read_bytes)
+  struct supp_page_segment *segment = mapped->segment;
+  if (segment->file_data != NULL)
     {
-      uint32_t page_read_bytes =
-        get_page_read_bytes (segment->addr, mapped->uaddr,
-                             segment->file_data->read_bytes);
-      filesys_lock_acquire ();
-      file_seek (file, (uint32_t)mapped_uaddr - (uint32_t)segment->addr);
-      file_write (file, mapped->uaddr, page_read_bytes);
-      filesys_lock_release ();
+      struct supp_page_file_data *file_data = segment->file_data;
+      if (file_data->is_mmapped &&
+          (uint8_t *)mapped->uaddr < (uint8_t *)segment->addr + file_data->read_bytes)
+        {
+          uint32_t page_read_bytes =
+            get_page_read_bytes (segment->addr, mapped->uaddr,
+                                 segment->file_data->read_bytes);
+          filesys_lock_acquire ();
+          file_seek (file_data->file, (uint32_t)mapped->uaddr - (uint32_t)segment->addr);
+          file_write (file_data->file, mapped->uaddr, page_read_bytes);
+          filesys_lock_release ();
+        }
     }
   uint32_t *pagedir = (uint32_t *)pagedir_;
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));

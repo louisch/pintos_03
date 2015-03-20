@@ -729,7 +729,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   struct thread *t = thread_current ();
   supp_page_set_file_data (supp_page_create_segment (&t->supp_page_table, upage,
                                                      writable, read_bytes + zero_bytes),
-                           file, ofs, read_bytes);
+                           file, ofs, read_bytes, false);
 #endif
 
   return true;
