@@ -138,6 +138,31 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
   return kpage;
 }
 
+/* Write a page back to the file it is from if it is mmapped.
+   Returns false if it is not mmapped or the page is not a file page. */
+bool
+supp_page_write_mmapped (struct supp_page_mapped *mapped)
+{
+  struct supp_page_segment *segment = mapped->segment;
+  if (segment->file_data != NULL)
+    {
+      struct supp_page_file_data *file_data = segment->file_data;
+      if (file_data->is_mmapped &&
+          (uint8_t *)mapped->uaddr < (uint8_t *)segment->addr + file_data->read_bytes)
+        {
+          uint32_t page_read_bytes =
+            get_page_read_bytes (segment->addr, mapped->uaddr,
+                                 segment->file_data->read_bytes);
+          filesys_lock_acquire ();
+          file_seek (file_data->file, (uint32_t)mapped->uaddr - (uint32_t)segment->addr);
+          file_write (file_data->file, mapped->uaddr, page_read_bytes);
+          filesys_lock_release ();
+          return true;
+        }
+    }
+  return false;
+}
+
 /* Frees all the memory used by a particular supplementary page table in a
    thread. */
 void
@@ -273,22 +298,7 @@ static void
 supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
 {
   struct supp_page_mapped *mapped = mapped_from_mapped_elem (mapped_elem);
-  struct supp_page_segment *segment = mapped->segment;
-  if (segment->file_data != NULL)
-    {
-      struct supp_page_file_data *file_data = segment->file_data;
-      if (file_data->is_mmapped &&
-          (uint8_t *)mapped->uaddr < (uint8_t *)segment->addr + file_data->read_bytes)
-        {
-          uint32_t page_read_bytes =
-            get_page_read_bytes (segment->addr, mapped->uaddr,
-                                 segment->file_data->read_bytes);
-          filesys_lock_acquire ();
-          file_seek (file_data->file, (uint32_t)mapped->uaddr - (uint32_t)segment->addr);
-          file_write (file_data->file, mapped->uaddr, page_read_bytes);
-          filesys_lock_release ();
-        }
-    }
+  supp_page_write_mmapped (mapped);
   uint32_t *pagedir = (uint32_t *)pagedir_;
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));
   pagedir_clear_page (pagedir, mapped->uaddr);
