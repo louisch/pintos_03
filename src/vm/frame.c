@@ -161,8 +161,13 @@ evict_frame (void)
 
   pagedir_clear_page (f->pd, f->mapped->uaddr);
   void *page = f->kpage;
-  // check if page is mapped or something
-  f->mapped->swap_slot_no = swap_write (page);
+  
+  /* If the page is a mapped file, changes are written to file.
+     Otherwise, the paged is swapped out. */
+  if (!supp_page_write_mmapped (f->mapped))
+  {
+    f->mapped->swap_slot_no = swap_write (page);
+  }
   free_frame_stat (f);
 
   return page;
