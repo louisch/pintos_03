@@ -140,6 +140,8 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
   /* Map the user address to the frame. */
   supp_page_install_page (uaddr, kpage, segment);
 
+  unpin_frame (kpage);
+
   return kpage;
 }
 
