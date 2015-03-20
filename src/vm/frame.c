@@ -14,6 +14,7 @@
 #include "vm/swap.h"
 #include "vm/supp_page.h"
 #include "userprog/pagedir.h"
+#include "threads/interrupt.h"
 
 /* The frame table allows requesting frames for mapping to virtual
    user addresses.
@@ -81,8 +82,9 @@ request_frame (enum palloc_flags additional_flags,
       page = palloc_get_page (additional_flags | PAL_USER);
       if (page == NULL)
         {
-          printf ("#Evicting frames out of a window!\n");
+          enum intr_level old_level = intr_disable ();
           page = evict_frame ();
+          intr_set_level (old_level);
         }
     } while (page == NULL);
 
