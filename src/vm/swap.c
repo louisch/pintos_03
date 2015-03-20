@@ -60,7 +60,8 @@ swap_init (void)
   create_range (0, block_size (swap_block) / SECTORS_PER_PAGE);
 }
 
-/* Writes a page to the swap file. */
+/* Writes a page to the swap file.
+   Returns the slot_no which page now lives in. */
 slot_no
 swap_write (void *kpage)
 {
@@ -69,10 +70,12 @@ swap_write (void *kpage)
   return slot;
 }
 
-/* Retrieves a page from swap by copying the page at slot_no into page. Also
-   frees the slot. */
+/* Retrieves a page from swap by copying the page at slot_no into page.
+   Also frees the slot. */
 void swap_retrieve (slot_no slot, void *kpage)
 {
+  ASSERT (slot >= 0 && slot < (block_size (swap_block) / SECTORS_PER_PAGE));
+
   block_do (kpage, slot, block_read);
   swap_free_slot (slot);
 }
@@ -81,6 +84,8 @@ void swap_retrieve (slot_no slot, void *kpage)
    May create, extend or merge ranges. */
 void swap_free_slot (slot_no slot)
 {
+  ASSERT (slot >= 0 && slot < (block_size (swap_block) / SECTORS_PER_PAGE));
+
   lock_acquire (&free_slot_list_lock);
 
   /* Find the first range with a start point greater than slot. */
