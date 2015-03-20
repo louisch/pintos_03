@@ -303,6 +303,10 @@ supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
 {
   struct supp_page_mapped *mapped = mapped_from_mapped_elem (mapped_elem);
   supp_page_write_mmapped (mapped);
+  if (mapped->swap_slot_no != NOT_SWAP)
+    {
+      swap_free_slot (mapped->swap_slot_no);
+    }
   uint32_t *pagedir = (uint32_t *)pagedir_;
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));
   pagedir_clear_page (pagedir, mapped->uaddr);
