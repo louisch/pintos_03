@@ -21,13 +21,13 @@
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 
+
 #ifdef VM
 #include <vm/supp_page.h>
+#include "userprog/mapped_files.h"
 #endif
 
 #define ABNORMAL_IO_VALUE -1
-#define STDIN 0
-#define STDOUT 1
 
 /* Max buffer size for reasonable console writes. */
 static const unsigned CONSOLE_WRITE_SIZE = 256;
@@ -72,6 +72,8 @@ static int syscall_write (int fd, const void *buffer, unsigned length);
 static void syscall_seek (int fd, unsigned position);
 static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
+
+
 
 void
 syscall_init (void)
@@ -131,6 +133,15 @@ syscall_handler (struct intr_frame *frame)
   case (SYS_CLOSE):
     call_syscall_1_void (syscall_close, frame, int);
     break;
+#ifdef VM
+  case (SYS_MMAP):
+    frame->eax = call_syscall_2 (syscall_mmap, mapid_t, frame,
+                                  int, void*);
+    break;
+  case (SYS_MUNMAP):
+    call_syscall_1_void (syscall_munmap, frame, mapid_t);
+    break;
+#endif
   default:
     /* Unknown system call encountered! */
     printf ("That system call is not of this world!\n");
@@ -406,3 +417,4 @@ syscall_close (int fd)
     }
   filesys_lock_release ();
 }
+

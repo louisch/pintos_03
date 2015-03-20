@@ -30,6 +30,7 @@
 #include <vm/frame.h>
 #include <vm/stack_growth.h>
 #include <vm/supp_page.h>
+#include <userprog/mapped_files.h>
 #endif
 
 #define ABNORMAL_EXIT_STATUS -1
@@ -184,6 +185,11 @@ process_create_process_info (struct thread *t)
   /* Init open_files hashtable. */
   info->fd_counter = 2; /* 0 and 1 are reserved for stdin and stdout. */
   hash_init (&info->open_files, fd_hash_func, fd_less_func, NULL);
+
+#ifdef VM
+  info->mapid_counter = 0;
+  hash_init (&info->mapped_files, mapid_hash_func, mapid_less_func, NULL);
+#endif
   /* Add information for process waiting: */
   /* Create persistent_info struct. */
   persistent_info *persistent_info = create_persistent_info (t);
@@ -723,7 +729,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   struct thread *t = thread_current ();
   supp_page_set_file_data (supp_page_create_segment (&t->supp_page_table, upage,
                                                      writable, read_bytes + zero_bytes),
-                           file, ofs, read_bytes);
+                           file, ofs, read_bytes, false);
 #endif
 
   return true;
@@ -774,6 +780,8 @@ process_info_free (process_info *info)
   hash_destroy (&info->open_files, fd_hash_destroy);
   /* Frees all children_info and destroys children hashtable. */
   hash_destroy (&info->children, children_hash_destroy);
+  /* Frees all mapping for this process */
+  hash_destroy (&info->mapped_files, mapid_hash_destroy);
 }
 
 /* Adds file to open_files hash. Returns the fd it generates. */
@@ -784,9 +792,13 @@ process_add_file (struct file *file)
   int fd = process->fd_counter++;
   struct hash *open_files = &process->open_files;
   struct file_fd *file_fd = malloc (sizeof(struct file_fd));
-  if (file_fd == NULL || hash_size (open_files) > OPEN_FILE_LIMIT)
-    return -1; /* File not found or too many files open. */
-
+  if (file_fd == NULL) /* File not found or too many files open. */
+    return ABNORMAL_EXIT_STATUS;
+  if (hash_size (open_files) > OPEN_FILE_LIMIT)
+    {
+      free (file_fd);
+      return ABNORMAL_EXIT_STATUS;
+    }
   file_fd->fd = fd;
   file_fd->file = file;
   hash_insert (open_files, &file_fd->elem);
