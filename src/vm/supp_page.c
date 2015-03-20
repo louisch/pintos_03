@@ -144,21 +144,24 @@ void
 supp_page_free_all (struct supp_page_table *supp_page_table,
                     uint32_t *pagedir)
 {
-  struct list_elem *current = list_begin (&supp_page_table->segments);
-  while (current != list_end (&supp_page_table->segments))
-    {
-      struct supp_page_segment *segment = segment_from_elem (current);
-      segment->mapped_pages.aux = pagedir;
-      hash_destroy (&segment->mapped_pages, supp_page_free_mapped);
-      current = list_next (current);
-    }
   while (!list_empty (&supp_page_table->segments))
     {
       struct supp_page_segment *segment =
         segment_from_elem (list_pop_front (&supp_page_table->segments));
-      free (segment->file_data);
-      free (segment);
+      supp_page_free_segment (supp_page_table, segment, pagedir);
     }
+}
+
+void
+supp_page_free_segment (struct supp_page_table *supp_page_table,
+                        struct supp_page_segment *segment,
+                        uint32_t *pagedir)
+{
+  segment->mapped_pages.aux = pagedir;
+  hash_destroy (&segment->mapped_pages, supp_page_free_mapped);
+
+  free (segment->file_data);
+  free (segment);
 }
 
 /* Get the supp_page_segment wrapping a supp_elem. */
