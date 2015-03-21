@@ -30,6 +30,7 @@ static void supp_page_install_page (void *uaddr, void *kpage,
 static uint32_t get_page_read_bytes (void *segment_addr, void *uaddr,
                                      uint32_t segment_read_bytes);
 
+static struct supp_page_mapped *create_mapped (struct supp_page_segment* segment, void *uaddr);
 static struct supp_page_mapped *mapped_from_mapped_elem (const struct hash_elem *e);
 static unsigned mapped_hash_func (const struct hash_elem *mapped_elem,
                                   void *aux UNUSED);
@@ -116,11 +117,7 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
   struct supp_page_mapped *mapped = lookup_mapped (segment, uaddr);
   if (mapped == NULL)
     {
-      mapped = try_calloc (1, sizeof *mapped);
-      mapped->segment = segment;
-      mapped->uaddr = uaddr;
-      mapped->swap_slot_no = NOT_SWAP;
-      hash_insert (&segment->mapped_pages, &mapped->mapped_elem);
+      mapped = create_mapped (segment, uaddr);
     }
 
   /* Try to get a frame from the frame table. */
@@ -302,7 +299,18 @@ get_page_read_bytes (void *segment_addr, void *uaddr, uint32_t segment_read_byte
 }
 
 
-/* mapped_pages hash functions */
+/* mapped_pages functions */
+
+static struct supp_page_mapped *
+create_mapped (struct supp_page_segment* segment, void *uaddr)
+{
+  struct supp_page_mapped *mapped = try_calloc (1, sizeof *mapped);
+  mapped->segment = segment;
+  mapped->uaddr = uaddr;
+  mapped->swap_slot_no = NOT_SWAP;
+  hash_insert (&segment->mapped_pages, &mapped->mapped_elem);
+  return mapped;
+}
 
 /* Get the supp_page_mapped wrapping a mapped_elem. */
 static struct supp_page_mapped *
