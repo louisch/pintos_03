@@ -82,9 +82,14 @@ request_frame (enum palloc_flags additional_flags,
       page = palloc_get_page (additional_flags | PAL_USER);
       if (page == NULL)
         {
-          enum intr_level old_level = intr_disable ();
           page = evict_frame ();
-          intr_set_level (old_level);
+        }
+      if (page == NULL)
+        {
+          /* If page could not be acquired, then there are no more free pages
+             and all the pages in the table are pinned. We need to wait for some
+             thread to either unpin or exit. */
+          cond_wait (&frames.wait_unpin, &frames.table_lock);
         }
     } while (page == NULL);
 
@@ -130,9 +135,8 @@ unpin_frame (void *kpage)
   lock_release(&frames.table_lock);
 }
 
-/* #TROLL HAXX */
-/* Selects a frame from frames and evicts it to oblivion
-   using the second chance algorithm. */
+/* Selects a frame from frames and evicts it to the swap table (or writes it to
+   disk, if the page was a mmapped file), using the second chance algorithm. */
 static void *
 evict_frame (void)
 {
@@ -141,12 +145,11 @@ evict_frame (void)
   struct list_elem *e = list_front(&frames.eviction_queue);
   struct frame *f = frame_from_eviction_elem (e);
 
+
   if (frames.pinned_frames >= hash_size (&frames.allocated))
     {
       ASSERT (frames.pinned_frames == hash_size (&frames.allocated));
-      /* If all frames are pinned, we cannot evict any of them; we must wait for
-         a frame to be either unpinned or removed. */
-      cond_wait (&frames.wait_unpin, &frames.table_lock);
+      /* If all frames are pinned, we cannot evict any of them. */
       return NULL; 
     }
 
@@ -161,15 +164,17 @@ evict_frame (void)
                        list_pop_front (&frames.eviction_queue));
     }
 
+  enum intr_level old_level = intr_disable ();
   pagedir_clear_page (f->pd, f->mapped->uaddr);
+  intr_set_level (old_level);
   void *page = f->kpage;
   
   /* If the page is a mapped file, changes are written to file.
      Otherwise, the paged is swapped out. */
   if (!supp_page_write_mmapped (f->mapped))
-  {
-    f->mapped->swap_slot_no = swap_write (page);
-  }
+    {
+      f->mapped->swap_slot_no = swap_write (page);
+    }
   free_frame_stat (f);
 
   return page;
@@ -194,6 +199,7 @@ free_frame (void *kpage)
   lock_release (&frames.table_lock);
 }
 
+// COMMENT HAXX
 static void
 free_frame_stat (struct frame *frame)
 {
