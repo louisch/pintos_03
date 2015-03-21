@@ -1,6 +1,6 @@
-\part{Memory Mapped Files}
+\section{Memory Mapped Files}
 
-\section{Data Structures}
+\subsection{Data Structures}
 
 % Copy here the declaration of each new or changed `struct' or
 % `struct' member, global or static variable, `typedef', or
@@ -19,25 +19,26 @@ struct mapid
 
 process.h:
 
-Added to typdef struct process\_info. 
+Added to typdef struct process\_info.
   /* Hash used to for mapping ids to files */
   struct hash mapped\_files;
   /* Provides unique map ids for process */
   unsigned mapid\_counter;
-  
-\section{Algorithms}
+
+\subsection{Algorithms - Integration}
 
 % Describe how memory mapped files integrate into your virtual
 % memory subsystem.  Explain how the page fault and eviction
 % processes differ between swap pages and other pages.
+
+\subsection{Algorithms - Overlaps}
 
 % Explain how you determine whether a new file mapping overlaps
 % any existing segment.
 
 In syscall\_mmap, supp\_page\_lookup\_segment is called starting with the mapping address and increments an index and then checks every address + index*PGSIZE upto the max number of pages requested by the mapping of the file. If a segment is found then the mmap returns -1 because a mapping already exists at that address. If no segment is found then segments is created and files data is set to that segment.
 
-
-\section{Rationale}
+\subsection{Rationale - Code duplication}
 
 % Mappings created with "mmap" have similar semantics to those of
 % data demand-paged from executables, except that "mmap" mappings are
