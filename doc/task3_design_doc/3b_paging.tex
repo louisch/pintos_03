@@ -33,18 +33,24 @@ the user program is deemed to be buggy, and we terminate the thread.
 % particular, explain how it prevents deadlock.  (Refer to the
 % textbook for an explanation of the necessary conditions for
 % deadlock.)
-% TODO: Fill this in when more than just the frame table actually has a
-% synch mechanism.
 
 % A page fault in process P can cause another process Q's frame
 % to be evicted.  How do you ensure that Q cannot access or modify
 % the page during the eviction process?  How do you avoid a race
 % between P evicting Q's frame and Q faulting the page back in?
+As there is no way of to regulate process Q's access to its own page, we disable interrupts while the page is removed from process Q's frame table.
+While the page is being evicted, we use a lock to prevent process Q from attempting to fault its page back in before process P finishes writing the page (either to swap or back to the file it was memory mapped from).
+
+Race conditions related to the frame table itself are avoided with the use of the frame table lock (table_lock inside the frame_table structure).
+Any external function that allows a process to modify or access the frame table implicitly acquires this lock before manipulating the frame table.
+Hence, in our case, process Q will be blocked until process P finishes evicting the page.
 
 % Suppose a page fault in process P causes a page to be read from
 % the file system or swap.  How do you ensure that a second process Q
 % cannot interfere by e.g. attempting to evict the frame while it is
 % still being read in?
+A page from a request_frame operation is pinned by default.
+In our current implementation, the eviction algorithm cannot evict pinned pages, which allows the caller to finish its operations on its newly acquired page before unpinning it and thus making it possible to evict it.
 
 % Explain how you handle access to paged-out pages that occur
 % during system calls.  Do you use page faults to bring in pages (as
