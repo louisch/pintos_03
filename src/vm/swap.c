@@ -1,4 +1,5 @@
 #include <list.h>
+#include <stdio.h> // DEBUG HAXX
 #include <threads/malloc.h>
 
 #include "devices/block.h"
@@ -57,7 +58,9 @@ swap_init (void)
   lock_init (&free_slot_list_lock);
 
   /* Create initial free range and set to whole of swap space. */
+  lock_acquire (&free_slot_list_lock);
   create_range (0, block_size (swap_block) / SECTORS_PER_PAGE);
+  lock_release (&free_slot_list_lock);
 }
 
 /* Writes a page to the swap file.
@@ -65,7 +68,10 @@ swap_init (void)
 slot_no
 swap_write (void *kpage)
 {
+  lock_acquire (&free_slot_list_lock);
   slot_no slot = get_next_free_slot ();
+  lock_release (&free_slot_list_lock);
+
   block_do (kpage, slot, block_write);
   return slot;
 }
@@ -75,9 +81,8 @@ swap_write (void *kpage)
 void swap_retrieve (slot_no slot, void *kpage)
 {
   ASSERT (slot < (block_size (swap_block) / SECTORS_PER_PAGE));
-
   block_do (kpage, slot, block_read);
-  swap_free_slot (slot);
+  swap_free_slot (slot); // Internally synchronised
 }
 
 /* Reinserts a free slot into free_slot_list.
@@ -109,7 +114,7 @@ void swap_free_slot (slot_no slot)
   switch (action)
   {
   case (EXTEND_NONE):
-    create_range (slot, slot + 1);
+    create_range (slot, slot + 1); // Lock already acquired
     break;
   case (EXTEND_SMALLER):
     range_entry (list_prev (e))->end++;
@@ -122,7 +127,6 @@ void swap_free_slot (slot_no slot)
     delete_range (range_entry (e));
     break;
   }
-
   lock_release (&free_slot_list_lock);
 }
 
@@ -187,14 +191,14 @@ check_extend_larger (struct list_elem *curr_elem, slot_no slot)
 static void
 create_range (slot_no start, slot_no end)
 {
-  lock_acquire (&free_slot_list_lock);
-
+  // lock_acquire (&free_slot_list_lock);
   struct range *new_range = malloc (sizeof *new_range);
+  // UNCHECKED MALLOC HAXX
   new_range->start = start;
   new_range->end = end;
   list_insert_ordered (&free_slot_list, &new_range->elem, range_lt, NULL);
 
-  lock_release (&free_slot_list_lock);
+  // lock_release (&free_slot_list_lock);
 }
 
 /* Removes a range from free_slot_list and frees its memory. */
@@ -210,7 +214,7 @@ delete_range (struct range *range_to_delete)
 static slot_no
 get_next_free_slot (void)
 {
-  lock_acquire (&free_slot_list_lock);
+  // lock_acquire (&free_slot_list_lock);
   struct list_elem *free_range_elem = list_begin (&free_slot_list);
   if (free_range_elem == list_tail (&free_slot_list))
     {
@@ -227,7 +231,7 @@ get_next_free_slot (void)
     delete_range(free_range);
   }
 
-  lock_release (&free_slot_list_lock);
+  // lock_release (&free_slot_list_lock);
   return ret;
 }
 
