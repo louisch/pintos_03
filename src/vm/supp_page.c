@@ -26,7 +26,7 @@ static struct supp_page_segment *segment_from_elem (const struct list_elem *e);
 static bool supp_page_segment_contains (struct supp_page_segment *segment, void *uaddr);
 static void setup_file_page (void *uaddr, void *kpage,
                              struct supp_page_segment *segment);
-static void supp_page_install_page (void *uaddr, void *kpage,
+static void supp_page_install_page (struct supp_page_mapped *mapped, void *kpage,
                                     struct supp_page_segment *segment);
 static uint32_t get_page_read_bytes (void *segment_addr, void *uaddr,
                                      uint32_t segment_read_bytes);
@@ -141,7 +141,7 @@ supp_page_map_addr (struct supp_page_segment *segment, void *fault_addr)
   lock_release (&mapped->eviction_lock);
 
   /* Map the user address to the frame. */
-  supp_page_install_page (mapped->uaddr, kpage, segment);
+  supp_page_install_page (mapped, kpage, segment);
 
   unpin_frame (kpage);
 
@@ -276,15 +276,10 @@ setup_file_page (void *uaddr, void *kpage, struct supp_page_segment *segment)
 
 /* Installs a kpage with uaddr into the current thread's pagedir. */
 static void
-supp_page_install_page (void *uaddr, void *kpage,
+supp_page_install_page (struct supp_page_mapped *mapped, void *kpage,
                         struct supp_page_segment *segment)
 {
-  struct supp_page_mapped *mapped = try_calloc (1, sizeof *mapped);
-  mapped->segment = segment;
-  mapped->uaddr = uaddr;
-  mapped->swap_slot_no = NOT_SWAP;
-  lock_init (&mapped->eviction_lock);
-  if (!install_page (uaddr, kpage, segment->writable))
+  if (!install_page (mapped->uaddr, kpage, segment->writable))
     {
       free_frame (kpage);
       thread_exit ();
