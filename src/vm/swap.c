@@ -130,13 +130,6 @@ void swap_free_slot (slot_no slot)
   lock_release (&free_slot_list_lock);
 }
 
-// /* Frees all the swap slots occupied by the array of pages passed in. */
-// void
-// free_used_frames (void) // ARG HAXX
-// {
-//   return NULL; // RETURN HAXX
-// }
-
 /* Wrapper for the list_entry macro, returning the pointer
    to the struct range which contains the list_elem *e.
    Must hold free_slot_list_lock before calling. */
