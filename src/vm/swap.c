@@ -74,7 +74,7 @@ swap_write (void *kpage)
    Also frees the slot. */
 void swap_retrieve (slot_no slot, void *kpage)
 {
-  ASSERT (slot >= 0 && slot < (block_size (swap_block) / SECTORS_PER_PAGE));
+  ASSERT (slot < (block_size (swap_block) / SECTORS_PER_PAGE));
 
   block_do (kpage, slot, block_read);
   swap_free_slot (slot);
@@ -84,7 +84,7 @@ void swap_retrieve (slot_no slot, void *kpage)
    May create, extend or merge ranges. */
 void swap_free_slot (slot_no slot)
 {
-  ASSERT (slot >= 0 && slot < (block_size (swap_block) / SECTORS_PER_PAGE));
+  ASSERT (slot < (block_size (swap_block) / SECTORS_PER_PAGE));
 
   lock_acquire (&free_slot_list_lock);
 
