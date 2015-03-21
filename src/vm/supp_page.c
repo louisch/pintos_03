@@ -284,7 +284,6 @@ supp_page_install_page (void *uaddr, void *kpage,
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
   lock_init (&mapped->eviction_lock);
-  /* TODO: Need to lock this. Otherwise eviction could mess things up */
   if (!install_page (uaddr, kpage, segment->writable))
     {
       free_frame (kpage);
