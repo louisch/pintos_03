@@ -83,13 +83,13 @@ request_frame (enum palloc_flags additional_flags,
       if (page == NULL)
         {
           page = evict_frame ();
-        }
-      if (page == NULL)
-        {
-          /* If page could not be acquired, then there are no more free pages
-             and all the pages in the table are pinned. We need to wait for some
-             thread to either unpin or exit. */
-          cond_wait (&frames.wait_unpin, &frames.table_lock);
+          if (page == NULL)
+            {
+              /* If page could not be acquired, then there are no more free pages
+                 and all the pages in the table are pinned. We need to wait for some
+                 thread to either unpin or exit. */
+              cond_wait (&frames.wait_unpin, &frames.table_lock);
+            }
         }
     } while (page == NULL);
 
@@ -196,12 +196,13 @@ free_frame (void *kpage)
     {
       --frames.pinned_frames;
     }
+  palloc_free_page (kpage);
   free_frame_stat (frame);
   cond_signal (&frames.wait_unpin, &frames.table_lock);
   lock_release (&frames.table_lock);
 }
 
-// COMMENT HAXX
+/* Removes the frame from the frame list and the frame hash. */ 
 static void
 free_frame_stat (struct frame *frame)
 {
@@ -209,7 +210,6 @@ free_frame_stat (struct frame *frame)
     {
       hash_delete (&frames.allocated, &frame->frame_elem);
       list_remove (&frame->eviction_elem);
-      palloc_free_page (frame->kpage);
       free (frame);
     }
 }
