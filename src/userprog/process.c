@@ -766,7 +766,7 @@ setup_stack (void **esp)
   stack_growth_init ();
   /* Create the first page right now instead of waiting for it to fault,
      as some kernel code needs it set up anyway. */
-  supp_page_map_addr (&thread_current ()->supp_page_table, upage);
+  supp_page_map_addr_directly (&thread_current ()->supp_page_table, upage);
   thread_current ()->stack_bottom = upage;
 
   return true;

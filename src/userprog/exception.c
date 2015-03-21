@@ -163,6 +163,16 @@ page_fault (struct intr_frame *f)
       thread_exit ();
     }
 
+  struct supp_page_segment *segment =
+    supp_page_lookup_segment (&t->supp_page_table, fault_addr);
+  /* Segment should be mapped at this point. Thread must be accessing an invalid
+     segment if it has not been mapped yet.
+     If trying to write to non-writable segment, then we terminate the thread. */
+  if (segment == NULL || (write && !segment->writable))
+    {
+      thread_exit ();
+    }
+
   if (not_present)
     {
       /* If this is a stack access, check its validity with a heuristic. */
@@ -175,7 +185,7 @@ page_fault (struct intr_frame *f)
           grow_stack (fault_addr, f->esp);
           return;
         }
-      supp_page_map_addr (&t->supp_page_table, fault_addr);
+      supp_page_map_addr (segment, fault_addr);
       return;
     }
 #endif

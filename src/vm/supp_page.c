@@ -100,16 +100,8 @@ supp_page_lookup_segment (struct supp_page_table *supp_page_table, void *fault_a
 
 /* Tries to get a frame and map the faulting page inside segment to this frame. */
 void *
-supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
+supp_page_map_addr (struct supp_page_segment *segment, void *fault_addr)
 {
-  struct supp_page_segment *segment =
-    supp_page_lookup_segment (supp_page_table, fault_addr);
-  if (segment == NULL)
-    {
-      /* Attempt to access invalid page, so terminate the thread. */
-      thread_exit ();
-    }
-
   /* Calculate the address of the page that fault_addr is inside. */
   void *uaddr = pg_round_down (fault_addr);
 
@@ -137,7 +129,7 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
     }
   else if (file_data != NULL)
     {
-      setup_file_page (uaddr, kpage, segment);
+      setup_file_page (mapped->uaddr, kpage, segment);
     }
   else
     {
@@ -145,11 +137,26 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
     }
 
   /* Map the user address to the frame. */
-  supp_page_install_page (uaddr, kpage, segment);
+  supp_page_install_page (mapped->uaddr, kpage, segment);
 
   unpin_frame (kpage);
 
   return kpage;
+}
+
+/* A convenience function for looking up a segment and mapping it.
+   Automatically terminates the thread if the segment cannot be found. */
+void *
+supp_page_map_addr_directly (struct supp_page_table *supp_page_table,
+                             void *fault_addr)
+{
+  struct supp_page_segment *segment =
+    supp_page_lookup_segment (supp_page_table, fault_addr);
+  if (segment == NULL)
+    {
+      thread_exit ();
+    }
+  return supp_page_map_addr (segment, fault_addr);
 }
 
 void
