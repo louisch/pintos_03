@@ -11,16 +11,26 @@
 
 % When a frame is required but none is free, some frame must be
 % evicted.  Describe your code for choosing a frame to evict.
+Our code implements the second chance page eviction algorithm.
+When no free pages are available, we retrieve a list of all frames and look at the head of that list.
+If the access bit of the page in the head frame is set or the frame is pinned, we reset the access bit and reinsert that page into the back of the list.
+We continue cycling through the list until we find a frame that is not pinned and whose page's access bit is not set and we evict this page.
+
+Note that if every frame in the list is pinned, instead of iterating endlessly through it, we wait until a frame is either freed or unpinned.
+In order to make this algorithm more efficient, we maintain a list of all used frames alongside the hash table.
 
 \subsection{Algorithms - What happens to Q when P evicts Q's frame}
 
 % When a process P obtains a frame that was previously used by a
 % process Q, how do you adjust the page table (and any other data
 % structures) to reflect the frame Q no longer has?
+When P selects Q's page for eviction, it first acquires a lock over that page's supplementary page table entry.
+It then disables interrupts while it clears that page from Q's page table (which maps its user virtual address).
+The evicted page is either written to swap or, if it represents a memory mapped file, back to disk.
+In the first case, we also add the number of the swap slot to the supplementary page entry.
+Finally, P releases the lock over the page's supplementary table entry.
 
-We simply clear the page table's mapping of process Q's user virtual address.
-% TODO: Add a note here explaining how the supplementary page table is told
-% if a page is in swap.
+% TODO: Somebody needs to talk about the supplementary page table somewhere.
 
 \subsection{Algorithms - Stack Growth Heuristic}
 
@@ -35,7 +45,7 @@ the user program is deemed to be buggy, and we terminate the thread.
 \subsection{Synchronization - Design}
 
 % Explain the basics of your VM synchronization design.  In
-% sectioicular, explain how it prevents deadlock.  (Refer to the
+% particular, explain how it prevents deadlock.  (Refer to the
 % textbook for an explanation of the necessary conditions for
 % deadlock.)
 
@@ -58,7 +68,7 @@ Hence, in our case, process Q will be blocked until process P finishes evicting 
 % the file system or swap.  How do you ensure that a second process Q
 % cannot interfere by e.g. attempting to evict the frame while it is
 % still being read in?
-A page from a request_frame operation is pinned by default.
+A page returned by the request_frame function (the only way to acquire a page) is pinned by default.
 In our current implementation, the eviction algorithm cannot evict pinned pages, which allows the caller to finish its operations on its newly acquired page before unpinning it and thus making it possible to evict it.
 
 \subsection{Synchronization - Handling accesses to paged-out pages in syscalls}
@@ -84,3 +94,6 @@ virtual address.
 % possibility for deadlock but allows for high parallelism.  Explain
 % where your design falls along this continuum and why you chose to
 % design it this way.
+Our design is synchronised via multiple locks, in an attempt to allow as much parallelism as possible.
+In order to make synchronisation simpler, we attempted to use implicit synchronisation as far as possible; \textit{e.g.} many external functions (particularly in frame.c) acquire resources on their own instead of relying on the caller to acquire them.
+We also tried to avoid excessive synchronisation, that is, synchronising processes that do not require synchronisation. For instance, it is possible to read concurrently from the swap table.
