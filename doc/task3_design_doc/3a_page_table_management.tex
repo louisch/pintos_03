@@ -11,6 +11,21 @@
 % In a few paragraphs, describe your code for locating the frame,
 % if any, that contains the data of a given page.
 
+During a page fault, we find which segment a page is in (this is necessary
+because the segment struct contains metadata which is required for this locating
+algorithm), and then we check whether the page has previously been mapped. If it
+has, then we will find a struct that tells us whether the page lies in swap or
+not. It also tells us where in swap it lies if the page does currently reside in
+swap.
+
+If this struct cannot be found, then we can infer which page of the file the
+faulting page resides in, from data stored in the segment (a struct file
+pointer, the offset into the file that the segment begins at, etc.).
+
+When requesting a new frame, we use the unchanged palloc\_get\_page function to
+locate a free frame to use. If no frame is returned, then we evict some frame to
+use (more details on this further down).
+
 \subsection{Algorithms - Aliases of Accessed and Dirty bits}
 
 % How does your code coordinate accessed and dirty bits between
