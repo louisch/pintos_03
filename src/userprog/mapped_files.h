@@ -22,5 +22,4 @@ void mapid_hash_destroy (struct hash_elem *e, void *aux UNUSED);
 bool mapid_less_func (const struct hash_elem *a,
                           const struct hash_elem *b,
                           void *aux UNUSED);
-void munmap (mapid_t mapping);
 #endif
