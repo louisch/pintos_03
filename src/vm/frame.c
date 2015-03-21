@@ -164,17 +164,19 @@ evict_frame (void)
                        list_pop_front (&frames.eviction_queue));
     }
 
+  void *page = f->kpage;
+  lock_acquire (&f->mapped->eviction_lock);
   enum intr_level old_level = intr_disable ();
   pagedir_clear_page (f->pd, f->mapped->uaddr);
   intr_set_level (old_level);
-  void *page = f->kpage;
-
+  
   /* If the page is a mapped file, changes are written to file.
-     Otherwise, the paged is swapped out. */
+     Otherwise, the page is swapped out. */
   if (!supp_page_write_mmapped (f->pd, f->mapped))
     {
-      f->mapped->swap_slot_no = swap_write (page);
+      supp_page_swap_out (f->mapped, swap_write (page));
     }
+  lock_release (&f->mapped->eviction_lock);
   free_frame_stat (f);
 
   return page;

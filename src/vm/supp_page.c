@@ -15,6 +15,7 @@
 #include <threads/palloc.h>
 #include <threads/thread.h>
 #include <threads/vaddr.h>
+#include <threads/synch.h>
 #include <userprog/pagedir.h>
 #include <userprog/read_page.h>
 #include <userprog/install_page.h>
@@ -123,6 +124,7 @@ supp_page_map_addr (struct supp_page_segment *segment, void *fault_addr)
   /* if this is not NULL, it represents a page that needs to be read from a
      file. */
   struct supp_page_file_data *file_data = segment->file_data;
+  lock_acquire (&mapped->eviction_lock);
   if (mapped->swap_slot_no != NOT_SWAP)
     {
       swap_retrieve (mapped->swap_slot_no, kpage);
@@ -136,6 +138,7 @@ supp_page_map_addr (struct supp_page_segment *segment, void *fault_addr)
     {
       memset (kpage, 0, PGSIZE);
     }
+  lock_release (&mapped->eviction_lock);
 
   /* Map the user address to the frame. */
   supp_page_install_page (mapped->uaddr, kpage, segment);
@@ -280,6 +283,7 @@ supp_page_install_page (void *uaddr, void *kpage,
   mapped->segment = segment;
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
+  lock_init (&mapped->eviction_lock);
   /* TODO: Need to lock this. Otherwise eviction could mess things up */
   if (!install_page (uaddr, kpage, segment->writable))
     {
@@ -316,6 +320,7 @@ create_mapped (struct supp_page_segment* segment, void *uaddr)
   mapped->segment = segment;
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
+  lock_init (&mapped->eviction_lock);
   hash_insert (&segment->mapped_pages, &mapped->mapped_elem);
   return mapped;
 }

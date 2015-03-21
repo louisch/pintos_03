@@ -1,15 +1,17 @@
-\part{Page Table Management}
+\section{Page Table Management}
 
-\section{Data Structures}
+\subsection{Data Structures}
 
 % Copy here the declaration of each new or changed `struct' or
 % `struct' member, global or static variable, `typedef', or
 % enumeration.  Identify the purpose of each in 25 words or less.
 
-\section{Algorithms}
+\subsection{Algorithms - Frame Locating}
 
 % In a few paragraphs, describe your code for locating the frame,
 % if any, that contains the data of a given page.
+
+\subsection{Algorithms - Aliases of Accessed and Dirty bits}
 
 % How does your code coordinate accessed and dirty bits between
 % kernel and user virtual addresses that alias a single frame, or
@@ -18,7 +20,7 @@
 We simply check the accessed and dirty bits of both, summing the number of bits
 set for all aliases of a frame.
 
-\section{Synchronization}
+\subsection{Synchronization - Concurrent frame requests}
 
 % When two user processes both need a new frame at the same time,
 % how are races avoided?
@@ -28,7 +30,7 @@ function when it does its work, and released before it returns. If two user
 processes request a frame at the same time, then the second call blocks
 until the first is finished.
 
-\section{Rationale}
+\subsection{Rationale - Virtual-to-Physical Mappings}
 
 % Why did you choose the data structure(s) that you did for
 % representing virtual-to-physical mappings?

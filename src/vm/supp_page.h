@@ -9,6 +9,7 @@
 #include <filesys/file.h>
 #include <filesys/off_t.h>
 #include <vm/swap.h>
+#include <threads/synch.h>
 
 /* The supplementary page table keeps track of additional information on each
    page that the page table (in pagedir.h) cannot.
@@ -74,6 +75,7 @@ struct supp_page_mapped
     struct supp_page_segment *segment; /* A pointer back to the segment that contains this. */
     void *uaddr; /* The virtual user address this page begins at. */
     slot_no swap_slot_no; /* Slot number of this page in swap, if it lies in swap. */
+    struct lock eviction_lock;
   };
 
 void supp_page_table_init (struct supp_page_table *supp_page_table);
