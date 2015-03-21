@@ -27,6 +27,8 @@ static void setup_file_page (void *uaddr, void *kpage,
                              struct supp_page_segment *segment);
 static void supp_page_install_page (void *uaddr, void *kpage,
                                     struct supp_page_segment *segment);
+static uint32_t get_page_read_bytes (void *segment_addr, void *uaddr,
+                                     uint32_t segment_read_bytes);
 
 static struct supp_page_mapped *mapped_from_mapped_elem (const struct hash_elem *e);
 static unsigned mapped_hash_func (const struct hash_elem *mapped_elem,
@@ -36,8 +38,6 @@ static bool mapped_less_func (const struct hash_elem *a,
                               void *aux UNUSED);
 static void supp_page_free_mapped (struct hash_elem *mapped_elem,
                                    void *pagedir_);
-static uint32_t get_page_read_bytes (void *segment_addr, void *uaddr,
-                                     uint32_t segment_read_bytes);
 static struct supp_page_mapped *lookup_mapped (struct supp_page_segment *segment,
                                                void *uaddr);
 
@@ -283,6 +283,24 @@ supp_page_install_page (void *uaddr, void *kpage,
     }
 }
 
+static uint32_t
+get_page_read_bytes (void *segment_addr, void *uaddr, uint32_t segment_read_bytes)
+{
+  /* Calculate the bytes we have to read from the particular page at uaddr in
+     the segment. */
+  uint32_t page_read_bytes = 0;
+  uint8_t *end_of_read_bytes = (uint8_t *)segment_addr + segment_read_bytes;
+  /* We only have to read if the uaddr is within the part of the segment where we
+     have to read from. */
+  if ((uint8_t *)uaddr < end_of_read_bytes)
+    {
+      page_read_bytes = (uint32_t)end_of_read_bytes - (uint32_t)uaddr;
+      page_read_bytes = page_read_bytes > PGSIZE ? PGSIZE : page_read_bytes;
+    }
+
+  return page_read_bytes;
+}
+
 
 /* mapped_pages hash functions */
 
@@ -327,24 +345,6 @@ supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));
   pagedir_clear_page (pagedir, mapped->uaddr);
   free (mapped);
-}
-
-static uint32_t
-get_page_read_bytes (void *segment_addr, void *uaddr, uint32_t segment_read_bytes)
-{
-  /* Calculate the bytes we have to read from the particular page at uaddr in
-     the segment. */
-  uint32_t page_read_bytes = 0;
-  uint8_t *end_of_read_bytes = (uint8_t *)segment_addr + segment_read_bytes;
-  /* We only have to read if the uaddr is within the part of the segment where we
-     have to read from. */
-  if ((uint8_t *)uaddr < end_of_read_bytes)
-    {
-      page_read_bytes = (uint32_t)end_of_read_bytes - (uint32_t)uaddr;
-      page_read_bytes = page_read_bytes > PGSIZE ? PGSIZE : page_read_bytes;
-    }
-
-  return page_read_bytes;
 }
 
 /* Looks for a mapped page with the given uaddr in the given segment. */
