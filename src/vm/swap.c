@@ -1,5 +1,4 @@
 #include <list.h>
-#include <stdio.h> // DEBUG HAXX
 #include <threads/malloc.h>
 
 #include "devices/block.h"
@@ -7,13 +6,13 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
-#define block_do(KPAGE, SLOT, FUNC)              \
-  int i;                                         \
-  for (i = 0; i < BLOCK_SECTOR_SIZE; i++)        \
-    {                                            \
-      FUNC (swap_block,                          \
-            (convert_slot_to_sector (SLOT) + i), \
-            (((uint8_t*) KPAGE) + i));           \
+#define block_do(KPAGE, SLOT, FUNC)                                    \
+  uint32_t curr_sector;                                                \
+  for (curr_sector = 0; curr_sector < SECTORS_PER_PAGE; curr_sector++) \
+    {                                                                  \
+      FUNC (swap_block,                                                \
+            (convert_slot_to_sector (SLOT) + curr_sector),             \
+            (((uint8_t*) KPAGE) + (curr_sector * BLOCK_SECTOR_SIZE))); \
     }
 
 /* Struct inserted into the list of free ranges,

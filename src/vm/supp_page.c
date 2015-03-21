@@ -279,6 +279,7 @@ static void
 supp_page_install_page (struct supp_page_mapped *mapped, void *kpage,
                         struct supp_page_segment *segment)
 {
+  printf ("mapping %p to %p\n", mapped->uaddr, kpage);
   if (!install_page (mapped->uaddr, kpage, segment->writable))
     {
       free_frame (kpage);
