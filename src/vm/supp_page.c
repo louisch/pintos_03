@@ -126,6 +126,7 @@ supp_page_map_addr (struct supp_page_segment *segment, void *fault_addr)
   if (mapped->swap_slot_no != NOT_SWAP)
     {
       swap_retrieve (mapped->swap_slot_no, kpage);
+      mapped->swap_slot_no = NOT_SWAP;
     }
   else if (file_data != NULL)
     {
