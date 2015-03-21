@@ -9,7 +9,6 @@
 #include "devices/shutdown.h"
 
 #include "userprog/syscall.h"
-#include "lib/hash_f.h"
 
 /* Syscall required imports. */
 #include "filesys/filesys_lock.h"

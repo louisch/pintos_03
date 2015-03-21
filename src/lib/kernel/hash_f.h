@@ -2,6 +2,8 @@
 #ifndef _hash_h
 #define _hash_h
 
-unsigned hash_fnv_1a (const char *, int);
+#include <stdint.h>
+
+uint32_t hash_fnv_1a (const char *, int);
 
 #endif /* _hash_h */
