@@ -35,9 +35,21 @@ until the first is finished.
 % Why did you choose the data structure(s) that you did for
 % representing virtual-to-physical mappings?
 
-The pagedir takes care of actually mapping virtual addresses to physical
-addresses, so our data structures do not do so. Our supplementary page table
-maps virtual user addresses to supplementary page table entries, via a hash
-table. This provides constant time lookup of virtual addresses. The only
-time we are not simply looking up an address in some table is during page
-eviction, for which we have a list of all allocated frames to iterate over.
+We chose to keep track of data about segments of user virtual pages,
+corresponding to the code and data segments of the user executable, but also
+allowing us to group the pages of every memory-mapped file, and the pages of the
+stack together. This is memory efficient compared to keeping the same data
+multiple times in a struct corresponding to each user virtual page, as a lot of
+redundant data will need to be stored. The only additional requirement is that
+segments must keep a hash table of the pages that have been mapped previously to
+frames within it.
+
+Pages are either on a file, in swap, or in memory, and during a page fault, we
+only need to know whether it is in a file, or in swap (since it clearly isn't in
+memory). Since only pages that have already been mapped can be swapped out, it
+is sufficient to simply store some small amount of data on mapped pages to
+indicate whether they are in swap, and if they are, where they are in swap.
+
+Using a list to keep track of segments means iterating over the list during each
+page fault, which is somewhat slow. It works fast enough in practice however,
+and we didn't want to use too much time implementing a faster data structure.
