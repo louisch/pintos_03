@@ -134,7 +134,11 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
   /* if this is not NULL, it represents a page that needs to be read from a
      file. */
   struct supp_page_file_data *file_data = segment->file_data;
-  if (file_data != NULL)
+  if (mapped->swap_slot_no != NOT_SWAP)
+    {
+      swap_retrieve (mapped->swap_slot_no, kpage);
+    }
+  else if (file_data != NULL)
     {
       setup_file_page (uaddr, kpage, segment);
     }
