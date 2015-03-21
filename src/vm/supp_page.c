@@ -38,6 +38,8 @@ static void supp_page_free_mapped (struct hash_elem *mapped_elem,
                                    void *pagedir_);
 static uint32_t get_page_read_bytes (void *segment_addr, void *uaddr,
                                      uint32_t segment_read_bytes);
+static struct supp_page_mapped *lookup_mapped (struct supp_page_segment *segment,
+                                               void *uaddr);
 
 
 /* Initialize the given supplementary page table with the given page table. */
@@ -327,4 +329,15 @@ get_page_read_bytes (void *segment_addr, void *uaddr, uint32_t segment_read_byte
     }
 
   return page_read_bytes;
+}
+
+/* Looks for a mapped page with the given uaddr in the given segment. */
+static struct supp_page_mapped *
+lookup_mapped (struct supp_page_segment *segment, void *uaddr)
+{
+  struct supp_page_mapped for_lookup;
+  for_lookup.uaddr = uaddr;
+
+  struct hash_elem *result = hash_find (&segment->mapped_pages, &for_lookup.mapped_elem);
+  return result == NULL ? NULL : mapped_from_mapped_elem (result);
 }
