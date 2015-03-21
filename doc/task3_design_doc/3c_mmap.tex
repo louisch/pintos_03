@@ -6,6 +6,25 @@
 % `struct' member, global or static variable, `typedef', or
 % enumeration.  Identify the purpose of each in 25 words or less.
 
+mapped\_files.h:
+
+Structure which is used in the mapped files hash.
+struct mapid
+  {
+    mapid\_t mapid;
+    struct file *file;
+    struct supp\_page\_segment *segment;
+    struct hash\_elem elem;
+  };
+
+process.h:
+
+Added to typdef struct process\_info. 
+  /* Hash used to for mapping ids to files */
+  struct hash mapped\_files;
+  /* Provides unique map ids for process */
+  unsigned mapid\_counter;
+  
 \section{Algorithms}
 
 % Describe how memory mapped files integrate into your virtual
@@ -15,11 +34,14 @@
 % Explain how you determine whether a new file mapping overlaps
 % any existing segment.
 
+In syscall\_mmap, supp\_page\_lookup\_segment is called starting with the mapping address and increments an index and then checks every address + index*PGSIZE upto the max number of pages requested by the mapping of the file. If a segment is found then the mmap returns -1 because a mapping already exists at that address. If no segment is found then segments is created and files data is set to that segment.
+
+
 \section{Rationale}
 
 % Mappings created with "mmap" have similar semantics to those of
 % data demand-paged from executables, except that "mmap" mappings are
 % written back to their original files, not to swap.  This implies
-% that much of their implementation can be shared.  Explain why your
+% that much of their implementation can be shared. Explain why your
 % implementation either does or does not share much of the code for
 % the two situations.
