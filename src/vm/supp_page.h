@@ -88,6 +88,7 @@ struct supp_page_segment *supp_page_set_file_data (struct supp_page_segment *seg
 struct supp_page_segment *supp_page_lookup_segment (struct supp_page_table *supp_page_table,
                                                     void *uaddr);
 void *supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr);
+void supp_page_swap_out (struct supp_page_mapped *mapped, slot_no swap_slot_no);
 bool supp_page_write_mmapped (struct supp_page_mapped *mapped);
 void supp_page_free_all (struct supp_page_table *supp_page_table,
                          uint32_t *pagedir);

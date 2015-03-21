@@ -145,6 +145,12 @@ supp_page_map_addr (struct supp_page_table *supp_page_table, void *fault_addr)
   return kpage;
 }
 
+void
+supp_page_swap_out (struct supp_page_mapped *mapped, slot_no swap_slot_no)
+{
+  mapped->swap_slot_no = swap_slot_no;
+}
+
 /* Write a page back to the file it is from if it is mmapped.
    Returns false if it is not mmapped or the page is not a file page. */
 bool
