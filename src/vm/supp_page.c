@@ -168,13 +168,13 @@ supp_page_swap_out (struct supp_page_mapped *mapped, slot_no swap_slot_no)
 /* Write a page back to the file it is from if it is mmapped.
    Returns false if it is not mmapped or the page is not a file page. */
 bool
-supp_page_write_mmapped (struct supp_page_mapped *mapped)
+supp_page_write_mmapped (uint32_t *pagedir, struct supp_page_mapped *mapped)
 {
   struct supp_page_segment *segment = mapped->segment;
   if (segment->file_data != NULL)
     {
       struct supp_page_file_data *file_data = segment->file_data;
-      if (file_data->is_mmapped &&
+      if (pagedir_is_dirty (pagedir, mapped->uaddr) && file_data->is_mmapped &&
           (uint8_t *)mapped->uaddr < (uint8_t *)segment->addr + file_data->read_bytes)
         {
           uint32_t page_read_bytes =
@@ -351,12 +351,12 @@ static void
 supp_page_free_mapped (struct hash_elem *mapped_elem, void *pagedir_)
 {
   struct supp_page_mapped *mapped = mapped_from_mapped_elem (mapped_elem);
-  supp_page_write_mmapped (mapped);
+  uint32_t *pagedir = (uint32_t *)pagedir_;
+  supp_page_write_mmapped (pagedir, mapped);
   if (mapped->swap_slot_no != NOT_SWAP)
     {
       swap_free_slot (mapped->swap_slot_no);
     }
-  uint32_t *pagedir = (uint32_t *)pagedir_;
   free_frame (pagedir_get_page (pagedir, mapped->uaddr));
   pagedir_clear_page (pagedir, mapped->uaddr);
   free (mapped);
