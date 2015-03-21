@@ -69,6 +69,13 @@ In our current implementation, the eviction algorithm cannot evict pinned pages,
 % into physical memory, or do you use some other design?  How do you
 % gracefully handle attempted accesses to invalid virtual addresses?
 
+We simply use page faults to bring in pages, doing a few sanity checks on each
+pointer first before we derefence the pointers and page fault.
+
+We check for threads which attempt to access invalid virtual addresses, which
+will be apparent if we cannot find data about a segment that contains the
+virtual address.
+
 \subsection{Rationale - Synchronization decisions}
 
 % A single lock for the whole VM system would make
