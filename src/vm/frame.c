@@ -16,18 +16,19 @@
 #include "userprog/pagedir.h"
 #include "threads/interrupt.h"
 
-/* The frame table allows requesting frames for mapping to virtual
-   user addresses.
-   Functions are provided for requesting an available frame.
-   It also provides automatic eviction of an already allocated frame
-   if no frames are available. */
+/* The frame table keeps track of frames that are currently in use.
+   Uses redundant data-structures in order to provide quick look-up
+   (hash table) alongside efficient eviction (queue).
+   All provided external functions are self-synchronising. */
 struct frame_table
 {
   struct lock table_lock; /* Synchronizes table between threads. */
   struct hash allocated;  /* Frames which have been allocated already. */
-  struct condition wait_unpin;
-  unsigned pinned_frames;
-  struct list eviction_queue; /* List facilitating eviction. */
+  /* Mirrors the above hash. Organises frames for page eviction. */
+  struct list eviction_queue;
+  /* Condition used to wait for a frame to be either unpinned or freed. */
+  struct condition wait_table_changes;
+  unsigned pinned_frames; /* Count of currently pinned frames. */
 };
 
 /* Meta-data about a frame. A frame is a physical storage unit in memory,
@@ -36,16 +37,18 @@ struct frame_table
 struct frame
 {
   struct hash_elem frame_elem; /* For placing frames inside frame_tables. */
-  struct list_elem eviction_elem;
-  bool pinned;
+  struct list_elem eviction_elem; /* For placing frames into eviction_queue. */
+  bool pinned;  /* Indicates whether frame is pinned (cannot be evicted) */
   uint32_t *pd; /* The owner thread's page directory. */
-  struct supp_page_mapping *mapped;
+  /* Pointer to the page's entry in the supplementary page table. */
+  struct supp_page_mapped *mapped;
   void *kpage;  /* The kernel virtual address of the frame. */
 };
 
 static struct frame *allocated_find_frame (void *kpage);
 static unsigned allocated_hash_func (const struct hash_elem *e, void *aux UNUSED);
-static bool allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
+static bool allocated_less_func (const struct hash_elem *a,
+                                 const struct hash_elem *b,
                                  void *aux UNUSED);
 static struct frame *frame_from_hash_elem (const struct hash_elem *e);
 static void *evict_frame (void);
@@ -62,14 +65,16 @@ frame_init (void)
   lock_acquire (&frames.table_lock);
   hash_init (&frames.allocated, allocated_hash_func, allocated_less_func, NULL);
   list_init (&frames.eviction_queue);
-  cond_init (&frames.wait_unpin);
+  cond_init (&frames.wait_table_changes);
   frames.pinned_frames = 0;
   lock_release (&frames.table_lock);
 }
 
 /* Returns the address of an available frame from the user pool.
    Returns the kernel virtual address of the frame. A user virtual address can
-   be mapped to this address in the page table. */
+   be mapped to this address in the page table.
+   Note that the obtained frame is pinned by default and must be unpinned once
+   it has been processed. */
 void *
 request_frame (enum palloc_flags additional_flags,
                struct supp_page_mapping *mapped)
@@ -87,7 +92,7 @@ request_frame (enum palloc_flags additional_flags,
               ASSERT (frames.pinned_frames == hash_size (&frames.allocated));
               /* If all pages are pinned and no page could be allocated, we must
                  wait for some thread to either unpin free one. */
-              cond_wait (&frames.wait_unpin, &frames.table_lock);
+              cond_wait (&frames.wait_table_changes, &frames.table_lock);
             }
           else
             {
@@ -133,7 +138,7 @@ unpin_frame (void *kpage)
     {
       frame->pinned = false;
       --frames.pinned_frames;
-      cond_signal (&frames.wait_unpin, &frames.table_lock);
+      cond_signal (&frames.wait_table_changes, &frames.table_lock);
     }
   lock_release(&frames.table_lock);
 }
@@ -143,6 +148,7 @@ unpin_frame (void *kpage)
 static void *
 evict_frame (void)
 {
+  ASSERT (lock_held_by_current_thread (&frames.table_lock));
   ASSERT (!list_empty (&frames.eviction_queue));
 
   struct list_elem *e = list_front(&frames.eviction_queue);
@@ -195,7 +201,7 @@ free_frame (void *kpage)
     }
   palloc_free_page (kpage);
   free_frame_stat (frame);
-  cond_signal (&frames.wait_unpin, &frames.table_lock);
+  cond_signal (&frames.wait_table_changes, &frames.table_lock);
   lock_release (&frames.table_lock);
 }
 
@@ -203,6 +209,7 @@ free_frame (void *kpage)
 static void
 free_frame_stat (struct frame *frame)
 {
+  ASSERT (lock_held_by_current_thread (&frames.table_lock));
   if (frame != NULL)
     {
       hash_delete (&frames.allocated, &frame->frame_elem);
@@ -217,6 +224,7 @@ free_frame_stat (struct frame *frame)
 static struct frame *
 allocated_find_frame (void *kpage)
 {
+  ASSERT (lock_held_by_current_thread (&frames.table_lock));
   struct frame for_hashing;
   for_hashing.kpage = kpage;
 
@@ -234,6 +242,7 @@ allocated_find_frame (void *kpage)
 static unsigned
 allocated_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
+  ASSERT (lock_held_by_current_thread (&frames.table_lock));
   void *kpage = frame_from_hash_elem (e)->kpage;
   /* sizeof returns how many bytes kpage, the pointer itself (not what it is
      pointing to), takes up. */
@@ -245,6 +254,7 @@ static bool
 allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
                      void *aux UNUSED)
 {
+  ASSERT (lock_held_by_current_thread (&frames.table_lock));
   void *kpage_a = frame_from_hash_elem (a)->kpage;
   void *kpage_b = frame_from_hash_elem (b)->kpage;
   return kpage_a < kpage_b;
@@ -254,6 +264,7 @@ allocated_less_func (const struct hash_elem *a, const struct hash_elem *b,
 static struct frame *
 frame_from_hash_elem (const struct hash_elem *e)
 {
+  ASSERT (lock_held_by_current_thread (&frames.table_lock));
   ASSERT (e != NULL);
   return hash_entry (e, struct frame, frame_elem);
 }
@@ -262,6 +273,7 @@ frame_from_hash_elem (const struct hash_elem *e)
 static struct frame *
 frame_from_eviction_elem (const struct list_elem *e)
 {
+  ASSERT (lock_held_by_current_thread (&frames.table_lock));
   ASSERT (e != NULL);
   return list_entry (e, struct frame, eviction_elem);
 }
