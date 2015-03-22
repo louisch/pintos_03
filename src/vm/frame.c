@@ -82,13 +82,16 @@ request_frame (enum palloc_flags additional_flags,
       page = palloc_get_page (additional_flags | PAL_USER);
       if (page == NULL)
         {
-          page = evict_frame ();
-          if (page == NULL)
+          if (frames.pinned_frames >= hash_size (&frames.allocated))
             {
-              /* If page could not be acquired, then there are no more free pages
-                 and all the pages in the table are pinned. We need to wait for some
-                 thread to either unpin or exit. */
+              ASSERT (frames.pinned_frames == hash_size (&frames.allocated));
+              /* If all pages are pinned and no page could be allocated, we must
+                 wait for some thread to either unpin free one. */
               cond_wait (&frames.wait_unpin, &frames.table_lock);
+            }
+          else
+            {
+              page = evict_frame ();
             }
         }
     } while (page == NULL);
@@ -145,14 +148,6 @@ evict_frame (void)
   struct list_elem *e = list_front(&frames.eviction_queue);
   struct frame *f = frame_from_eviction_elem (e);
 
-
-  if (frames.pinned_frames >= hash_size (&frames.allocated))
-    {
-      ASSERT (frames.pinned_frames == hash_size (&frames.allocated));
-      /* If all frames are pinned, we cannot evict any of them. */
-      return NULL;
-    }
-
   while (e != list_end (&frames.eviction_queue)
          && (pagedir_is_accessed (f->pd, f->mapped->uaddr)
              || f->pinned))
@@ -166,15 +161,17 @@ evict_frame (void)
 
   void *page = f->kpage;
   lock_acquire (&f->mapped->eviction_lock);
-  enum intr_level old_level = intr_disable ();
   pagedir_clear_page (f->pd, f->mapped->uaddr);
-  intr_set_level (old_level);
 
   /* If the page is a mapped file, changes are written to file.
      Otherwise, the page is swapped out. */
   if (!supp_page_write_mmapped (f->pd, f->mapped))
     {
       supp_page_swap_out (f->mapped, swap_write (page));
+    }
+  else
+    {
+      supp_page_swap_out (f->mapped, NOT_SWAP);
     }
   lock_release (&f->mapped->eviction_lock);
   free_frame_stat (f);
