@@ -42,10 +42,12 @@ We calculate the difference between the stack pointer and the invalid virtual
 address, and see if it is larger than some limit. If it exceeds this limit, then
 the user program is deemed to be buggy, and we terminate the thread.
 
-This limit is defined to be 64 bytes, which seems to be fairly large as a limit.
-Since we do not know every 80x86 assembly instruction, we simply set the limit
-to be a large number within reason, instead of spending a lot of time trying to
-find the smallest number that would work for the entire instruction set.
+This limit is defined to be 64 bytes, which is two word sizes, and is probably
+sufficient as a limit.  Since we do not know every 80x86 assembly instruction,
+we simply set the limit to be a large number within reason, instead of spending
+a lot of time trying to find the smallest number that would work for the entire
+instruction set. We did not want to make the number too large, or risk allowing
+buggy user programs.
 
 \subsection{Synchronization - Design}
 
