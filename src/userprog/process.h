@@ -28,10 +28,12 @@ typedef struct process_info
   /* Hash used to remember files open by process by their fd. */
   struct hash open_files;
 
+#ifdef VM
   /* Hash used to for mapping ids to files */
   struct hash mapped_files;
   /* Provides unique map ids for process */
   unsigned mapid_counter;
+#endif
 
 } process_info;
 
