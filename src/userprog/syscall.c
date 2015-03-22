@@ -18,6 +18,8 @@
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 
+#include "userprog/syscall.h"
+
 
 #ifdef VM
 #include <vm/mapped_files.h>
