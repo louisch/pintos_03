@@ -8,8 +8,6 @@
 #include "userprog/pagedir.h"
 #include "devices/shutdown.h"
 
-#include "userprog/syscall.h"
-
 /* Syscall required imports. */
 #include "filesys/filesys_lock.h"
 /* halt */
@@ -22,8 +20,8 @@
 
 
 #ifdef VM
+#include <vm/mapped_files.h>
 #include <vm/supp_page.h>
-#include "userprog/mapped_files.h"
 #endif
 
 #define ABNORMAL_IO_VALUE -1
@@ -416,4 +414,3 @@ syscall_close (int fd)
     }
   filesys_lock_release ();
 }
-

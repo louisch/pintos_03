@@ -2,11 +2,11 @@
 #include <stdio.h>
 
 #include "threads/malloc.h"
-#include "userprog/mapped_files.h"
 #include "userprog/process.h"
 #include "filesys/file.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/mapped_files.h"
 
 mapid_t
 syscall_mmap (int fd, void *addr)

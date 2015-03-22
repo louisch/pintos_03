@@ -28,9 +28,9 @@
 
 #ifdef VM
 #include <vm/frame.h>
+#include <vm/mapped_files.h>
 #include <vm/stack_growth.h>
 #include <vm/supp_page.h>
-#include <userprog/mapped_files.h>
 #endif
 
 #define ABNORMAL_EXIT_STATUS -1
@@ -780,8 +780,10 @@ process_info_free (process_info *info)
   hash_destroy (&info->open_files, fd_hash_destroy);
   /* Frees all children_info and destroys children hashtable. */
   hash_destroy (&info->children, children_hash_destroy);
+#ifdef VM
   /* Frees all mapping for this process */
   hash_destroy (&info->mapped_files, mapid_hash_destroy);
+#endif
 }
 
 /* Adds file to open_files hash. Returns the fd it generates. */
