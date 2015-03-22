@@ -1,0 +1,188 @@
+\section{Page Table Management}
+
+\subsection{Data Structures}
+
+% Copy here the declaration of each new or changed `struct' or
+% `struct' member, global or static variable, `typedef', or
+% enumeration.  Identify the purpose of each in 25 words or less.
+
+\subsubsection*{threads/thread.h}
+
+We added two fields into struct thread.
+
+\begin{verbatim}
+struct thread
+  {
+...
+    struct supp_page_table supp_page_table; /* Supplementary Page Table. */
+    void *stack_bottom; /* Address of page at bottom of allocated stack. */
+...
+  };
+\end{verbatim}
+
+supp\_page\_table is the supplementary page table for that thread (see below for
+more details).
+
+stack\_bottom keeps track of the address of the bottom of the stack we have
+allocated so far. This is used for the stack growth algorithm.
+
+\subsubsection*{vm/supp\_page.h}
+
+\begin{verbatim}
+/* The supplementary page table keeps track of additional information on each
+   page that the page table (in pagedir.h) cannot.
+
+   This is used during page faults, to find out where the data for a virtual
+   page is, so that the data can be read into memory, and then mapped in the
+   page table. Pages may have been swapped out into swap space, or they may
+   simply be in a file, or in the case of a stack growth, the page may not exist
+   anywhere yet, and it simply needs to be created.
+
+   It is organised in terms of segments. For the supplementary page table,
+   segments are viewed as consecutive sequences of virtual pages. For example,
+   the code segment of an executable is mapped as a consecutive sequence of
+   virtual pages in virtual memory. */
+struct supp_page_table
+  {
+    struct list segments; /* Entries in this table. */
+  };
+\end{verbatim}
+
+supp\_page\_table stores the segments of the supplementary page table, and
+represents a thread's supplementary page table as a whole.
+
+\begin{verbatim}
+/* This is where the data for each segment that the user wants to load into
+   memory is stored. Information for reading pages from this segment into
+   memory is kept.
+
+   Segments may have originated from a file (they are read from a file into
+   memory). If they did not, then the file_data field will be set to NULL.
+
+   Pages that lie in file segments are read from the file itself, using the
+   file_data, while pages from non-file segments are simply zeroed out on
+   creation.
+
+   Pages which have been mapped already keep track of whether they are in swap
+   or not. */
+struct supp_page_segment
+  {
+    struct list_elem supp_elem; /* For placing this into a supp_page_table. */
+    void *addr; /* The virtual user address this segment begins at. */
+
+    struct supp_page_file_data *file_data; /* File data */
+    struct hash mapped_pages; /* Previously mapped pages. */
+
+    /* Other properties */
+    bool writable; /* Whether this segment is writable or not. */
+    uint32_t size; /* The size of the segment. */
+  };
+\end{verbatim}
+
+supp\_page\_segment represents a contiguous sequence of pages in virtual memory.
+It keeps track of data that is shared between all the pages of that segment.
+
+\begin{verbatim}
+/* Data pertaining to a segment that has data which exists in a file. */
+struct supp_page_file_data
+  {
+    struct file *file; /* The file that this page is read from. NULL if not a file. */
+    uint32_t offset; /* Offset from which segment starts from, in file. */
+    /* This is the number of bytes to read from the file, starting from the
+       offset. If the size of the segment is larger than read_bytes, then the
+       remaining bytes are zeroed out. (Of course, this is all read lazily, page
+       by page, in whatever order the user decides to access the data). */
+    uint32_t read_bytes;
+    bool is_mmapped;
+  };
+\end{verbatim}
+
+supp\_page\_file\_data is additional data that needs to be stored for segments
+that need to be read in from files.
+
+\begin{verbatim}
+/* Represents a page that will be installed in the pagedir.
+   This is used to keep track of where to read a mapped page back in if it page
+   faults. Its location may be in swap, or in a file, or simply nowhere (if a
+   clean stack page pages-out, for instance, it is not read to swap, so a new
+   stack page will be zeroed out and installed). */
+struct supp_page_mapping
+{
+  struct hash_elem mapping_elem; /* For placing this in supp_page_segment. */
+  struct supp_page_segment *segment; /* A pointer back to the segment that contains this. */
+  void *uaddr; /* The virtual user address this page begins at. */
+  slot_no swap_slot_no; /* Slot number of this page in swap, if it lies in swap. */
+  struct lock eviction_lock;
+};
+\end{verbatim}
+
+supp\_page\_mapping is a struct which is created each time a newly faulting page
+is mapped. This is for keeping track of if the page gets swapped out during its
+lifetime.
+
+\subsection{Algorithms - Frame Locating}
+
+% In a few paragraphs, describe your code for locating the frame,
+% if any, that contains the data of a given page.
+
+During a page fault, we find which segment a page is in (this is necessary
+because the segment struct contains metadata which is required for this locating
+algorithm), and then we check whether the page has previously been mapped. If it
+has, then we will find a struct that tells us whether the page lies in swap or
+not. It also tells us where in swap it lies if the page does currently reside in
+swap.
+
+If this struct cannot be found, then we can infer which page of the file the
+faulting page resides in, from data stored in the segment (a struct file
+pointer, the offset into the file that the segment begins at, etc.).
+
+When requesting a new frame, we use the unchanged palloc\_get\_page function to
+locate a free frame to use. If no frame is returned, then we evict some frame to
+use (more details on this further down).
+
+\subsection{Algorithms - Aliases of Accessed and Dirty bits}
+
+% How does your code coordinate accessed and dirty bits between
+% kernel and user virtual addresses that alias a single frame, or
+% alternatively how do you avoid the issue?
+
+We simply check the accessed and dirty bits of both, summing the number of bits
+set for all aliases of a frame.
+
+\subsection{Synchronization - Concurrent frame requests}
+
+% When two user processes both need a new frame at the same time,
+% how are races avoided?
+
+The frame table has a lock, which is acquired inside the request\_frame
+function when it does its work, and released before it returns. If two user
+processes request a frame at the same time, then the second call blocks
+until the first is finished.
+
+\subsection{Rationale - Virtual-to-Physical Mappings}
+
+% Why did you choose the data structure(s) that you did for
+% representing virtual-to-physical mappings?
+
+We chose to keep track of data about segments of user virtual pages,
+corresponding to the code and data segments of the user executable, but also
+allowing us to group the pages of every memory-mapped file, and the pages of the
+stack together. This means that any data that applies to all pages within a
+segment is shared among them. The code would perhaps be simpler if we had
+organised purely by pages, and had copies of this data for every page in a
+segment, but this would be hugely memory inefficient.
+
+The only additional requirement is that segments must keep a hash table of the
+pages that have been mapped previously to frames within it.
+
+Pages are either on a file, in swap, in memory, or simply not mapped (as in the
+case of paged-out un-dirty stack pages for instance) and during a page fault, we
+only need to know whether it is in a file, in swap, or in no particular location
+(since it clearly isn't in memory). Since only pages that have already been
+mapped can be swapped out, it is sufficient to simply store some small amount of
+data on mapped pages to indicate whether they are in swap, and if they are,
+where they are in swap.
+
+Using a list to keep track of segments means iterating over the list during each
+page fault, which is somewhat slow. It works fast enough in practice however,
+and we didn't want to use too much time implementing a faster data structure.

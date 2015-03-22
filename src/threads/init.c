@@ -22,7 +22,9 @@
 #include "threads/palloc.h"
 #include "threads/pte.h"
 #include "threads/thread.h"
+
 #ifdef USERPROG
+#include "filesys/filesys_lock.h"
 #include "userprog/process.h"
 #include "userprog/exception.h"
 #include "userprog/gdt.h"
@@ -31,6 +33,12 @@
 #else
 #include "tests/threads/tests.h"
 #endif
+
+#ifdef VM
+#include <vm/frame.h>
+#include <vm/swap.h>
+#endif
+
 #ifdef FILESYS
 #include "devices/block.h"
 #include "devices/ide.h"
@@ -112,7 +120,8 @@ main (void)
   input_init ();
 #ifdef USERPROG
   exception_init ();
-  process_info_init ();
+  filesys_lock_init ();
+  process_create_process_info (thread_current ());
   syscall_init ();
 #endif
 
@@ -126,6 +135,11 @@ main (void)
   ide_init ();
   locate_block_devices ();
   filesys_init (format_filesys);
+#endif
+
+#ifdef VM
+  frame_init ();
+  swap_init ();
 #endif
 
   printf ("Boot complete.\n");
@@ -286,13 +300,7 @@ run_task (char **argv)
 
   printf ("Executing '%s':\n", task);
 #ifdef USERPROG
-  process_info *p_info = process_create_process_info ();
-  /* Set these manually. Normally, this is done from process_execute, but as
-     this root process is not started by process_execute, it must be done
-     manually.*/
-  p_info->tid = thread_current ()->tid;
-  thread_current ()->owning_pid = p_info->pid;
-
+  // process_create_process_info(thread_current ());
   process_wait (process_execute_pid (task));
 #else
   run_test (task);

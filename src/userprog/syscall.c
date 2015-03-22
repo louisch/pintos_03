@@ -8,10 +8,8 @@
 #include "userprog/pagedir.h"
 #include "devices/shutdown.h"
 
-#include "userprog/syscall.h"
-#include "lib/hash_f.h"
-
 /* Syscall required imports. */
+#include "filesys/filesys_lock.h"
 /* halt */
 #include "devices/shutdown.h"
 /* write */
@@ -20,7 +18,18 @@
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 
+#include "userprog/syscall.h"
+
+
+#ifdef VM
+#include <vm/mapped_files.h>
+#include <vm/supp_page.h>
+#endif
+
 #define ABNORMAL_IO_VALUE -1
+
+/* Max buffer size for reasonable console writes. */
+static const unsigned CONSOLE_WRITE_SIZE = 256;
 
 #define call_syscall_0_void(FUNC)                             \
   FUNC ()
@@ -62,6 +71,8 @@ static int syscall_write (int fd, const void *buffer, unsigned length);
 static void syscall_seek (int fd, unsigned position);
 static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
+
+
 
 void
 syscall_init (void)
@@ -121,6 +132,15 @@ syscall_handler (struct intr_frame *frame)
   case (SYS_CLOSE):
     call_syscall_1_void (syscall_close, frame, int);
     break;
+#ifdef VM
+  case (SYS_MMAP):
+    frame->eax = call_syscall_2 (syscall_mmap, mapid_t, frame,
+                                  int, void*);
+    break;
+  case (SYS_MUNMAP):
+    call_syscall_1_void (syscall_munmap, frame, mapid_t);
+    break;
+#endif
   default:
     /* Unknown system call encountered! */
     printf ("That system call is not of this world!\n");
@@ -128,7 +148,7 @@ syscall_handler (struct intr_frame *frame)
 
 }
 
-/* Checks whether a given range in memory (starting from uaddr to uaddr + size)
+/* Checks whether a given range in memory (starting from uaddr to uaddr+size-1)
    is safe to deference, i.e. whether it lies below PHYS_BASE and points to
    mapped user virtual memory. */
 static const void *
@@ -142,23 +162,32 @@ check_pointer (const uint32_t *uaddr, size_t size)
     {
       return uaddr;
     }
-  const uint8_t *start = (uint8_t *) uaddr;
-  const uint8_t *end = start + size - 1;
-  if ((!is_user_vaddr (start)
-        || (pagedir_get_page (thread_current ()->pagedir, start) == NULL))
-      &&
-      (!is_user_vaddr (end)
-        || (pagedir_get_page (thread_current ()->pagedir, end) == NULL)))
+  uint8_t *start = (uint8_t *) uaddr;
+  uint8_t *next = start;
+  for (; next < start + size; ++next)
     {
-      /* uaddr is unsafe. */
-      thread_exit ();
-      /* Release other syscall-related resources here. */
+#ifndef VM
+      if (!is_user_vaddr (start)
+          || (pagedir_get_page (thread_current ()->pagedir, start) == NULL))
+        {
+          /* uaddr is unsafe. */
+          thread_exit ();
+          /* Release other syscall-related resources here. */
+        }
+#else
+      if (!is_user_vaddr (start)
+          || (supp_page_lookup_segment (&thread_current ()->supp_page_table,
+                                        start) == NULL))
+        {
+          thread_exit ();
+        }
+#endif
     }
   /* uaddr is safe (points to mapped user virtual memory). */
   return uaddr;
 }
 
-/* TODO: Add comment */
+/* Verifies that the given filename points to a valid space in memory. */
 static const char *
 check_filename (const char *filename)
 {
@@ -182,7 +211,6 @@ get_arg (struct intr_frame *frame, int offset)
 static void
 syscall_halt (void)
 {
-  process_info_free_all ();
   shutdown_power_off ();
   NOT_REACHED ();
 }
@@ -192,7 +220,7 @@ syscall_halt (void)
 static void
 syscall_exit (int status)
 {
-  process_current ()->exit_status = status;
+  process_current ()->persistent->exit_status = status;
   thread_exit ();
   NOT_REACHED ();
 }
@@ -202,27 +230,15 @@ syscall_exit (int status)
 static pid_t
 syscall_exec (const char *cmd_line)
 {
-  pid_t ret = PID_ERROR;
   if (check_pointer ((const void *)cmd_line, 1) == NULL)
     {
-      return ret;
+      return PID_ERROR;
     }
 
-  struct lock reply_lock;
-  lock_init (&reply_lock);
-  lock_acquire (&reply_lock);
+  persistent_info *c_info = process_execute_aux (cmd_line);
 
-  process_info *info
-    = process_execute_aux (cmd_line, &reply_lock);
-  child_info *c_info = info->parent_child_info;
-  if (info != NULL)
-  {
-    /* Wait for child process to signal that it finished loading. */
-    cond_wait (&info->finish_load, &reply_lock);
-  }
-  lock_release (&reply_lock);
-  ret = c_info->pid;
-  return ret;
+  /* Note that child info persists even if child process already exited. */
+  return c_info->pid;
 }
 
 /* Waits on a process to exit and returns its thread's exit status. If it has
@@ -240,9 +256,9 @@ syscall_create (const char *file, unsigned initial_size)
 {
   check_filename (file);
   bool success = false;
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   success = filesys_create (file, initial_size);
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return success;
 }
 
@@ -253,9 +269,9 @@ syscall_remove (const char *file)
 {
   check_filename (file);
   bool success = false;
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   success = filesys_remove (file);
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return success;
 }
 
@@ -265,9 +281,9 @@ static int
 syscall_open (const char *file)
 {
   check_filename (file);
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *open_file = filesys_open (file);
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   if (open_file == NULL) /* File not found. */
     {
       return ABNORMAL_IO_VALUE;
@@ -281,14 +297,14 @@ static int
 syscall_filesize (int fd)
 {
   int size = ABNORMAL_IO_VALUE; /* File not found default value. */
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     {
       size = file_length (file);
     }
 
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return size;
 }
 
@@ -299,24 +315,21 @@ syscall_read (int fd, void *buffer, unsigned size)
 {
   check_pointer (buffer, size);
   int ret = ABNORMAL_IO_VALUE;
-  if (fd < 2)
+  if (fd == STDIN || fd == STDOUT || fd < 0)
     {
       return ret; /* Bad fd. */
     }
 
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File not found. */
     {
       ret = file_read_at (file, buffer, size, file_tell (file));
       file_seek (file, file_tell (file) + ret);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return ret;
 }
-
-/* Max buffer size for reasonable console writes. */
-static unsigned console_write_size = 256;
 
 /*
   Writes size bytes from buffer to open file fd.
@@ -328,16 +341,16 @@ static unsigned console_write_size = 256;
 static int
 syscall_write (int fd, const void *buffer, unsigned size)
 {
-  if (fd < 1) return 0; /* Bad fd. */
+  if (fd == STDIN || fd < 0) return 0; /* Bad fd. */
   check_pointer (buffer, size);
   int written;
 
-  if (fd == 1)
+  if (fd == STDOUT)
     {
       char *buff = (char *) buffer;
       while (size > 0)
-        { /* Writes to console buffer in chunks of console_write_size bytes. */
-          unsigned write = size >= console_write_size ? console_write_size : size;
+        { /* Writes to console buffer in chunks of CONSOLE_WRITE_SIZE bytes. */
+          unsigned write = size >= CONSOLE_WRITE_SIZE ? CONSOLE_WRITE_SIZE : size;
           putbuf (buff, write);
           buff += write;
           size -= write;
@@ -349,12 +362,12 @@ syscall_write (int fd, const void *buffer, unsigned size)
       struct file *file = process_fetch_file (fd);
       if (file == NULL) /* File not found. */
         {
-          return 0;
+          return ABNORMAL_IO_VALUE;
         }
-      process_acquire_filesys_lock ();
+      filesys_lock_acquire ();
       written = file_write_at (file, buffer, size, file_tell (file));
       file_seek (file, file_tell (file) + written);
-      process_release_filesys_lock ();
+      filesys_lock_release ();
     }
 
   return written;
@@ -365,13 +378,13 @@ syscall_write (int fd, const void *buffer, unsigned size)
 static void
 syscall_seek (int fd, unsigned position)
 {
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     {
       file_seek (file, position);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
 }
 
 /* Returns the position of the next byte to be read or written in open file fd,
@@ -381,13 +394,13 @@ static unsigned
 syscall_tell (int fd)
 {
   unsigned pos = ABNORMAL_IO_VALUE; /* Default file-not-found position. */
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_fetch_file (fd);
   if (file != NULL) /* File found. */
     {
       pos = file_tell (file);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
   return pos;
 }
 
@@ -395,11 +408,11 @@ syscall_tell (int fd)
 static void
 syscall_close (int fd)
 {
-  process_acquire_filesys_lock ();
+  filesys_lock_acquire ();
   struct file *file = process_remove_file (fd);
   if (file != NULL) /* File found. */
     {
       file_close (file);
     }
-  process_release_filesys_lock ();
+  filesys_lock_release ();
 }

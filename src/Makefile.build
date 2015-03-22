@@ -61,9 +61,15 @@ userprog_SRC += userprog/exception.c	# User exception handler.
 userprog_SRC += userprog/syscall.c	# System call handler.
 userprog_SRC += userprog/gdt.c		# GDT initialization.
 userprog_SRC += userprog/tss.c		# TSS management.
+userprog_SRC += userprog/read_page.c # Read a page from file
+userprog_SRC += userprog/install_page.c # Install a page into thread's pagedir
 
-# No virtual memory code yet.
-#vm_SRC = vm/file.c			# Some file.
+# Virtual memory code.
+vm_SRC  = vm/frame.c        # Frame table.
+vm_SRC += vm/mapped_files.c # Syscalls for mmap and munmap
+vm_SRC += vm/supp_page.c    # Supplementary page table.
+vm_SRC += vm/stack_growth.c # Stack grower.
+vm_SRC += vm/swap.c         # Swap table.
 
 # Filesystem code.
 filesys_SRC  = filesys/filesys.c	# Filesystem core.
@@ -72,6 +78,7 @@ filesys_SRC += filesys/file.c		# Files.
 filesys_SRC += filesys/directory.c	# Directories.
 filesys_SRC += filesys/inode.c		# File headers.
 filesys_SRC += filesys/fsutil.c		# Utilities.
+filesys_SRC += filesys/filesys_lock.c # Synchronization for the filesystem
 
 SOURCES = $(foreach dir,$(KERNEL_SUBDIRS),$($(dir)_SRC))
 OBJECTS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(SOURCES)))
