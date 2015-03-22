@@ -3,34 +3,75 @@
 
 \subsection{Data Structures}
 
+
+
 % Copy here the declaration of each new or changed `struct' or
 % `struct' member, global or static variable, `typedef', or
 % enumeration.  Identify the purpose of each in 25 words or less.
+\subsubsection*{In frame.c:}
+
+\begin{verbatim}
+struct frame
+{
+  struct hash_elem frame_elem; /* For placing frames inside frame_tables. */
+  struct list_elem eviction_elem; /* For placing frames into eviction_queue. */
+  bool pinned;  /* Indicates whether frame is pinned (cannot be evicted) */
+  uint32_t *pd; /* The owner thread's page directory. */
+  /* Pointer to the page's entry in the supplementary page table. */
+  struct supp_page_mapped *mapped;
+  void *kpage;  /* The kernel virtual address of the frame. */
+};
+\end{verbatim}
+Frame meta-data.
+A frame is a page-aligned, page-sized physical storage unit in memory.
+Pages are stored in frames, although their virtual addresses may differ from actual physical address.
+
+\begin{verbatim}
+struct frame_table
+{
+  struct lock table_lock; /* Synchronizes table between threads. */
+  struct hash allocated;  /* Frames which have been allocated already. */
+  /* Mirrors the above hash. Organises frames for page eviction. */
+  struct list eviction_queue;
+  /* Condition used to wait for a frame to be either unpinned or freed. */
+  struct condition wait_table_changes;
+  unsigned pinned_frames; /* Count of currently pinned frames. */
+};
+\end{verbatim}
+The frame table keeps track of frames that are currently in use.
+It uses redundant data-structures to provide quick look-up (hash table) alongside efficient eviction (queue).
+
+
+\begin{verbatim}
+static struct frame_table frames;
+\end{verbatim}
+Internal variable for keeping track of all allocated frames without exposing details to the rest of the OS.
+
+%\subsubsection*{In swap.c:}
+%TODO: Insert swap.c things here.
 
 \subsection{Frame Eviction}
 
 % When a frame is required but none is free, some frame must be
 % evicted.  Describe your code for choosing a frame to evict.
-Our code implements the second chance page eviction algorithm.
-When no free pages are available, we retrieve a list of all frames and look at the head of that list.
+Our code implements ``second chance'' page eviction algorithm.
+When no free pages are available, we retrieve a list of all frames and look at its head.
 If the access bit of the page in the head frame is set or the frame is pinned, we reset the access bit and reinsert that page into the back of the list.
 We continue cycling through the list until we find a frame that is not pinned and whose page's access bit is not set and we evict this page.
 
 Note that if every frame in the list is pinned, instead of iterating endlessly through it, we wait until a frame is either freed or unpinned.
-In order to make this algorithm more efficient, we maintain a list of all used frames alongside the hash table.
+In order to make this algorithm more efficient, we maintain a list of all used frames alongside the hash table that makes it possible to quickly find frame structures corresponding to a kernel page.
 
 \subsection{Algorithms - What happens to Q when P evicts Q's frame}
 
 % When a process P obtains a frame that was previously used by a
 % process Q, how do you adjust the page table (and any other data
 % structures) to reflect the frame Q no longer has?
-When P selects Q's page for eviction, it first acquires a lock over that page's supplementary page table entry.
-It then disables interrupts while it clears that page from Q's page table (which maps its user virtual address).
+When P selects Q's frame for eviction, it first acquires a lock over that frame's supplementary page table entry.
 The evicted page is either written to swap or, if it represents a memory mapped file, back to disk.
-In the first case, we also add the number of the swap slot to the supplementary page entry.
+The lock ensures that Q cannot page-fault its page back in before P is done writing that page.
+In the former case, we add the number of the swap slot used to the frame's supplementary page entry.
 Finally, P releases the lock over the page's supplementary table entry.
-
-% TODO: Somebody needs to talk about the supplementary page table somewhere.
 
 \subsection{Algorithms - Stack Growth Heuristic}
 
@@ -55,6 +96,22 @@ buggy user programs.
 % particular, explain how it prevents deadlock.  (Refer to the
 % textbook for an explanation of the necessary conditions for
 % deadlock.)
+%TODO
+swap - frame table:
+  -write: swap table is always accessed from frame table + swap table synched internally
+  -read: unsynchronised: can read concurrently %are you sure, Alan?
+ 											   %but are you sure sure?
+ 											   %I mean your retrieves lead to removal
+ 											   %can you even be reading the same slot?
+frame table - supp table:
+  -request: receives info from supp + internal synch
+  -eviction: locks the supp page entry to prevent race
+  -free: page removal is done process side
+supp - swap table/disk
+  -retrieve upon page fault:
+    -disk: filesys_lock
+    -swap table: internal synch
+  -free slots and pages
 
 \subsection{Synchronization - Concurrent Accesses during page eviction}
 
@@ -62,12 +119,11 @@ buggy user programs.
 % to be evicted.  How do you ensure that Q cannot access or modify
 % the page during the eviction process?  How do you avoid a race
 % between P evicting Q's frame and Q faulting the page back in?
-As there is no way of to regulate process Q's access to its own page, we disable interrupts while the page is removed from process Q's frame table.
-While the page is being evicted, we use a lock to prevent process Q from attempting to fault its page back in before process P finishes writing the page (either to swap or back to the file it was memory mapped from).
+In order to prevent Q from accessing its page, during eviction we begin by removing the page from the page table.
+We also acquire a lock to prevent process Q from attempting to fault its page back in before process P finishes writing the page to either swap or the file-system, if the page was a memory mapped file).
 
-Race conditions related to the frame table itself are avoided with the use of the frame table lock (table_lock inside the frame_table structure).
-Any external function that allows a process to modify or access the frame table implicitly acquires this lock before manipulating the frame table.
-Hence, in our case, process Q will be blocked until process P finishes evicting the page.
+Race conditions related to the frame table itself are avoided through internal synchronisation: each external function in frame.c implicitly acquires a lock over the frame table before accessing it.
+Hence, in this case, process Q will be blocked until process P finishes evicting the page.
 
 \subsection{Synchronization - Concurrent eviction when reading in page}
 
@@ -75,8 +131,8 @@ Hence, in our case, process Q will be blocked until process P finishes evicting 
 % the file system or swap.  How do you ensure that a second process Q
 % cannot interfere by e.g. attempting to evict the frame while it is
 % still being read in?
-A page returned by the request_frame function (the only way to acquire a page) is pinned by default.
-In our current implementation, the eviction algorithm cannot evict pinned pages, which allows the caller to finish its operations on its newly acquired page before unpinning it and thus making it possible to evict it.
+A page returned by the request\_frame function (the only way to acquire a page) is pinned by default.
+In our implementation, the eviction algorithm cannot evict pinned pages, which allows the caller to finish processing the newly acquired page before unpinning it, thus making its eviction possible.
 
 \subsection{Synchronization - Handling accesses to paged-out pages in syscalls}
 
@@ -85,13 +141,10 @@ In our current implementation, the eviction algorithm cannot evict pinned pages,
 % in user programs), or do you have a mechanism for "locking" frames
 % into physical memory, or do you use some other design?  How do you
 % gracefully handle attempted accesses to invalid virtual addresses?
+We use page faults to bring in pages: after a few sanity checks on each pointer, we dereference it, causing a page-fault.
+Upon a page fault, we check the pointer against the supplementary page table and provide a page based on the information in the table, either retrieving the data from swap or file, or creating a new zeroed-out page if the page in question was should be on the stack.
 
-We simply use page faults to bring in pages, doing a few sanity checks on each
-pointer first before we derefence the pointers and page fault.
-
-We check for threads which attempt to access invalid virtual addresses, which
-will be apparent if we cannot find data about a segment that contains the
-virtual address.
+The sanity checks look for threads attempting to access invalid virtual addresses, which is apparent if we cannot find data about the segment that contains this virtual address. In this case, we terminate the offending thread by calling thread\_exit(), which frees that threads resources (including occupied pages and swap space).
 
 \subsection{Rationale - Synchronization decisions}
 
@@ -102,5 +155,5 @@ virtual address.
 % where your design falls along this continuum and why you chose to
 % design it this way.
 Our design is synchronised via multiple locks, in an attempt to allow as much parallelism as possible.
-In order to make synchronisation simpler, we attempted to use implicit synchronisation as far as possible; \textit{e.g.} many external functions (particularly in frame.c) acquire resources on their own instead of relying on the caller to acquire them.
-We also tried to avoid excessive synchronisation, that is, synchronising processes that do not require synchronisation. For instance, it is possible to read concurrently from the swap table.
+In order to make synchronisation simpler, we attempted to use implicit synchronisation as far as possible; \textit{e.g.} many external functions (particularly in frame.c and swap.c) acquire internal resources on their own instead of relying on the caller to acquire them.
+We also tried to avoid excessive synchronisation, that is, synchronising processes that do not require synchronisation. For instance, it is possible to read concurrently from the swap table (although writes are still synchronised).
