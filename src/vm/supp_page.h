@@ -68,15 +68,19 @@ struct supp_page_file_data
     bool is_mmapped;
   };
 
-/* Represents a page that has been mapped already in the pagedir. */
-struct supp_page_mapped
-  {
-    struct hash_elem mapped_elem; /* For placing this in supp_page_segment. */
-    struct supp_page_segment *segment; /* A pointer back to the segment that contains this. */
-    void *uaddr; /* The virtual user address this page begins at. */
-    slot_no swap_slot_no; /* Slot number of this page in swap, if it lies in swap. */
-    struct lock eviction_lock;
-  };
+/* Represents a page that will be installed in the pagedir.
+   This is used to keep track of where to read a mapped page back in if it page
+   faults. Its location may be in swap, or in a file, or simply nowhere (if a
+   clean stack page pages-out, for instance, it is not read to swap, so a new
+   stack page will be zeroed out and installed). */
+struct supp_page_mapping
+{
+  struct hash_elem mapping_elem; /* For placing this in supp_page_segment. */
+  struct supp_page_segment *segment; /* A pointer back to the segment that contains this. */
+  void *uaddr; /* The virtual user address this page begins at. */
+  slot_no swap_slot_no; /* Slot number of this page in swap, if it lies in swap. */
+  struct lock eviction_lock;
+};
 
 void supp_page_table_init (struct supp_page_table *supp_page_table);
 struct supp_page_segment *supp_page_create_segment (struct supp_page_table *supp_page_table,
@@ -92,8 +96,8 @@ struct supp_page_segment *supp_page_lookup_segment (struct supp_page_table *supp
 void *supp_page_map_addr (struct supp_page_segment *segment, void *fault_addr);
 void *supp_page_map_addr_directly (struct supp_page_table *supp_page_table,
                                    void *fault_addr);
-void supp_page_swap_out (struct supp_page_mapped *mapped, slot_no swap_slot_no);
-bool supp_page_write_mmapped (uint32_t *pagedir, struct supp_page_mapped *mapped);
+void supp_page_swap_out (struct supp_page_mapping *mapped, slot_no swap_slot_no);
+bool supp_page_write_mmapped (uint32_t *pagedir, struct supp_page_mapping *mapped);
 void supp_page_free_all (struct supp_page_table *supp_page_table,
                          uint32_t *pagedir);
 void supp_page_free_segment (struct supp_page_segment *segment,
