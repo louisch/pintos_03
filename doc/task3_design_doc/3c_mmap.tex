@@ -45,6 +45,28 @@ mapid\_counter is used to allocate unique mapids to each mapid struct.
 % memory subsystem.  Explain how the page fault and eviction
 % processes differ between swap pages and other pages.
 
+Memory mapped files simply register the existence of a segment of memory that
+corresponds to the mapped file. Thus, later on, the supplementary page table treats
+this segment like any other segment that is read from a file, and lazily loads
+the pages in as they page fault.
+
+Swap pages and non-swap pages differ from the fact that when pages are swapped
+out, their swap number is set. By default, the swap number is set to a reserved
+value that indicates the page is not in swap. Non-swap pages will either have
+the default swap number, or will not have a mapping in the supplementary page
+table, if they have not been mapped previously.
+
+Swap pages are retrieved from swap when they page fault. Whenever a frame is
+evicted, its swap number is recorded in the supplementary page table if the
+frame table places it in swap (as opposed to just abandoning the frame, when it
+isn't dirty).
+
+File pages (pages inside file segments) are read in from the correct offset into
+the file. The offset and a pointer to the file are kept inside the data for the
+segment they belong to.
+
+Stack pages are just zeroed out on the first read.
+
 \subsection{Algorithms - Overlaps}
 
 % Explain how you determine whether a new file mapping overlaps
@@ -60,3 +82,14 @@ In syscall\_mmap, supp\_page\_lookup\_segment is called starting with the mappin
 % that much of their implementation can be shared. Explain why your
 % implementation either does or does not share much of the code for
 % the two situations.
+
+Registering a memory-mapped segment in the supplementary page table uses the
+same two functions as used for registering executable segments, so the code is
+fully shared in this situation.
+
+The supplementary page table treats both of these segments as 'file segments'
+during all of its processes, so the code is fully shared for page faults and
+eviction as well.
+
+Writing pages of a memory-mapped segment back to file had to be treated as a
+special case, so a boolean had to be recorded in the segment data for this.
