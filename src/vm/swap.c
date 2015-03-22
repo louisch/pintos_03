@@ -20,8 +20,8 @@
 struct range
   {
     slot_no start; /* Number of first free swap slot. */
-    slot_no end; /* End of range (exclusive i.e. a used slot). */
-    struct list_elem elem;
+    slot_no end;   /* End of range (exclusive i.e. a used slot). */
+    struct list_elem elem; /* Used by the free_slot_list. */
   };
 
 enum action_enum
@@ -183,14 +183,10 @@ check_extend_larger (struct list_elem *curr_elem, slot_no slot)
 static void
 create_range (slot_no start, slot_no end)
 {
-  // lock_acquire (&free_slot_list_lock);
-  struct range *new_range = malloc (sizeof *new_range);
-  // UNCHECKED MALLOC HAXX
+  struct range *new_range = try_malloc (sizeof *new_range);
   new_range->start = start;
   new_range->end = end;
   list_insert_ordered (&free_slot_list, &new_range->elem, range_lt, NULL);
-
-  // lock_release (&free_slot_list_lock);
 }
 
 /* Removes a range from free_slot_list and frees its memory. */
@@ -206,7 +202,6 @@ delete_range (struct range *range_to_delete)
 static slot_no
 get_next_free_slot (void)
 {
-  // lock_acquire (&free_slot_list_lock);
   struct list_elem *free_range_elem = list_begin (&free_slot_list);
   if (free_range_elem == list_tail (&free_slot_list))
     {
@@ -222,8 +217,6 @@ get_next_free_slot (void)
   if (free_range->start == free_range->end) {
     delete_range(free_range);
   }
-
-  // lock_release (&free_slot_list_lock);
   return ret;
 }
 
