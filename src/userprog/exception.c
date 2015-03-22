@@ -176,7 +176,7 @@ page_fault (struct intr_frame *f)
   if (not_present)
     {
       /* If this is a stack access, check its validity with a heuristic. */
-      if (is_stack_access (fault_addr))
+      if (stack_requires_growth (fault_addr))
         {
           if (!is_valid_stack_access (fault_addr, f->esp))
             {

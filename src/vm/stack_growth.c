@@ -19,10 +19,11 @@ stack_growth_init (void)
    This stack access may be invalid though, which stack_should_grow can check
    for. */
 bool
-is_stack_access (void *fault_addr)
+stack_requires_growth (void *fault_addr)
 {
   return maximum_stack_addr () < (uint8_t *)fault_addr &&
-    fault_addr < PHYS_BASE;
+    fault_addr < PHYS_BASE &&
+    fault_addr < thread_current ()->stack_bottom;
 }
 
 /* Heuristic for determining whether the stack should grow. */

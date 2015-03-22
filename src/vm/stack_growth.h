@@ -10,7 +10,7 @@
 #define MAX_ESP_DIVERGENCE 64
 
 void stack_growth_init (void);
-bool is_stack_access (void *fault_addr);
+bool stack_requires_growth (void *fault_addr);
 bool is_valid_stack_access (void *fault_addr, void *esp);
 void grow_stack (void *fault_addr, void *esp);
 uint8_t *maximum_stack_addr (void);
