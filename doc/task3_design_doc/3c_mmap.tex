@@ -6,9 +6,9 @@
 % `struct' member, global or static variable, `typedef', or
 % enumeration.  Identify the purpose of each in 25 words or less.
 
-mapped\_files.h:
+\subsubsection*{vm/mapped\_files.h}
 
-Structure which is used in the mapped files hash.
+\begin{verbatim}
 struct mapid
   {
     mapid\_t mapid;
@@ -16,14 +16,28 @@ struct mapid
     struct supp\_page\_segment *segment;
     struct hash\_elem elem;
   };
+\end{verbatim}
 
-process.h:
+struct mapid is a data structure that keeps track of data for a memory mapped
+file.
 
-Added to typdef struct process\_info.
-  /* Hash used to for mapping ids to files */
-  struct hash mapped\_files;
-  /* Provides unique map ids for process */
-  unsigned mapid\_counter;
+\subsubsection*{userprog/process.h}
+
+\begin{verbatim}
+typedef struct process_info
+  {
+...
+    /* Hash used to for mapping ids to files */
+    struct hash mapped\_files;
+    /* Provides unique map ids for process */
+    unsigned mapid\_counter;
+...
+  };
+\end{verbatim}
+
+mapped\_files maps mapid\_t to mapid structs.
+
+mapid\_counter is used to allocate unique mapids to each mapid struct.
 
 \subsection{Algorithms - Integration}
 
