@@ -154,6 +154,20 @@ malloc (size_t size)
   return b;
 }
 
+/* As malloc, but exits the current thread if memory could not be allocated.
+   Will not return a NULL pointer. */
+void *
+try_malloc (size_t size)
+{
+  void *memory = malloc (size);
+  if (memory == NULL)
+    {
+      printf ("malloc: Out of memory. Could not allocate.\n");
+      thread_exit ();
+    }
+  return memory;
+}
+
 /* Allocates and return A times B bytes initialized to zeroes.
    Returns a null pointer if memory is not available. */
 void *
@@ -183,7 +197,7 @@ try_calloc (size_t a, size_t b)
   void *memory = calloc (a, b);
   if (memory == NULL)
     {
-      printf ("Out of memory. Could not allocate.\n");
+      printf ("calloc: Out of memory. Could not allocate.\n");
       thread_exit ();
     }
   return memory;

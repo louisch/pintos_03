@@ -6,6 +6,7 @@
 
 void malloc_init (void);
 void *malloc (size_t) __attribute__ ((malloc));
+void *try_malloc (size_t) __attribute__ ((malloc));
 void *calloc (size_t, size_t) __attribute__ ((malloc));
 void *try_calloc (size_t, size_t);
 void *realloc (void *, size_t);
