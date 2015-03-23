@@ -41,7 +41,7 @@ struct frame
   bool pinned;  /* Indicates whether frame is pinned (cannot be evicted) */
   uint32_t *pd; /* The owner thread's page directory. */
   /* Pointer to the page's entry in the supplementary page table. */
-  struct supp_page_mapping *mapped;
+  struct supp_page_mapped *mapped;
   void *kpage;  /* The kernel virtual address of the frame. */
 };
 
@@ -77,7 +77,7 @@ frame_init (void)
    it has been processed. */
 void *
 request_frame (enum palloc_flags additional_flags,
-               struct supp_page_mapping *mapped)
+               struct supp_page_mapped *mapped)
 {
   lock_acquire (&frames.table_lock);
   /* For now, evict pages out of the system. */
