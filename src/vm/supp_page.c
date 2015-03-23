@@ -26,13 +26,13 @@ static struct supp_page_segment *segment_from_elem (const struct list_elem *e);
 static bool supp_page_segment_contains (struct supp_page_segment *segment, void *uaddr);
 static void setup_file_page (void *uaddr, void *kpage,
                              struct supp_page_segment *segment);
-static void supp_page_install_page (struct supp_page_mapped *mapped, void *kpage,
+static void supp_page_install_page (struct supp_page_mapping *mapped, void *kpage,
                                     struct supp_page_segment *segment);
 static uint32_t get_page_read_bytes (void *segment_addr, void *uaddr,
                                      uint32_t segment_read_bytes);
 
-static struct supp_page_mapped *create_mapped (struct supp_page_segment* segment, void *uaddr);
-static struct supp_page_mapped *mapped_from_mapping_elem (const struct hash_elem *e);
+static struct supp_page_mapping *create_mapped (struct supp_page_segment* segment, void *uaddr);
+static struct supp_page_mapping *mapped_from_mapping_elem (const struct hash_elem *e);
 static unsigned mapped_hash_func (const struct hash_elem *mapping_elem,
                                   void *aux UNUSED);
 static bool mapped_less_func (const struct hash_elem *a,
@@ -40,7 +40,7 @@ static bool mapped_less_func (const struct hash_elem *a,
                               void *aux UNUSED);
 static void supp_page_free_mapped (struct hash_elem *mapping_elem,
                                    void *pagedir_);
-static struct supp_page_mapped *lookup_mapped (struct supp_page_segment *segment,
+static struct supp_page_mapping *lookup_mapped (struct supp_page_segment *segment,
                                                 void *uaddr);
 
 
@@ -107,7 +107,7 @@ supp_page_map_addr (struct supp_page_segment *segment, void *fault_addr)
   void *uaddr = pg_round_down (fault_addr);
 
   /* Check whether this has been previously mapped. */
-  struct supp_page_mapped *mapped = lookup_mapped (segment, uaddr);
+  struct supp_page_mapping *mapped = lookup_mapped (segment, uaddr);
   if (mapped == NULL)
     {
       mapped = create_mapped (segment, uaddr);
@@ -164,7 +164,7 @@ supp_page_map_addr_directly (struct supp_page_table *supp_page_table,
 }
 
 void
-supp_page_swap_out (struct supp_page_mapped *mapped, slot_no swap_slot_no)
+supp_page_swap_out (struct supp_page_mapping *mapped, slot_no swap_slot_no)
 {
   mapped->swap_slot_no = swap_slot_no;
 }
@@ -172,7 +172,7 @@ supp_page_swap_out (struct supp_page_mapped *mapped, slot_no swap_slot_no)
 /* Write a page back to the file it is from if it is mmapped.
    Returns false if it is not mmapped or the page is not a file page. */
 bool
-supp_page_write_mmapped (uint32_t *pagedir, struct supp_page_mapped *mapped)
+supp_page_write_mmapped (uint32_t *pagedir, struct supp_page_mapping *mapped)
 {
   struct supp_page_segment *segment = mapped->segment;
   if (segment->file_data != NULL)
@@ -276,7 +276,7 @@ setup_file_page (void *uaddr, void *kpage, struct supp_page_segment *segment)
 
 /* Installs a kpage with uaddr into the current thread's pagedir. */
 static void
-supp_page_install_page (struct supp_page_mapped *mapped, void *kpage,
+supp_page_install_page (struct supp_page_mapping *mapped, void *kpage,
                         struct supp_page_segment *segment)
 {
   if (!install_page (mapped->uaddr, kpage, segment->writable))
@@ -307,10 +307,10 @@ get_page_read_bytes (void *segment_addr, void *uaddr, uint32_t segment_read_byte
 
 /* mapped_pages functions */
 
-static struct supp_page_mapped *
+static struct supp_page_mapping *
 create_mapped (struct supp_page_segment* segment, void *uaddr)
 {
-  struct supp_page_mapped *mapped = try_calloc (1, sizeof *mapped);
+  struct supp_page_mapping *mapped = try_calloc (1, sizeof *mapped);
   mapped->segment = segment;
   mapped->uaddr = uaddr;
   mapped->swap_slot_no = NOT_SWAP;
@@ -319,18 +319,18 @@ create_mapped (struct supp_page_segment* segment, void *uaddr)
   return mapped;
 }
 
-/* Get the supp_page_mapped wrapping a mapping_elem. */
-static struct supp_page_mapped *
+/* Get the supp_page_mapping wrapping a mapping_elem. */
+static struct supp_page_mapping *
 mapped_from_mapping_elem (const struct hash_elem *e)
 {
   ASSERT (e != NULL);
-  return hash_entry (e, struct supp_page_mapped, mapping_elem);
+  return hash_entry (e, struct supp_page_mapping, mapping_elem);
 }
 
 static unsigned
 mapped_hash_func (const struct hash_elem *mapping_elem, void *aux UNUSED)
 {
-  struct supp_page_mapped *mapped = mapped_from_mapping_elem (mapping_elem);
+  struct supp_page_mapping *mapped = mapped_from_mapping_elem (mapping_elem);
   /* sizeof returns how many bytes uaddr, the pointer itself (not what it is
      pointing to), takes up. */
   return hash_bytes (&mapped->uaddr, sizeof mapped->uaddr);
@@ -340,8 +340,8 @@ static bool
 mapped_less_func (const struct hash_elem *a, const struct hash_elem *b,
                   void *aux UNUSED)
 {
-  struct supp_page_mapped *mapped_a = mapped_from_mapping_elem (a);
-  struct supp_page_mapped *mapped_b = mapped_from_mapping_elem (b);
+  struct supp_page_mapping *mapped_a = mapped_from_mapping_elem (a);
+  struct supp_page_mapping *mapped_b = mapped_from_mapping_elem (b);
   return mapped_a->uaddr < mapped_b->uaddr;
 }
 
@@ -350,7 +350,7 @@ mapped_less_func (const struct hash_elem *a, const struct hash_elem *b,
 static void
 supp_page_free_mapped (struct hash_elem *mapping_elem, void *pagedir_)
 {
-  struct supp_page_mapped *mapped = mapped_from_mapping_elem (mapping_elem);
+  struct supp_page_mapping *mapped = mapped_from_mapping_elem (mapping_elem);
   uint32_t *pagedir = (uint32_t *)pagedir_;
   supp_page_write_mmapped (pagedir, mapped);
   if (mapped->swap_slot_no != NOT_SWAP)
@@ -363,10 +363,10 @@ supp_page_free_mapped (struct hash_elem *mapping_elem, void *pagedir_)
 }
 
 /* Looks for a mapped page with the given uaddr in the given segment. */
-static struct supp_page_mapped *
+static struct supp_page_mapping *
 lookup_mapped (struct supp_page_segment *segment, void *uaddr)
 {
-  struct supp_page_mapped for_lookup;
+  struct supp_page_mapping for_lookup;
   for_lookup.uaddr = uaddr;
 
   struct hash_elem *result = hash_find (&segment->mapped_pages, &for_lookup.mapping_elem);
