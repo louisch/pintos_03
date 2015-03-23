@@ -205,7 +205,6 @@ get_arg (struct intr_frame *frame, int offset)
 }
 
 /* System call functions below */
-/* TODO: Add documentation about what the system call does */
 
 /* Terminates the operating system immediately, without discussion. */
 static void
