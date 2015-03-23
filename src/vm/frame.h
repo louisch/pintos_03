@@ -8,7 +8,7 @@ void frame_init (void);
 void pin_frame (void *kpage);
 void unpin_frame (void *kpage);
 void *request_frame (enum palloc_flags additional_flags,
-                     struct supp_page_mapping *mapped);
+                     struct supp_page_mapped *mapped);
 void free_frame (void *kpage);
 
 #endif /* vm/frame.h */
