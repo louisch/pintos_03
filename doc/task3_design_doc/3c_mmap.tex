@@ -11,10 +11,10 @@
 \begin{verbatim}
 struct mapid
   {
-    mapid\_t mapid;
+    mapid_t mapid;
     struct file *file;
-    struct supp\_page\_segment *segment;
-    struct hash\_elem elem;
+    struct supp_page_segment *segment;
+    struct hash_elem elem;
   };
 \end{verbatim}
 
@@ -28,9 +28,9 @@ typedef struct process_info
   {
 ...
     /* Hash used to for mapping ids to files */
-    struct hash mapped\_files;
+    struct hash mapped_files;
     /* Provides unique map ids for process */
-    unsigned mapid\_counter;
+    unsigned mapid_counter;
 ...
   };
 \end{verbatim}
