@@ -39,7 +39,7 @@ struct frame
   struct list_elem eviction_elem;
   bool pinned;
   uint32_t *pd; /* The owner thread's page directory. */
-  struct supp_page_mapped *mapped;
+  struct supp_page_mapping *mapped;
   void *kpage;  /* The kernel virtual address of the frame. */
 };
 
@@ -72,7 +72,7 @@ frame_init (void)
    be mapped to this address in the page table. */
 void *
 request_frame (enum palloc_flags additional_flags,
-               struct supp_page_mapped *mapped)
+               struct supp_page_mapping *mapped)
 {
   lock_acquire (&frames.table_lock);
   /* For now, evict pages out of the system. */
