@@ -77,7 +77,7 @@ frame_init (void)
    it has been processed. */
 void *
 request_frame (enum palloc_flags additional_flags,
-               struct supp_page_mapping *mapped)
+               struct supp_page_mapped *mapped)
 {
   lock_acquire (&frames.table_lock);
   /* For now, evict pages out of the system. */
