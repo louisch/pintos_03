@@ -5,7 +5,7 @@
 % Copy here the declaration of each new or changed `struct' or
 % `struct' member, global or static variable, `typedef', or
 % enumeration.  Identify the purpose of each in 25 words or less.
-\subsubsection*{In frame.c:}
+\subsubsection*{frame.c}
 
 \begin{verbatim}
 /* Meta-data about a frame. A frame is a physical storage unit in memory,
@@ -50,7 +50,7 @@ static struct frame_table frames;
 
 Internal variable for keeping track of all allocated frames without exposing details to the rest of the OS.
 
-\subsubsection*{In swap.c:}
+\subsubsection*{swap.c}
 
 \begin{verbatim}
 /* Struct inserted into the list of free ranges,
@@ -63,7 +63,7 @@ struct range
   };
 \end{verbatim}
 
-Represents a range of free swap slots. Each range is stored in the list free\_slot\_list. 
+Represents a range of free swap slots. Each range is stored in the list free\_slot\_list.
 
 \begin{verbatim}
 /* Enum describing how to extend the 2 ranges either side of a swap slot being
@@ -103,7 +103,7 @@ struct lock free_slot_list_lock;
 
 Lock used to synchronise access to the list of free swap slots.
 
-\subsubsection*{In swap.c:}
+\subsubsection*{swap.c}
 
 \begin{verbatim}
 /* Type for swap slot numbers. */
