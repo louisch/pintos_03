@@ -8,6 +8,9 @@
 \subsubsection*{In frame.c:}
 
 \begin{verbatim}
+/* Meta-data about a frame. A frame is a physical storage unit in memory,
+   page-aligned, and page-sized. Pages are stored in frames, though their
+   virtual addresses may differ from the actual physical address. */
 struct frame
 {
   struct hash_elem frame_elem; /* For placing frames inside frame_tables. */
@@ -19,11 +22,14 @@ struct frame
   void *kpage;  /* The kernel virtual address of the frame. */
 };
 \end{verbatim}
-Frame meta-data.
-A frame is a page-aligned, page-sized physical storage unit in memory.
-Pages are stored in frames, although their virtual addresses may differ from actual physical address.
+
+(see above comment)
 
 \begin{verbatim}
+/* The frame table keeps track of frames that are currently in use.
+   Uses redundant data-structures in order to provide quick look-up
+   (hash table) alongside efficient eviction (queue).
+   All provided external functions are self-synchronising. */
 struct frame_table
 {
   struct lock table_lock; /* Synchronizes table between threads. */
@@ -35,17 +41,76 @@ struct frame_table
   unsigned pinned_frames; /* Count of currently pinned frames. */
 };
 \end{verbatim}
-The frame table keeps track of frames that are currently in use.
-It uses redundant data-structures to provide quick look-up (hash table) alongside efficient eviction (queue).
 
+(see above comment)
 
 \begin{verbatim}
 static struct frame_table frames;
 \end{verbatim}
+
 Internal variable for keeping track of all allocated frames without exposing details to the rest of the OS.
 
-%\subsubsection*{In swap.c:}
-%TODO: Insert swap.c things here.
+\subsubsection*{In swap.c:}
+
+\begin{verbatim}
+/* Struct inserted into the list of free ranges,
+   marks start (inclusive) and end of range (exclusive). */
+struct range
+  {
+    slot_no start; /* Number of first free swap slot. */
+    slot_no end;   /* End of range (exclusive i.e. a used slot). */
+    struct list_elem elem; /* Used by the free_slot_list. */
+  };
+\end{verbatim}
+
+Represents a range of free swap slots. Each range is stored in the list free\_slot\_list. 
+
+\begin{verbatim}
+/* Enum describing how to extend the 2 ranges either side of a swap slot being
+   freed. */
+enum action_enum
+  {
+    EXTEND_NONE,
+    EXTEND_SMALLER,
+    EXTEND_LARGER,
+    EXTEND_BOTH
+  };
+\end{verbatim}
+
+(see above comment)
+
+\begin{verbatim}
+const uint32_t SECTORS_PER_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
+\end{verbatim}
+
+Constant denoting the number of sectors required to store one page.
+
+\begin{verbatim}
+struct list free_slot_list;
+\end{verbatim}
+
+List of free swap slot ranges.
+
+\begin{verbatim}
+struct block *swap_block;
+\end{verbatim}
+
+Pointer to the struct block which represents the swap disk, used when reading and writing.
+
+\begin{verbatim}
+struct lock free_slot_list_lock;
+\end{verbatim}
+
+Lock used to synchronise access to the list of free swap slots.
+
+\subsubsection*{In swap.c:}
+
+\begin{verbatim}
+/* Type for swap slot numbers. */
+typedef uint32_t slot_no;
+\end{verbatim}
+
+(see above comment)
 
 \subsection{Frame Eviction}
 
