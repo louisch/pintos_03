@@ -78,7 +78,7 @@ Registering a memory-mapped segment in the supplementary page table uses the
 same two functions as used for registering executable segments, so the code is
 fully shared in this situation.
 
-The supplementary page table treats both of these segments as 'file segments'
+The supplementary page table treats both of these segments as `file segments'
 during all of its processes, so the code is fully shared for page faults and
 eviction as well.
 
