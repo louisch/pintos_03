@@ -5,9 +5,12 @@
 % Copy here the declaration of each new or changed `struct' or
 % `struct' member, global or static variable, `typedef', or
 % enumeration.  Identify the purpose of each in 25 words or less.
-\subsubsection*{In frame.c:}
+\subsubsection*{frame.c}
 
 \begin{verbatim}
+/* Meta-data about a frame. A frame is a physical storage unit in memory,
+   page-aligned, and page-sized. Pages are stored in frames, though their
+   virtual addresses may differ from the actual physical address. */
 struct frame
 {
   struct hash_elem frame_elem; /* For placing frames inside frame_tables. */
@@ -19,11 +22,14 @@ struct frame
   void *kpage;  /* The kernel virtual address of the frame. */
 };
 \end{verbatim}
-Frame meta-data.
-A frame is a page-aligned, page-sized physical storage unit in memory.
-Pages are stored in frames, although their virtual addresses may differ from actual physical address.
+
+(see above comment)
 
 \begin{verbatim}
+/* The frame table keeps track of frames that are currently in use.
+   Uses redundant data-structures in order to provide quick look-up
+   (hash table) alongside efficient eviction (queue).
+   All provided external functions are self-synchronising. */
 struct frame_table
 {
   struct lock table_lock; /* Synchronizes table between threads. */
@@ -35,17 +41,76 @@ struct frame_table
   unsigned pinned_frames; /* Count of currently pinned frames. */
 };
 \end{verbatim}
-The frame table keeps track of frames that are currently in use.
-It uses redundant data-structures to provide quick look-up (hash table) alongside efficient eviction (queue).
 
+(see above comment)
 
 \begin{verbatim}
 static struct frame_table frames;
 \end{verbatim}
+
 Internal variable for keeping track of all allocated frames without exposing details to the rest of the OS.
 
-%\subsubsection*{In swap.c:}
-%TODO: Insert swap.c things here.
+\subsubsection*{swap.c}
+
+\begin{verbatim}
+/* Struct inserted into the list of free ranges,
+   marks start (inclusive) and end of range (exclusive). */
+struct range
+  {
+    slot_no start; /* Number of first free swap slot. */
+    slot_no end;   /* End of range (exclusive i.e. a used slot). */
+    struct list_elem elem; /* Used by the free_slot_list. */
+  };
+\end{verbatim}
+
+Represents a range of free swap slots. Each range is stored in the list free\_slot\_list.
+
+\begin{verbatim}
+/* Enum describing how to extend the 2 ranges either side of a swap slot being
+   freed. */
+enum action_enum
+  {
+    EXTEND_NONE,
+    EXTEND_SMALLER,
+    EXTEND_LARGER,
+    EXTEND_BOTH
+  };
+\end{verbatim}
+
+(see above comment)
+
+\begin{verbatim}
+const uint32_t SECTORS_PER_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
+\end{verbatim}
+
+Constant denoting the number of sectors required to store one page.
+
+\begin{verbatim}
+struct list free_slot_list;
+\end{verbatim}
+
+List of free swap slot ranges.
+
+\begin{verbatim}
+struct block *swap_block;
+\end{verbatim}
+
+Pointer to the struct block which represents the swap disk, used when reading and writing.
+
+\begin{verbatim}
+struct lock free_slot_list_lock;
+\end{verbatim}
+
+Lock used to synchronise access to the list of free swap slots.
+
+\subsubsection*{swap.c}
+
+\begin{verbatim}
+/* Type for swap slot numbers. */
+typedef uint32_t slot_no;
+\end{verbatim}
+
+(see above comment)
 
 \subsection{Frame Eviction}
 
@@ -57,7 +122,8 @@ If the access bit of the page in the head frame is set or the frame is pinned, w
 We continue cycling through the list until we find a frame that is not pinned and whose page's access bit is not set and we evict this page.
 
 Note that if every frame in the list is pinned, instead of iterating endlessly through it, we wait until a frame is either freed or unpinned.
-In order to make this algorithm more efficient, we maintain a list of all used frames alongside the hash table that makes it possible to quickly find frame structures corresponding to a kernel page.
+Also, since we clear access bits as we go, we will eventually find a frame that has not been recently accessed.
+As mentioned earlier, in order to make this algorithm more efficient, we maintain a list of all used frames, alongside the hash table that provides constant lookup time for frames.
 
 \subsection{Algorithms - What happens to Q when P evicts Q's frame}
 
@@ -97,9 +163,9 @@ buggy user programs.
 swap - frame table:
   -write: swap table is always accessed from frame table + swap table synched internally
   -read: unsynchronised: can read concurrently %are you sure, Alan?
- 											   %but are you sure sure?
- 											   %I mean your retrieves lead to removal
- 											   %can you even be reading the same slot?
+                         %but are you sure sure?
+                         %I mean your retrieves lead to removal
+                         %can you even be reading the same slot?
 frame table - supp table:
   -request: receives info from supp + internal synch
   -eviction: locks the supp page entry to prevent race
@@ -109,6 +175,12 @@ supp - swap table/disk
     -disk: filesys\_lock
     -swap table: internal synch
   -free slots and pages
+  
+Swap is synchronised in 2 places: every read and write to the list of free slot ranges is synchronised with free\_slot\_list\_lock, and reading/writing to the actual swap disk are internally synchronised by the block.c functions.
+
+This means that reading and writing are not performed concurrently, as both access free\_slot\_list and the swap disk itself, so it is safe to call from multiple threads at the same time without race conditions arising.
+
+There should also never be in a situation where you are trying to read and write the same swap slot simultaneously. This is because each time you write, you get a unique free slot number to write to (acquired via. a synchronised call to get\_next\_free\_slot ()), so another thread cannot possibly be holding the same slot number (and then read from it).
 
 \subsection{Synchronization - Concurrent Accesses during page eviction}
 
@@ -116,10 +188,10 @@ supp - swap table/disk
 % to be evicted.  How do you ensure that Q cannot access or modify
 % the page during the eviction process?  How do you avoid a race
 % between P evicting Q's frame and Q faulting the page back in?
-In order to prevent Q from accessing its page, during eviction we begin by removing the page from the page table.
-We also acquire a lock to prevent process Q from attempting to fault its page back in before process P finishes writing the page to either swap or the file-system, if the page was a memory mapped file).
+During eviction we begin by acquiring a lock to prevent process Q from attempting to fault its page back in before process P finishes writing the page to either swap or the file-system, if the page was a memory mapped file). We also clear the mapping from the page table so that the next access faults, and so that during eviction the user cannot access the frame anymore.
 
-Race conditions related to the frame table itself are avoided through internal synchronisation: each external function in frame.c implicitly acquires a lock over the frame table before accessing it.
+Race conditions related to the frame table itself are avoided through internal synchronisation. Each external function in frame.c implicitly acquires a lock over the frame table before accessing it.
+
 Hence, in this case, process Q will be blocked until process P finishes evicting the page.
 
 \subsection{Synchronization - Concurrent eviction when reading in page}

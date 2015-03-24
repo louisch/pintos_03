@@ -125,20 +125,37 @@ lifetime.
 % In a few paragraphs, describe your code for locating the frame,
 % if any, that contains the data of a given page.
 
-During a page fault, we find which segment a page is in (this is necessary
-because the segment struct contains metadata which is required for this locating
-algorithm), and then we check whether the page has previously been mapped. If it
-has, then we will find a struct that tells us whether the page lies in swap or
-not. It also tells us where in swap it lies if the page does currently reside in
-swap.
+During a page fault, we find which segment a page is in. We locate a
+supp\_page\_segment for the faulting address, which will succeed as long as the
+faulting address is valid.
 
-If this struct cannot be found, then we can infer which page of the file the
-faulting page resides in, from data stored in the segment (a struct file
-pointer, the offset into the file that the segment begins at, etc.).
-
-When requesting a new frame, we use the unchanged palloc\_get\_page function to
+We always start by requesting a frame from the frame table to use.  When
+requesting a new frame, we use the unchanged palloc\_get\_page function to
 locate a free frame to use. If no frame is returned, then we evict some frame to
-use (more details on this further down).
+use (more details on this further down). Here, there is the possibility for
+checking whether the page should be all zeroes, and then fetching some special
+shared read-only frame that was previously filled with zeroes if this is the
+case.  However, we do not implement this.
+
+We then we try to locate a supp\_page\_mapping for the page. This struct
+contains data that tells us whether the page lies in swap or not. It also tells
+us where in swap it lies if the page does currently reside in swap. If it does
+lie in swap, then we read the page into the frame we requested.
+
+If this struct cannot be found for the faulting address, then the page is
+definitely not in swap. Either way, if the page does not lie in swap, then we
+check whether the segment is a file segment. The supp\_page\_segment holds a
+pointer to its supp\_page\_file\_data, which is NULL if it is not a file
+segment. The file data struct keeps track of the offset into the file that the
+segment starts at, the number of bytes that need to be read from the file, and
+the size of the segment as a whole in bytes. After rounding the faulting address
+down to a page boundary, we have all the information required to read a faulting
+page of a file segment into the frame requested earlier, and to install it into
+the pagedir.
+
+Otherwise, the page is a new non-file segment, and is a page that we have not
+previously mapped before. The stack is the only segment in this category.  In
+this case, we just zero out the frame we requested earlier.
 
 \subsection{Algorithms - Aliases of Accessed and Dirty bits}
 
@@ -147,7 +164,11 @@ use (more details on this further down).
 % alternatively how do you avoid the issue?
 
 We simply check the accessed and dirty bits of both, summing the number of bits
-set for all aliases of a frame.
+set for all aliases of a frame. The frame table keeps track of the
+supp\_page\_mapping that has been mapped to each frame, which in turn contains
+the virtual user address of the page. It also keeps track of the virtual kernel
+address of the frame, so it can check the accessed and dirty bits of both
+addresses.
 
 \subsection{Synchronization - Concurrent frame requests}
 
@@ -164,37 +185,55 @@ until the first is finished.
 % Why did you choose the data structure(s) that you did for
 % representing virtual-to-physical mappings?
 
-We chose to keep track of data about segments of user virtual pages in a list,
-corresponding to the code and data segments of the user executable, but also
-allowing us to group the pages of every memory-mapped file, and the pages of the
-stack together.
+We chose to organise by segments. The supp\_page\_segments represent the code
+and data segments of the user executable quite nicely, but can also be used to
+represent any contiguous sequence of pages, so we register the stack, as well as
+each memory-mapped file, as a segment.
 
 This means that any data that applies to all pages within a segment is shared
 among them. The code would perhaps be simpler if we had organised purely by
 pages, and had copies of this data for every page in a segment, but this would
-be hugely memory inefficient.
+be hugely memory inefficient. Data that needs to be shared, for example, is the
+supp\_page\_file\_data that applies to all pages within a segment.
 
 The only additional requirement is that segments must keep a hash table of the
 pages that have been mapped previously to frames within it, so that if the pages
-are swapped out this could be recorded.
+are swapped out this could be recorded. A hash table is a good choice here, as
+it provides constant time lookup.
 
 Using a list to keep track of segments means iterating over the list during each
-page fault, which is somewhat slow. It works fast enough in practice however,
-and we didn't want to use too much time implementing a faster data structure.
+page fault, which is somewhat slow. We cannot simply use the hash table
+mentioned above directly, as the shared data within the segment is required. It
+works fast enough in practice however, and we didn't want to use too much time
+implementing a faster data structure.
 
-Pages are either on a file, in swap, in memory, or simply not mapped (as in the
-case of paged-out un-dirty stack pages for instance) and during a page fault, we
-only need to know whether it is in a file, in swap, or in no particular location
-(since it clearly isn't in memory). Since only pages that have already been
-mapped can be swapped out, it is sufficient to simply store some small amount of
-data on mapped pages to indicate whether they are in swap, and if they are,
-where they are in swap.
+Keeping track of some data for every single mapping that each process makes
+would require a lot of memory if multiple processes use a lot of memory. This
+issue could potentially be alleviated by instead keeping a hash table from
+virtual user addresses to swap numbers inside the swap table data
+structure. This would mean that supp\_page\_mapping no longer needs to be
+created, as we would be able to look up faulting addresses directly in the swap
+table.  The memory usage goes down from `the number of pages that have been
+mapped' to `the number of pages that have been swapped out'. We did not get
+around to implementing this, however.
 
 We have a frame table data structure that performs the work of palloc'ing pages
 and evicting pages if required. It has a hash table which provides quick lookup
 of a frame via kernel virtual address, when we need to free a specific frame. It
-also has a list of frames, so that we can treat the frames as a circular queue
-for our eviction algorithm.
+also has a list of frames, so that we can treat the frames as a circular queue for our eviction algorithm. This makes the code for creating and destroying frames
+slightly more difficult to write, as two data structures need to be updated, but
+this is a trade-off we were willing to make for the increased speed.
+
+The swap table keeps track of free swap slots by storing ranges of free slots into a list, ordered by the lowest starting slot number. This has the advantage of being memory-efficient and quite scalable for larger swap disks. Because the ranges are stored in an ordered list, allocating a free swap slot is done in constant time by taking the first free slot of the first free range, and decrementing the range by one (and removing it if necessary).
+
+Freeing swap slots is more tricky as we need to iterate through the the existing ranges to find the place of insertion, before either creating a new range, extending an existing range or merging two ranges into one. However, the number of ranges should on average be quite small in comparison
+
+Swap table
+	uses ranges of free slots as a memory-efficient way of marking free slots
+	Because free swap slot ranges are stored in an ordered list (with the lowest start slot first), allocating a free swap slot is very fast - a simple matter of taking the first free slot of the first free range.
+	Freeing a slot is more complex as you need to iterate through existing ranges, before either creating new range, extending an existing range or merging 2 existing ranges into one. However this is an acceptable (and necessary) trade-off for the amount of memory saved, and the .
+	Bitmaps are an alternative solution. However, they make searching for the next free slot slower as you would have to iterate through the bitmap, and the number of bitmap cells to iterate through is likely higher than the number of ranges needed to iterate through for range insertion.
+	It is theoretically possible for the ranges to become very fragmented. However, in practice this is unlikely because the next free slot is always the lowest available slot number, thus filling in the gaps. It is possible to implement a limit on the number of ranges and ``defragment'' the swap disk should this limit be exceeded. However, this is likely a bad idea in practice because disk access is many orders of magnitude slower than memory access, and it has not been implemented for this reason.
 
 % TODO: Talk about data structures used in swap table
 % TODO: Talk about data structures used in memory mapped files
