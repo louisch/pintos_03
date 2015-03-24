@@ -219,6 +219,10 @@ for our eviction algorithm. This makes the code for creating and destroying fram
 slightly more difficult to write, as two data structures need to be updated, but
 this is a trade-off we were willing to make for the increased speed.
 
+The swap table keeps track of free swap slots by storing ranges of free slots into a list, ordered by the lowest starting slot number. This has the advantage of being memory-efficient and quite scalable for larger swap disks. Because the ranges are stored in an ordered list, allocating a free swap slot is done in constant time by taking the first free slot of the first free range, and decrementing the range by one (and removing it if necessary).
+
+Freeing swap slots is more tricky as we need to iterate through the the existing ranges to find the place of insertion, before either creating a new range, extending an existing range or merging two ranges into one. However, the number of ranges should on average be quite small in comparison
+
 Swap table
 	uses ranges of free slots as a memory-efficient way of marking free slots
 	Because free swap slot ranges are stored in an ordered list (with the lowest start slot first), allocating a free swap slot is very fast - a simple matter of taking the first free slot of the first free range.
