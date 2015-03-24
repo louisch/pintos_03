@@ -196,5 +196,12 @@ of a frame via kernel virtual address, when we need to free a specific frame. It
 also has a list of frames, so that we can treat the frames as a circular queue
 for our eviction algorithm.
 
+Swap table
+	uses ranges of free slots as a memory-efficient way of marking free slots
+	Because free swap slot ranges are stored in an ordered list (with the lowest start slot first), allocating a free swap slot is very fast - a simple matter of taking the first free slot of the first free range.
+	Freeing a slot is more complex as you need to iterate through existing ranges, before either creating new range, extending an existing range or merging 2 existing ranges into one. However this is an acceptable (and necessary) trade-off for the amount of memory saved, and the . 
+	Bitmaps are an alternative solution. However, they make searching for the next free slot slower as you would have to iterate through the bitmap, and the number of bitmap cells to iterate through is likely higher than the number of ranges needed to iterate through for range insertion.
+	It is theoretically possible for the ranges to become very fragmented. However, in practice this is unlikely because the next free slot is always the lowest available slot number, thus filling in the gaps. It is possible to implement a limit on the number of ranges and ``defragment'' the swap disk should this limit be exceeded. However, this is likely a bad idea in practice because disk access is many orders of magnitude slower than memory access, and it has not been implemented for this reason.
+
 % TODO: Talk about data structures used in swap table
 % TODO: Talk about data structures used in memory mapped files
