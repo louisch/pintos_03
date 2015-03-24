@@ -207,9 +207,15 @@ mentioned above directly, as the shared data within the segment is required. It
 works fast enough in practice however, and we didn't want to use too much time
 implementing a faster data structure.
 
-Keeping track of some data for every single mapping that each process makes would
-require a lot of memory if multiple processes uses a lot of memory.
-% TODO: Would creating a hash table from uaddr to swap_no in swap table solve this problem?
+Keeping track of some data for every single mapping that each process makes
+would require a lot of memory if multiple processes use a lot of memory. This
+issue could potentially be alleviated by instead keeping a hash table from
+virtual user addresses to swap numbers inside the swap table data
+structure. This would mean that supp\_page\_mapping no longer needs to be
+created, as we would be able to look up faulting addresses directly in the swap
+table.  The memory usage goes down from `the number of pages that have been
+mapped' to `the number of pages that have been swapped out'. We did not get
+around to implementing this, however.
 
 We have a frame table data structure that performs the work of palloc'ing pages
 and evicting pages if required. It has a hash table which provides quick lookup
