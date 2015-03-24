@@ -6,6 +6,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
+/* Macro for performing swap block reading/writing at a specific slot number. */
 #define block_do(KPAGE, SLOT, FUNC)                                    \
   uint32_t curr_sector;                                                \
   for (curr_sector = 0; curr_sector < SECTORS_PER_PAGE; curr_sector++) \
