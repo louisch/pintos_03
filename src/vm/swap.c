@@ -24,6 +24,8 @@ struct range
     struct list_elem elem; /* Used by the free_slot_list. */
   };
 
+/* Enum describing how to extend the 2 ranges either side of a swap slot being
+   freed. */
 enum action_enum
   {
     EXTEND_NONE,
@@ -44,7 +46,6 @@ static enum action_enum check_extend_larger (struct list_elem *, slot_no slot);
 static void create_range (slot_no, slot_no);
 static void delete_range (struct range *);
 static slot_no get_next_free_slot (void);
-// static void free_page_slot (slot_no);
 static bool range_lt (const struct list_elem *, const struct list_elem *,
                       void *);
 
@@ -81,7 +82,7 @@ void swap_retrieve (slot_no slot, void *kpage)
 {
   ASSERT (slot < (block_size (swap_block) / SECTORS_PER_PAGE));
   block_do (kpage, slot, block_read);
-  swap_free_slot (slot); // Internally synchronised
+  swap_free_slot (slot); /* Internally synchronised */
 }
 
 /* Reinserts a free slot into free_slot_list.
@@ -113,7 +114,7 @@ void swap_free_slot (slot_no slot)
   switch (action)
   {
   case (EXTEND_NONE):
-    create_range (slot, slot + 1); // Lock already acquired
+    create_range (slot, slot + 1); /* N.B. lock already acquired */
     break;
   case (EXTEND_SMALLER):
     range_entry (list_prev (e))->end++;
