@@ -132,10 +132,10 @@ faulting address is valid.
 We always start by requesting a frame from the frame table to use.  When
 requesting a new frame, we use the unchanged palloc\_get\_page function to
 locate a free frame to use. If no frame is returned, then we evict some frame to
-use (more details on this further down). Here, there is the possibility for
-checking whether the page should be all zeroes, and then fetching some special
-shared read-only frame that was previously filled with zeroes if this is the
-case.  However, we do not implement this.
+use (more details on this further down). Here, if the page fault was a read,
+there is the possibility for checking whether the page should be all zeroes, and
+then fetching some special shared read-only frame that was previously filled
+with zeroes if this is the case.  However, we do not implement this.
 
 We then we try to locate a supp\_page\_mapping for the page. This struct
 contains data that tells us whether the page lies in swap or not. It also tells
@@ -220,9 +220,11 @@ around to implementing this, however.
 We have a frame table data structure that performs the work of palloc'ing pages
 and evicting pages if required. It has a hash table which provides quick lookup
 of a frame via kernel virtual address, when we need to free a specific frame. It
-also has a list of frames, so that we can treat the frames as a circular queue for our eviction algorithm. This makes the code for creating and destroying frames
-slightly more difficult to write, as two data structures need to be updated, but
-this is a trade-off we were willing to make for the increased speed.
+also has a list of frames, so that we can treat the frames as a circular queue
+for our eviction algorithm. This makes the code for creating and destroying
+frames slightly more difficult to write, as two data structures need to be
+updated, but this is a trade-off we were willing to make for the increased
+speed.
 
 The swap table keeps track of free swap slots by storing ranges of free slots into a list, ordered by the lowest starting slot number. This has the advantage of being memory-efficient and quite scalable for larger swap disks. Because the ranges are stored in an ordered list, allocating a free swap slot is done in constant time by taking the first free slot of the first free range, and decrementing the range by one (and removing it if necessary).
 
