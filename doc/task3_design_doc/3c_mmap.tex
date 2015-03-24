@@ -56,17 +56,6 @@ value that indicates the page is not in swap. Non-swap pages will either have
 the default swap number, or will not have a mapping in the supplementary page
 table, if they have not been mapped previously.
 
-Swap pages are retrieved from swap when they page fault. Whenever a frame is
-evicted, its swap number is recorded in the supplementary page table if the
-frame table places it in swap (as opposed to just abandoning the frame, when it
-isn't dirty).
-
-File pages (pages inside file segments) are read in from the correct offset into
-the file. The offset and a pointer to the file are kept inside the data for the
-segment they belong to.
-
-Stack pages are just zeroed out on the first read.
-
 \subsection{Algorithms - Overlaps}
 
 % Explain how you determine whether a new file mapping overlaps
