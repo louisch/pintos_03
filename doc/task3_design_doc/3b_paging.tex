@@ -175,6 +175,12 @@ supp - swap table/disk
     -disk: filesys\_lock
     -swap table: internal synch
   -free slots and pages
+  
+Swap is synchronised in 2 places: every read and write to the list of free slot ranges is synchronised with free\_slot\_list\_lock, and reading/writing to the actual swap disk are internally synchronised by the block.c functions.
+
+This means that reading and writing are not performed concurrently, as both access free\_slot\_list and the swap disk itself, so it is safe to call from multiple threads at the same time without race conditions arising.
+
+There should also never be in a situation where you are trying to read and write the same swap slot simultaneously. This is because each time you write, you get a unique free slot number to write to (acquired via. a synchronised call to get\_next\_free\_slot ()), so another thread cannot possibly be holding the same slot number (and then read from it).
 
 \subsection{Synchronization - Concurrent Accesses during page eviction}
 
