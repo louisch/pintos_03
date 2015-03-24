@@ -122,7 +122,8 @@ If the access bit of the page in the head frame is set or the frame is pinned, w
 We continue cycling through the list until we find a frame that is not pinned and whose page's access bit is not set and we evict this page.
 
 Note that if every frame in the list is pinned, instead of iterating endlessly through it, we wait until a frame is either freed or unpinned.
-In order to make this algorithm more efficient, we maintain a list of all used frames alongside the hash table that makes it possible to quickly find frame structures corresponding to a kernel page.
+Also, since we clear access bits as we go, we will eventually find a frame that has not been recently accessed.
+As mentioned earlier, in order to make this algorithm more efficient, we maintain a list of all used frames, alongside the hash table that provides constant lookup time for frames.
 
 \subsection{Algorithms - What happens to Q when P evicts Q's frame}
 
@@ -181,10 +182,10 @@ supp - swap table/disk
 % to be evicted.  How do you ensure that Q cannot access or modify
 % the page during the eviction process?  How do you avoid a race
 % between P evicting Q's frame and Q faulting the page back in?
-In order to prevent Q from accessing its page, during eviction we begin by removing the page from the page table.
-We also acquire a lock to prevent process Q from attempting to fault its page back in before process P finishes writing the page to either swap or the file-system, if the page was a memory mapped file).
+During eviction we begin by acquiring a lock to prevent process Q from attempting to fault its page back in before process P finishes writing the page to either swap or the file-system, if the page was a memory mapped file). We also clear the mapping from the page table so that the next access faults, and so that during eviction the user cannot access the frame anymore.
 
-Race conditions related to the frame table itself are avoided through internal synchronisation: each external function in frame.c implicitly acquires a lock over the frame table before accessing it.
+Race conditions related to the frame table itself are avoided through internal synchronisation. Each external function in frame.c implicitly acquires a lock over the frame table before accessing it.
+
 Hence, in this case, process Q will be blocked until process P finishes evicting the page.
 
 \subsection{Synchronization - Concurrent eviction when reading in page}
